@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "registry_documents_portal_number_uidx" ON "registry_documents" USING btree ("portal_url","type_id","legal_entity_id","number");

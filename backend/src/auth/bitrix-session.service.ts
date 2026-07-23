@@ -1,0 +1,94 @@
+import { createHash } from 'node:crypto';
+
+import { and, eq } from 'drizzle-orm';
+
+import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
+import type { Database } from '../db/database.js';
+import { registryUserRoles } from '../db/schema/index.js';
+import { ApiError } from '../http/api-error.js';
+import type { RegistryContext } from '../http/registry-context.js';
+
+interface BitrixProfile {
+  ID: string;
+  ADMIN?: boolean;
+}
+
+interface BitrixUser {
+  ID: string;
+  ACTIVE: boolean;
+}
+
+interface CachedSession {
+  expiresAt: number;
+  context: RegistryContext;
+}
+
+export interface BitrixSessionResolver {
+  resolve(domain: string, accessToken: string, memberId?: string): Promise<RegistryContext>;
+}
+
+export class BitrixSessionService implements BitrixSessionResolver {
+  private readonly cache = new Map<string, CachedSession>();
+
+  constructor(
+    private readonly database: Database,
+    private readonly client: BitrixApiClient,
+  ) {}
+
+  async resolve(domainInput: string, accessToken: string, memberId?: string) {
+    const domain = this.client.normalizeDomain(domainInput);
+    const cacheKey = createHash('sha256')
+      .update(`${domain}\0${accessToken}`)
+      .digest('hex');
+    const cached = this.cache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.context;
+
+    const [profile, user] = await Promise.all([
+      this.client.call<BitrixProfile>(domain, accessToken, 'profile'),
+      this.client.call<BitrixUser>(domain, accessToken, 'user.current'),
+    ]);
+    const userId = Number(user.ID);
+    if (!Number.isSafeInteger(userId) || userId <= 0 || !user.ACTIVE || profile.ID !== user.ID) {
+      throw new ApiError(401, 'bitrix_user_invalid', 'Bitrix24 user is not active.');
+    }
+
+    const portalUrl = `https://${domain}`;
+    const roleCode = profile.ADMIN
+      ? 'admin'
+      : await this.resolveUserRole(portalUrl, userId);
+    const context: RegistryContext = {
+      portalUrl,
+      userId,
+      roleCode,
+      source: 'bitrix',
+      bitrix: { domain, accessToken, memberId },
+    };
+    if (this.cache.size >= 500) {
+      for (const [key, item] of this.cache) {
+        if (item.expiresAt <= Date.now()) this.cache.delete(key);
+      }
+      if (this.cache.size >= 500) this.cache.delete(this.cache.keys().next().value!);
+    }
+    this.cache.set(cacheKey, { context, expiresAt: Date.now() + 60_000 });
+    return context;
+  }
+
+  private async resolveUserRole(portalUrl: string, userId: number) {
+    const [mapping] = await this.database
+      .select({ roleCode: registryUserRoles.roleCode })
+      .from(registryUserRoles)
+      .where(
+        and(
+          eq(registryUserRoles.portalUrl, portalUrl),
+          eq(registryUserRoles.userId, userId),
+        ),
+      )
+      .limit(1);
+    if (mapping) return mapping.roleCode;
+    throw new ApiError(
+      403,
+      'registry_access_not_assigned',
+      'Доступ к реестру не назначен.',
+    );
+  }
+}

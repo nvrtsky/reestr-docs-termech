@@ -1,0 +1,1071 @@
+
+
+<div style="height: 100vh; display: flex; flex-direction: column; font-family: 'Geist', system-ui, sans-serif; color: #18181b; font-size: 13px; overflow: hidden; background: #fff;">
+
+  <!-- ░░ TOP BAR ░░ -->
+  <div style="flex: none; height: 46px; background: #18181b; display: flex; align-items: center; padding: 0 16px; gap: 8px;">
+    <div style="width: 23px; height: 23px; border-radius: 6px; background: #6366f1; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: #fff;">Р</div>
+    <span style="color: #fff; font-weight: 600; font-size: 13px;">Реестр документов</span>
+    <span style="color: #71717a; font-size: 11.5px;">· Bitrix24</span>
+  </div>
+
+  <!-- ░░ CONTENT ░░ -->
+  <div style="flex: 1; min-height: 0; position: relative;">
+
+  <!-- ════════ PROTOTYPE MODE ════════ -->
+  <sc-if value="{{ true }}" hint-placeholder-val="{{ true }}">
+  <sc-if value="{{ accessDenied }}" hint-placeholder-val="{{ false }}">
+    <div style="height: 100%; display: flex; align-items: center; justify-content: center; background: #fff; padding: 24px;">
+      <div style="text-align: center; max-width: 420px;">
+        <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 18px;">Доступ к реестру не назначен</div>
+        <div style="font-size: 12.5px; color: #71717a; margin-top: 7px; line-height: 1.55;">Обратитесь к администратору реестра, чтобы он назначил вам роль.</div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ accessGranted }}" hint-placeholder-val="{{ true }}">
+  <div style="height: 100%; display: flex; min-width: 0; background: #fff;">
+
+  <!-- ░░ LEFT RAIL ░░ -->
+  <aside style="width: 224px; flex: none; background: #fafafa; border-right: 1px solid #ededed; display: flex; flex-direction: column;">
+    <div style="padding: 13px 12px 6px; font-size: 10px; letter-spacing: 0.7px; text-transform: uppercase; color: #a1a1aa;">Контексты</div>
+    <nav style="display: flex; flex-direction: column; gap: 1px; padding: 0 8px; overflow-y: auto;">
+      <button type="button" onclick="{{ goRegistry }}" style="{{ navRegistryStyle }}">
+        <span style="width: 15px; text-align: center;">▦</span> Полный реестр
+        <span style="margin-left: auto; font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ totalCount }}</span>
+      </button>
+      <sc-if value="{{ isActiveRegistry }}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; flex-direction: column; gap: 1px; margin: 3px 0 5px 13px; padding-left: 9px; border-left: 1px solid #e8e8ea;">
+        <button type="button" onclick="{{ pickAll }}" style="{{ secAllStyle }}">
+          <span style="width: 6px; height: 6px; border-radius: 2px; background: #a1a1aa;"></span> Все разделы
+          <span style="margin-left: auto; font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ totalCount }}</span>
+        </button>
+        <sc-for list="{{ sidebarSections }}" as="s" hint-placeholder-count="6">
+          <button type="button" onclick="{{ s.onPick }}" ondragover="{{ s.onDragOver }}" ondrop="{{ s.onDrop }}" style="{{ s.style }}">
+            <span style="width: 6px; height: 6px; border-radius: 2px; background: {{ s.c }};"></span> {{ s.label }}
+            <span style="margin-left: auto; font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ s.count }}</span>
+          </button>
+        </sc-for>
+      </div>
+      </sc-if>
+      <button type="button" onclick="{{ goArchive }}" style="{{ navArchiveStyle }}">
+        <span style="width: 15px; text-align: center;">⌑</span> Архив
+        <span style="margin-left: auto; font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ archiveCount }}</span>
+      </button>
+      <button type="button" onclick="{{ goDeal }}" style="{{ navDealStyle }}">
+        <span style="width: 15px; text-align: center;">◳</span> Карточка сделки
+        <span style="margin-left: auto; font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ dealCount }}</span>
+      </button>
+      <button type="button" onclick="{{ goCompany }}" style="{{ navCompanyStyle }}">
+        <span style="width: 15px; text-align: center;">▤</span> Карточка компании
+        <span style="margin-left: auto; font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ companyDocTotal }}</span>
+      </button>
+      <button type="button" onclick="{{ goAdmin }}" style="{{ navAdminStyle }}">
+        <span style="width: 15px; text-align: center;">⚙</span> Администрирование
+        <span style="margin-left: auto; font-size: 11px;">{{ adminLockIcon }}</span>
+      </button>
+      <button type="button" onclick="{{ openHelp }}" style="display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; background: transparent; color: #52525b; border: none; border-radius: 7px; padding: 8px 10px; font-size: 12.5px; font-weight: 500; cursor: pointer;">
+        <span style="width: 15px; text-align: center;">?</span> Помощь
+      </button>
+    </nav>
+    <div style="flex: 1;"></div>
+
+    <div style="padding: 11px 12px; border-top: 1px solid #ededed;">
+      <div style="font-size: 10px; letter-spacing: 0.7px; text-transform: uppercase; color: #a1a1aa; margin-bottom: 6px;">Ваша роль</div>
+      <sc-if value="{{ developmentRoleSwitcher }}" hint-placeholder-val="{{ true }}">
+        <select value="{{ role }}" onchange="{{ setRole }}" style="width: 100%; background: #fff; color: #18181b; border: 1px solid #e4e4e7; border-radius: 7px; padding: 7px 9px; font-size: 12.5px; font-weight: 500; cursor: pointer;">
+          <sc-for list="{{ developmentRoleOptions }}" as="o" hint-placeholder-count="5"><option value="{{ o.code }}">{{ o.label }}</option></sc-for>
+        </select>
+      </sc-if>
+      <sc-if value="{{ fixedRole }}" hint-placeholder-val="{{ false }}">
+        <div style="width: 100%; background: #fff; color: #18181b; border: 1px solid #e4e4e7; border-radius: 7px; padding: 7px 9px; font-size: 12.5px; font-weight: 500;">{{ roleLabel }}</div>
+      </sc-if>
+      <div style="font-size: 10.5px; color: #a1a1aa; margin-top: 7px; line-height: 1.4;">{{ roleHint }}</div>
+    </div>
+  </aside>
+
+  <!-- ░░ MAIN ░░ -->
+  <main style="flex: 1; display: flex; flex-direction: column; min-width: 0; background: #fff;">
+
+    <!-- ── REGISTRY SCREEN ── -->
+    <sc-if value="{{ isRegistry }}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; flex-direction: column; height: 100%;">
+      <header style="border-bottom: 1px solid #ededed; padding: 12px 20px; display: flex; align-items: center; gap: 14px;">
+        <div>
+          <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 17px; letter-spacing: -0.4px;">{{ headerTitle }}</div>
+          <div style="font-size: 11.5px; color: #a1a1aa; margin-top: 1px;">{{ headerSub }}</div>
+        </div>
+        <div style="flex: 1;"></div>
+        <div style="position: relative;">
+          <input value="{{ search }}" oninput="{{ setSearch }}" placeholder="Поиск по №, контрагенту, типу…" style="width: 270px; padding: 7px 12px 7px 30px; border: 1px solid #e4e4e7; border-radius: 8px; font-size: 12.5px; background: #fafafa;">
+          <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #a1a1aa; font-size: 13px;">⌕</span>
+        </div>
+        <sc-if value="{{ isActiveRegistry }}" hint-placeholder-val="{{ true }}"><button type="button" onclick="{{ openWizard }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 8px; padding: 8px 15px; font-size: 12.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">＋ Создать документ</button></sc-if>
+      </header>
+
+      <div style="border-bottom: 1px solid #ededed; padding: 0 20px; display: flex; align-items: center; gap: 4px;">
+        <sc-if value="{{ isActiveRegistry }}" hint-placeholder-val="{{ true }}">
+        <sc-for list="{{ savedViews }}" as="v" hint-placeholder-count="4">
+          <div style="display: flex; align-items: center;">
+            <button type="button" onclick="{{ v.onPick }}" style="{{ v.style }}">{{ v.label }} <span style="font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ v.count }}</span></button>
+            <sc-if value="{{ v.canManage }}" hint-placeholder-val="false"><button type="button" onclick="{{ v.onEdit }}" title="Изменить представление" style="width: 23px; height: 23px; margin-left: -5px; display: inline-flex; align-items: center; justify-content: center; background: none; border: none; color: #a1a1aa; font-size: 12px; cursor: pointer;">✎</button></sc-if>
+          </div>
+        </sc-for>
+        <div style="position: relative;">
+          <button type="button" onclick="{{ openSavedViewEditor }}" title="Сохранить текущее представление" style="width: 25px; height: 25px; display: inline-flex; align-items: center; justify-content: center; background: #fff; border: 1px solid #e4e4e7; border-radius: 6px; color: #71717a; font-size: 14px; cursor: pointer;">＋</button>
+          <sc-if value="{{ savedViewEditorOpen }}" hint-placeholder-val="false">
+            <div onclick="{{ closeSavedViewEditor }}" style="position: fixed; inset: 0; z-index: 25;"></div>
+            <div style="position: absolute; top: 34px; left: 0; z-index: 26; width: 278px; background: #fff; border: 1px solid #e4e4e7; border-radius: 9px; box-shadow: 0 12px 34px rgba(0,0,0,.14); padding: 12px;">
+              <div style="font-size: 10.5px; text-transform: uppercase; color: #a1a1aa; margin-bottom: 6px;">Представление</div>
+              <input value="{{ savedViewName }}" oninput="{{ setSavedViewName }}" maxlength="100" placeholder="Название" style="width: 100%; padding: 7px 8px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12px;">
+              <sc-if value="{{ savedViewCanShare }}" hint-placeholder-val="true"><label style="display: flex; align-items: center; gap: 7px; margin-top: 9px; color: #52525b; font-size: 11.5px; cursor: pointer;"><input type="checkbox" checked="{{ savedViewShared }}" onchange="{{ toggleSavedViewShared }}">Общее для всех пользователей</label></sc-if>
+              <sc-if value="{{ savedViewHasError }}" hint-placeholder-val="false"><div style="margin-top: 7px; color: #dc2626; font-size: 10.5px;">{{ savedViewError }}</div></sc-if>
+              <div style="display: flex; align-items: center; gap: 7px; margin-top: 11px;">
+                <sc-if value="{{ savedViewCanDelete }}" hint-placeholder-val="false"><button type="button" onclick="{{ deleteEditingSavedView }}" style="background: none; border: none; color: #dc2626; padding: 0; font-size: 11px; cursor: pointer;">Удалить</button></sc-if>
+                <div style="flex: 1;"></div>
+                <button type="button" onclick="{{ closeSavedViewEditor }}" style="background: #fff; border: 1px solid #e4e4e7; border-radius: 6px; padding: 6px 10px; color: #71717a; font-size: 11px; cursor: pointer;">Отмена</button>
+                <button type="button" onclick="{{ saveCurrentView }}" style="background: #4f46e5; border: 1px solid #4f46e5; border-radius: 6px; padding: 6px 10px; color: #fff; font-size: 11px; font-weight: 600; cursor: pointer;">{{ savedViewSaveLabel }}</button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+        </sc-if>
+        <div style="flex: 1;"></div>
+        <div style="position: relative; margin: 6px 0;">
+          <button type="button" onclick="{{ toggleFilter }}" style="{{ filterBtnStyle }}">⚲ Фильтр{{ filterBadge }}</button>
+          <sc-if value="{{ filterOpen }}" hint-placeholder-val="{{ false }}">
+            <div onclick="{{ closePopovers }}" style="position: fixed; inset: 0; z-index: 25;"></div>
+            <div style="position: absolute; top: 36px; right: 0; z-index: 26; width: 326px; background: #fff; border: 1px solid #e4e4e7; border-radius: 11px; box-shadow: 0 12px 34px rgba(0,0,0,.14); padding: 14px 15px;">
+              <div style="font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: #a1a1aa; margin-bottom: 7px;">Раздел</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
+                <sc-for list="{{ filterSectionChips }}" as="c" hint-placeholder-count="6"><button type="button" onclick="{{ c.onToggle }}" style="{{ c.style }}">{{ c.label }}</button></sc-for>
+              </div>
+              <div style="font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: #a1a1aa; margin-bottom: 7px;">Статус</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
+                <sc-for list="{{ filterStatusChips }}" as="c" hint-placeholder-count="5"><button type="button" onclick="{{ c.onToggle }}" style="{{ c.style }}">{{ c.label }}</button></sc-for>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <label style="display:block;"><span style="font-size: 10.5px; color: #a1a1aa;">Тип</span><select value="{{ filterType }}" onchange="{{ setFilterType }}" style="width:100%; margin-top:3px; padding:6px 8px; border:1px solid #e4e4e7; border-radius:7px; font-size:12px;"><sc-for list="{{ filterTypeOptions }}" as="o" hint-placeholder-count="6"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></select></label>
+                <label style="display:block;"><span style="font-size: 10.5px; color: #a1a1aa;">Ответственный</span><select value="{{ filterResp }}" onchange="{{ setFilterResp }}" style="width:100%; margin-top:3px; padding:6px 8px; border:1px solid #e4e4e7; border-radius:7px; font-size:12px;"><sc-for list="{{ filterRespOptions }}" as="o" hint-placeholder-count="6"><option value="{{ o.v }}">{{ o.l }}</option></sc-for></select></label>
+              </div>
+              <div style="margin-top: 10px;"><span style="font-size: 10.5px; color: #a1a1aa;">Контрагент</span><input value="{{ filterCp }}" oninput="{{ setFilterCp }}" placeholder="название…" style="width:100%; margin-top:3px; padding:6px 8px; border:1px solid #e4e4e7; border-radius:7px; font-size:12px;"></div>
+              <div style="margin-top: 10px;"><span style="font-size: 10.5px; color: #a1a1aa;">Период (дата документа)</span><div style="display:flex; gap:8px; margin-top:3px;"><input value="{{ filterFrom }}" oninput="{{ setFilterFrom }}" placeholder="с дд.мм.гггг" style="flex:1; min-width:0; padding:6px 8px; border:1px solid #e4e4e7; border-radius:7px; font-size:12px;"><input value="{{ filterTo }}" oninput="{{ setFilterTo }}" placeholder="по дд.мм.гггг" style="flex:1; min-width:0; padding:6px 8px; border:1px solid #e4e4e7; border-radius:7px; font-size:12px;"></div></div>
+              <div style="display:flex; align-items:center; gap:10px; margin-top:14px;"><button type="button" onclick="{{ resetFilters }}" style="background:none; border:none; color:#71717a; font-size:11.5px; cursor:pointer; padding:0;">Сбросить</button><div style="flex:1;"></div><span style="font-size:11px; color:#a1a1aa;">{{ filterResultLabel }}</span><button type="button" onclick="{{ closePopovers }}" style="background:#4f46e5; color:#fff; border:none; border-radius:7px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer;">Готово</button></div>
+            </div>
+          </sc-if>
+        </div>
+        <div style="position: relative; margin: 6px 0;">
+          <button type="button" onclick="{{ toggleCols }}" style="{{ colsBtnStyle }}">Колонки</button>
+          <sc-if value="{{ colsOpen }}" hint-placeholder-val="{{ false }}">
+            <div onclick="{{ closePopovers }}" style="position: fixed; inset: 0; z-index: 25;"></div>
+            <div style="position: absolute; top: 36px; right: 0; z-index: 26; width: 222px; background: #fff; border: 1px solid #e4e4e7; border-radius: 11px; box-shadow: 0 12px 34px rgba(0,0,0,.14); padding: 8px;">
+              <div style="font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: #a1a1aa; padding: 5px 8px;">Колонки</div>
+              <sc-for list="{{ columnToggles }}" as="c" hint-placeholder-count="6"><div onclick="{{ c.onToggle }}" style="display:flex; align-items:center; gap:9px; padding:7px 8px; border-radius:7px; cursor:pointer; font-size:12.5px; color:#3f3f46;"><span style="{{ c.boxStyle }}">{{ c.mark }}</span>{{ c.label }}</div></sc-for>
+            </div>
+          </sc-if>
+        </div>
+        <button type="button" onclick="{{ exportRegistry }}" style="background: none; border: 1px solid #e4e4e7; border-radius: 7px; padding: 5px 11px; font-size: 11.5px; color: #52525b; cursor: pointer; margin: 6px 0;">⭳ XLSX</button>
+      </div>
+
+      <div style="flex: 1; overflow: auto;">
+        <div style="min-width: 936px;">
+          <div style="{{ headerGridStyle }}">
+            <div style="padding: 7px 8px 7px 20px;"></div>
+            <div style="padding: 7px 8px;">Документ</div>
+            <sc-if value="{{ colSection }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px;">Раздел</div></sc-if>
+            <sc-if value="{{ colCounterparty }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px;">Контрагент</div></sc-if>
+            <sc-if value="{{ colStatus }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px;">Статус</div></sc-if>
+            <sc-if value="{{ colAmount }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; text-align: right;">Сумма</div></sc-if>
+            <sc-if value="{{ colDocDate }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px;">Дата</div></sc-if>
+            <sc-if value="{{ colResponsible }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px;">Ответственный</div></sc-if>
+            <div style="padding: 7px 20px 7px 8px;"></div>
+          </div>
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="12">
+            <div onclick="{{ r.onOpen }}" style="{{ r.rowGridStyle }}">
+              <div onclick="{{ r.onToggleSel }}" style="padding: 0 8px 0 20px; display: flex; align-items: center;"><span style="{{ r.checkStyle }}">{{ r.checkMark }}</span></div>
+              <div style="padding: 7px 8px; display: flex; align-items: center; gap: 8px; min-width: 0;">
+                <span style="font-size: 12px; opacity: .5;">{{ r.attachIcon }}</span>
+                <div style="min-width: 0;">
+                  <div style="font-weight: 500; color: #18181b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.title }}</div>
+                  <div style="font-family: 'IBM Plex Mono'; font-size: 10px; color: #a1a1aa;">{{ r.num }}</div>
+                </div>
+              </div>
+              <sc-if value="{{ colSection }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; min-width: 0;"><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: #52525b;"><span style="width: 6px; height: 6px; border-radius: 2px; background: {{ r.sectionC }}; flex: none;"></span>{{ r.sectionLabel }}</span></div></sc-if>
+              <sc-if value="{{ colCounterparty }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; min-width: 0; color: #52525b;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.counterparty }}</span></div></sc-if>
+              <sc-if value="{{ colStatus }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; min-width: 0;"><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: {{ r.statusC }}; white-space: nowrap;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ r.statusC }}; flex: none;"></span>{{ r.statusLabel }}</span></div></sc-if>
+              <sc-if value="{{ colAmount }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; justify-content: flex-end; font-family: 'IBM Plex Mono'; font-size: 12px; color: #18181b; white-space: nowrap;">{{ r.amountStr }}</div></sc-if>
+              <sc-if value="{{ colDocDate }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; font-family: 'IBM Plex Mono'; font-size: 11px; color: #71717a; white-space: nowrap;">{{ r.docDate }}</div></sc-if>
+              <sc-if value="{{ colResponsible }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; color: #52525b; white-space: nowrap; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.responsible }}</span></div></sc-if>
+              <div onclick="{{ r.onToggleMenu }}" style="position: relative; padding: 7px 20px 7px 8px; display: flex; align-items: center; justify-content: center; color: #71717a; cursor: pointer;">
+                <sc-if value="{{ r.hasActions }}" hint-placeholder-val="{{ true }}">
+                <button type="button" title="Действия" style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; background: none; border: none; color: inherit; font-size: 16px; line-height: 1; cursor: pointer;">⋯</button>
+                <sc-if value="{{ r.menuOpen }}" hint-placeholder-val="false">
+                  <div style="position: absolute; z-index: 8; right: 12px; top: 31px; min-width: 142px; padding: 4px; background: #fff; border: 1px solid #e4e4e7; border-radius: 7px; box-shadow: 0 8px 22px rgba(24,24,27,.14);">
+                    <sc-if value="{{ r.canEdit }}" hint-placeholder-val="true">
+                      <button type="button" onclick="{{ r.onEdit }}" style="width: 100%; background: none; border: none; border-radius: 5px; padding: 7px 9px; text-align: left; color: #3f3f46; font-size: 11.5px; cursor: pointer;">✎ Редактировать</button>
+                    </sc-if>
+                    <sc-if value="{{ r.canDelete }}" hint-placeholder-val="false">
+                      <button type="button" onclick="{{ r.onDelete }}" style="width: 100%; background: none; border: none; border-radius: 5px; padding: 7px 9px; text-align: left; color: #dc2626; font-size: 11.5px; cursor: pointer;">Удалить</button>
+                    </sc-if>
+                    <sc-if value="{{ r.canRestore }}" hint-placeholder-val="false">
+                      <button type="button" onclick="{{ r.onRestore }}" style="width: 100%; background: none; border: none; border-radius: 5px; padding: 7px 9px; text-align: left; color: #4f46e5; font-size: 11.5px; cursor: pointer;">Восстановить</button>
+                    </sc-if>
+                  </div>
+                </sc-if>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 60px; text-align: center; color: #a1a1aa;">
+            <div style="font-size: 28px; opacity: .4;">▦</div>
+            <div style="margin-top: 10px; font-size: 13px;">{{ emptyMessage }}</div>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="border-top: 1px solid #ededed; padding: 8px 20px; display: flex; align-items: center; gap: 14px; font-size: 11.5px; color: #71717a;">
+        <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; align-items: center; gap: 10px; animation: dcFade .15s;">
+            <span style="font-weight: 600; color: #4f46e5;">Выбрано: {{ selectedCount }}</span>
+            <sc-if value="{{ canBulkAssign }}" hint-placeholder-val="true"><button type="button" onclick="{{ openBulkAssign }}" style="background: #eef2ff; color: #4f46e5; border: 1px solid #dfe3fb; border-radius: 6px; padding: 4px 11px; font-size: 11.5px; font-weight: 500; cursor: pointer;">Назначить</button></sc-if>
+            <sc-if value="{{ bulkAssignOpen }}" hint-placeholder-val="false"><select value="{{ bulkResponsibleId }}" onchange="{{ setBulkResponsible }}" style="max-width: 230px; padding: 4px 7px; border: 1px solid #dfe3fb; border-radius: 6px; background: #fff; color: #3f3f46; font-size: 11.5px;"><sc-for list="{{ bulkResponsibleOptions }}" as="u" hint-placeholder-count="4"><option value="{{ u.id }}">{{ u.name }}</option></sc-for></select><button type="button" onclick="{{ applyBulkAssign }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 6px; padding: 5px 10px; font-size: 11px; font-weight: 600; cursor: pointer;">Применить</button></sc-if>
+            <sc-if value="{{ canBulkDelete }}" hint-placeholder-val="false"><button type="button" onclick="{{ applyBulkDelete }}" style="background: #fff; color: #dc2626; border: 1px solid #fecaca; border-radius: 6px; padding: 4px 11px; font-size: 11.5px; font-weight: 500; cursor: pointer;">Удалить</button></sc-if>
+            <sc-if value="{{ canBulkRestore }}" hint-placeholder-val="false"><button type="button" onclick="{{ applyBulkRestore }}" style="background: #eef2ff; color: #4f46e5; border: 1px solid #c7cdf7; border-radius: 6px; padding: 4px 11px; font-size: 11.5px; font-weight: 500; cursor: pointer;">Восстановить</button></sc-if>
+            <button type="button" onclick="{{ clearSel }}" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 11.5px;">Снять</button>
+            <sc-if value="{{ bulkHasError }}" hint-placeholder-val="false"><span style="color: #dc2626; font-size: 10.5px;">{{ bulkError }}</span></sc-if>
+          </div>
+        </sc-if>
+        <sc-if value="{{ noSelection }}" hint-placeholder-val="{{ true }}">
+          <span>Показано {{ rowCount }} из {{ filteredTotal }} документов · фильтр по правам роли «{{ roleLabel }}»</span>
+        </sc-if>
+        <div style="flex: 1;"></div>
+        <sc-if value="{{ singlePage }}" hint-placeholder-val="{{ true }}">
+          <span style="font-family: 'IBM Plex Mono'; font-size: 11px;">{{ pageLabel }}</span>
+        </sc-if>
+        <sc-if value="{{ multiplePages }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; align-items: center; gap: 5px;">
+            <button type="button" onclick="{{ previousPage }}" title="Предыдущая страница" style="{{ previousPageStyle }}">‹</button>
+            <span style="font-family: 'IBM Plex Mono'; font-size: 11px;">{{ pageLabel }}</span>
+            <button type="button" onclick="{{ nextPage }}" title="Следующая страница" style="{{ nextPageStyle }}">›</button>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ── EMBEDDED DEAL TAB SCREEN ── -->
+    <sc-if value="{{ isDeal }}" hint-placeholder-val="{{ false }}">
+    <div style="height: 100%; overflow: auto; background: #fff;">
+      <div style="border-bottom: 1px solid #ededed;">
+        <div style="padding: 11px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f4f4f5;">
+          <div style="width: 24px; height: 24px; border-radius: 6px; background: #2066b0; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px;">B24</div>
+          <span style="font-size: 12px; color: #a1a1aa;">CRM · Сделка</span>
+          <span style="color: #d4d4d8;">/</span>
+          <span style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 14px;">{{ dealHeaderTitle }}</span>
+          <span style="margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #71717a;"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{ dealStageColor }};"></span>Стадия: {{ dealStageName }}</span>
+        </div>
+        <div style="padding: 0 20px; display: flex; gap: 2px;">
+          <div style="padding: 10px 13px; font-size: 12.5px; color: #a1a1aa;">Общее</div>
+          <div style="padding: 10px 13px; font-size: 12.5px; color: #a1a1aa;">Товары</div>
+          <div style="padding: 10px 13px; font-size: 12.5px; color: #a1a1aa;">Дела</div>
+          <div style="padding: 10px 13px; font-size: 12.5px; font-weight: 600; color: #18181b; border-bottom: 2px solid #4f46e5;">Документы</div>
+        </div>
+      </div>
+
+      <div style="padding: 16px 20px; max-width: 1080px;">
+        <div style="display: flex; gap: 10px; margin-bottom: 14px;">
+          <div style="flex: 1; border: 1px solid #ededed; border-radius: 10px; padding: 12px 14px;">
+            <div style="font-size: 10.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .4px;">Документов в сделке</div>
+            <div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 23px; margin-top: 2px;">{{ dealCount }}</div>
+          </div>
+          <div style="flex: 1; border: 1px solid #ededed; border-radius: 10px; padding: 12px 14px;">
+            <div style="font-size: 10.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .4px;">Подписано / активно</div>
+            <div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 23px; margin-top: 2px; color: #15803d;">{{ dealSigned }}</div>
+          </div>
+          <div style="flex: 1; border: 1px solid #ededed; border-radius: 10px; padding: 12px 14px;">
+            <div style="font-size: 10.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .4px;">На согласовании</div>
+            <div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 23px; margin-top: 2px; color: #b45309;">{{ dealReview }}</div>
+          </div>
+          <div style="flex: 1; border: 1px solid #ededed; border-radius: 10px; padding: 12px 14px;">
+            <div style="font-size: 10.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .4px;">Черновики</div>
+            <div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 23px; margin-top: 2px; color: #71717a;">{{ dealDraft }}</div>
+          </div>
+        </div>
+
+        <div style="border: 1px solid #ededed; border-radius: 11px; padding: 15px 17px; margin-bottom: 14px;">
+          <div style="font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; color: #a1a1aa; margin-bottom: 4px;">Матрица «Раздел × Статус»</div><div style="font-size: 11px; color: #a1a1aa; margin-bottom: 12px; line-height: 1.4;">Иконки рассчитываются автоматически из статусов документов. Кликните раздел слева — откроются его документы ниже.</div>
+          <div style="display: grid; grid-template-columns: 200px repeat(6, 1fr); align-items: center; gap: 6px;">
+            <div></div>
+            <sc-for list="{{ dealStages }}" as="st" hint-placeholder-count="6">
+              <div style="{{ st.style }}">{{ st.label }}</div>
+            </sc-for>
+          </div>
+          <sc-for list="{{ dealMatrix }}" as="row" hint-placeholder-count="6">
+            <div style="display: grid; grid-template-columns: 200px repeat(6, 1fr); align-items: center; gap: 6px; margin-top: 6px;">
+              <div onclick="{{ row.onOpen }}" style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #3f3f46; cursor: pointer;"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{ row.c }}; flex: none;"></span>{{ row.label }}</div>
+              <sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="6">
+                <div style="{{ cell.style }}">{{ cell.icon }}</div>
+              </sc-for>
+            </div>
+          </sc-for>
+          <div style="font-size: 11px; color: #a1a1aa; margin-top: 12px;">В ячейках — число документов раздела в каждом статусе (сводка по самим документам, без привязки к стадии сделки).</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+          <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 14px;">Документы по разделам</div>
+          <span style="font-size: 11.5px; color: #a1a1aa;">{{ dealContextLabel }}</span>
+          <div style="flex: 1;"></div>
+          <button type="button" onclick="{{ openWizard }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 8px; padding: 7px 13px; font-size: 12px; font-weight: 600; cursor: pointer;">＋ Добавить документ</button>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+          <sc-for list="{{ embeddedGroups }}" as="g" hint-placeholder-count="4">
+            <div ondragover="{{ g.onDragOver }}" ondrop="{{ g.onDrop }}" style="border: 1px solid #ededed; border-radius: 10px; overflow: hidden;">
+              <div style="padding: 9px 14px; display: flex; align-items: center; gap: 8px; border-left: 3px solid {{ g.c }};">
+                <div onclick="{{ g.onToggle }}" style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                  <span style="color: #a1a1aa; font-size: 10px; width: 10px;">{{ g.caret }}</span>
+                  <span style="font-weight: 600; font-size: 12.5px; color: {{ g.c }};">{{ g.label }}</span>
+                  <span style="font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ g.count }}</span>
+                </div>
+                <button type="button" onclick="{{ openWizard }}" style="background: none; border: none; color: #4f46e5; font-size: 11.5px; font-weight: 500; cursor: pointer;">＋ Добавить</button>
+              </div>
+              <sc-if value="{{ g.open }}" hint-placeholder-val="{{ true }}">
+              <sc-for list="{{ g.docs }}" as="d" hint-placeholder-count="2">
+                <div onclick="{{ d.onOpen }}" style="padding: 8px 14px; display: flex; align-items: center; gap: 10px; border-top: 1px solid #f4f4f5; cursor: pointer;">
+                  <span style="font-size: 12px; opacity: .5; width: 15px;">{{ d.attachIcon }}</span>
+                  <div style="min-width: 0; flex: 1;">
+                    <div style="font-weight: 500; font-size: 12.5px;">{{ d.title }}</div>
+                    <div style="font-family: 'IBM Plex Mono'; font-size: 10px; color: #a1a1aa;">{{ d.num }}</div>
+                  </div>
+                  <span style="font-family: 'IBM Plex Mono'; font-size: 11px; color: #18181b; white-space: nowrap;">{{ d.amountStr }}</span>
+                  <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: {{ d.statusC }}; white-space: nowrap;"><span style="width: 5px; height: 5px; border-radius: 50%; background: {{ d.statusC }};"></span>{{ d.statusLabel }}</span>
+                  <span style="color: #d4d4d8;">›</span>
+                </div>
+              </sc-for>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ── EMBEDDED COMPANY TAB SCREEN ── -->
+    <sc-if value="{{ isCompany }}" hint-placeholder-val="{{ false }}">
+    <div style="height: 100%; overflow: auto; background: #fff;">
+      <div style="border-bottom: 1px solid #ededed;">
+        <div style="padding: 11px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f4f4f5;">
+          <div style="width: 24px; height: 24px; border-radius: 6px; background: #2066b0; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px;">B24</div>
+          <span style="font-size: 12px; color: #a1a1aa;">CRM · Компания</span>
+          <span style="color: #d4d4d8;">/</span>
+          <span style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 14px;">{{ companyName }}</span>
+          <span style="margin-left: auto; font-size: 12px; color: #71717a;">{{ companyDocTotal }} документов по всем сделкам</span>
+        </div>
+        <div style="padding: 0 20px; display: flex; gap: 2px;">
+          <div style="padding: 10px 13px; font-size: 12.5px; color: #a1a1aa;">Общее</div>
+          <div style="padding: 10px 13px; font-size: 12.5px; color: #a1a1aa;">Реквизиты</div>
+          <div style="padding: 10px 13px; font-size: 12.5px; color: #a1a1aa;">Сделки</div>
+          <div style="padding: 10px 13px; font-size: 12.5px; font-weight: 600; color: #18181b; border-bottom: 2px solid #4f46e5;">Документы</div>
+        </div>
+      </div>
+
+      <div style="padding: 16px 20px; max-width: 1080px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+          <div style="display: flex; background: #f4f4f5; border-radius: 8px; padding: 3px; gap: 2px;">
+            <button type="button" onclick="{{ setCompanyDeals }}" style="{{ cvDealsStyle }}">По сделкам</button>
+            <button type="button" onclick="{{ setCompanyDocs }}" style="{{ cvDocsStyle }}">По документам</button>
+          </div>
+          <span style="font-size: 11.5px; color: #a1a1aa;">{{ companyDocTotal }} документов · {{ companyName }}</span>
+          <div style="flex: 1;"></div>
+          <button type="button" onclick="{{ openWizard }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 8px; padding: 7px 13px; font-size: 12px; font-weight: 600; cursor: pointer;">＋ Добавить документ</button>
+        </div>
+
+        <sc-if value="{{ companyIsDeals }}" hint-placeholder-val="{{ true }}">
+        <div style="font-size: 11.5px; color: #a1a1aa; margin-bottom: 10px;">Разверните сделку, чтобы увидеть матрицу «Раздел × Этап» и документы.</div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <sc-for list="{{ companyDeals }}" as="dl" hint-placeholder-count="2">
+            <div style="border: 1px solid #ededed; border-radius: 11px; overflow: hidden;">
+              <div onclick="{{ dl.onToggle }}" style="{{ dl.headStyle }}">
+                <span style="color: #a1a1aa; font-size: 11px; width: 12px;">{{ dl.caret }}</span>
+                <span style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 13.5px;">{{ dl.title }}</span>
+                <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: #71717a;"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{ dl.stageColor }};"></span>{{ dl.stage }}</span>
+                <div style="flex: 1;"></div>
+                <span style="font-family: 'IBM Plex Mono'; font-size: 11px; color: #a1a1aa;">{{ dl.docCount }}</span>
+              </div>
+              <sc-if value="{{ dl.expanded }}" hint-placeholder-val="{{ true }}">
+              <div style="border-top: 1px solid #ededed; padding: 15px 17px;">
+                <div style="font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; color: #a1a1aa; margin-bottom: 4px;">Матрица «Раздел × Статус»</div><div style="font-size: 11px; color: #a1a1aa; margin-bottom: 12px; line-height: 1.4;">Иконки рассчитываются автоматически из статусов документов. Кликните раздел слева — откроются его документы ниже.</div>
+                <div style="display: grid; grid-template-columns: 200px repeat(6, 1fr); align-items: center; gap: 6px;">
+                  <div></div>
+                  <sc-for list="{{ dl.stages }}" as="st" hint-placeholder-count="6">
+                    <div style="{{ st.style }}">{{ st.label }}</div>
+                  </sc-for>
+                </div>
+                <sc-for list="{{ dl.rows }}" as="row" hint-placeholder-count="6">
+                  <div style="display: grid; grid-template-columns: 200px repeat(6, 1fr); align-items: center; gap: 6px; margin-top: 6px;">
+                    <div onclick="{{ row.onOpen }}" style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #3f3f46; cursor: pointer;"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{ row.c }}; flex: none;"></span>{{ row.label }}</div>
+                    <sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="6">
+                      <div style="{{ cell.style }}">{{ cell.icon }}</div>
+                    </sc-for>
+                  </div>
+                </sc-for>
+
+                <div style="display: flex; flex-direction: column; gap: 7px; margin-top: 16px;">
+                  <sc-for list="{{ dl.groups }}" as="g" hint-placeholder-count="3">
+                    <div data-registry-drop-zone="true" data-section-code="{{ g.code }}" data-deal-id="{{ g.dealId }}" data-deal-title="{{ g.dealTitle }}" data-company-id="{{ g.companyId }}" data-company-title="{{ g.companyTitle }}" data-drop-key="{{ g.dropKey }}" ondragenter="{{ g.onDragEnter }}" ondragover="{{ g.onDragOver }}" ondragleave="{{ g.onDragLeave }}" ondrop="{{ g.onDrop }}" style="{{ g.style }}">
+                      <div onclick="{{ g.onToggle }}" style="padding: 9px 14px; display: flex; align-items: center; gap: 8px; border-left: 3px solid {{ g.c }}; cursor: pointer;">
+                        <span style="color: #a1a1aa; font-size: 10px; width: 10px;">{{ g.caret }}</span>
+                        <span style="font-weight: 600; font-size: 12.5px; color: {{ g.c }};">{{ g.label }}</span>
+                        <span style="font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ g.count }}</span>
+                      </div>
+                      <sc-if value="{{ g.open }}" hint-placeholder-val="{{ true }}">
+                      <sc-for list="{{ g.docs }}" as="d" hint-placeholder-count="2">
+                        <div onclick="{{ d.onOpen }}" style="padding: 8px 14px; display: flex; align-items: center; gap: 10px; border-top: 1px solid #f4f4f5; cursor: pointer;">
+                          <span style="font-size: 12px; opacity: .5; width: 15px;">{{ d.attachIcon }}</span>
+                          <div style="min-width: 0; flex: 1;">
+                            <div style="font-weight: 500; font-size: 12.5px;">{{ d.title }}</div>
+                            <div style="font-family: 'IBM Plex Mono'; font-size: 10px; color: #a1a1aa;">{{ d.num }}</div>
+                          </div>
+                          <span style="font-family: 'IBM Plex Mono'; font-size: 11px; color: #18181b; white-space: nowrap;">{{ d.amountStr }}</span>
+                          <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: {{ d.statusC }}; white-space: nowrap;"><span style="width: 5px; height: 5px; border-radius: 50%; background: {{ d.statusC }};"></span>{{ d.statusLabel }}</span>
+                          <span style="color: #d4d4d8;">›</span>
+                        </div>
+                      </sc-for>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ companyIsDocs }}" hint-placeholder-val="{{ false }}">
+        <div style="display: grid; grid-template-columns: 44px minmax(200px,1.6fr) 130px 110px 140px 110px 90px; color: #a1a1aa; font-size: 10px; padding: 0 1px 6px;">
+          <div style="padding: 0 8px 0 16px;"></div>
+          <div style="padding: 0 8px;">Документ</div>
+          <div style="padding: 0 8px;">Раздел</div>
+          <div style="padding: 0 8px;">Сделка</div>
+          <div style="padding: 0 8px;">Статус</div>
+          <div style="padding: 0 8px; text-align: right;">Сумма</div>
+          <div style="padding: 0 8px;">Дата</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <sc-for list="{{ companyDocsByType }}" as="grp" hint-placeholder-count="6">
+            <div style="border: 1px solid #ededed; border-radius: 11px; overflow: hidden;">
+              <div style="padding: 8px 14px; display: flex; align-items: center; gap: 8px; border-left: 3px solid {{ grp.c }}; background: #fafafa;">
+                <span style="font-weight: 600; font-size: 12.5px; color: #18181b;">{{ grp.type }}</span>
+                <span style="font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ grp.count }}</span>
+              </div>
+              <sc-for list="{{ grp.docs }}" as="r" hint-placeholder-count="3">
+                <div onclick="{{ r.onOpen }}" style="display: grid; grid-template-columns: 44px minmax(200px,1.6fr) 130px 110px 140px 110px 90px; border-top: 1px solid #f4f4f5; cursor: pointer; align-items: center;">
+                  <div style="padding: 8px 8px 8px 16px; display: flex; align-items: center;"><span style="font-size: 12px; opacity: .5;">{{ r.attachIcon }}</span></div>
+                  <div style="padding: 8px 8px; min-width: 0;"><div style="font-weight: 500; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.title }}</div><div style="font-family: 'IBM Plex Mono'; font-size: 10px; color: #a1a1aa;">{{ r.num }}</div></div>
+                  <div style="padding: 8px 8px; min-width: 0;"><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: #52525b;"><span style="width: 6px; height: 6px; border-radius: 2px; background: {{ r.sectionC }}; flex: none;"></span>{{ r.sectionLabel }}</span></div>
+                  <div style="padding: 8px 8px; font-family: 'IBM Plex Mono'; font-size: 11px; color: #71717a;">{{ r.dealRefLabel }}</div>
+                  <div style="padding: 8px 8px; min-width: 0;"><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: {{ r.statusC }}; white-space: nowrap;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ r.statusC }}; flex: none;"></span>{{ r.statusLabel }}</span></div>
+                  <div style="padding: 8px 8px; display: flex; justify-content: flex-end; font-family: 'IBM Plex Mono'; font-size: 12px; color: #18181b; white-space: nowrap;">{{ r.amountStr }}</div>
+                  <div style="padding: 8px 8px; font-family: 'IBM Plex Mono'; font-size: 11px; color: #71717a; white-space: nowrap;">{{ r.docDate }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ── ADMIN SCREEN ── -->
+    <sc-if value="{{ isAdmin }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; flex-direction: column; height: 100%;">
+      <header style="border-bottom: 1px solid #ededed; padding: 12px 20px;">
+        <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 17px; letter-spacing: -0.4px;">⚙ Администрирование реестра</div>
+        <div style="font-size: 11.5px; color: #a1a1aa; margin-top: 1px;">Разделы, типы документов, статусы и права доступа</div>
+      </header>
+
+      <sc-if value="{{ adminDenied }}" hint-placeholder-val="{{ false }}">
+        <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
+          <div style="text-align: center; max-width: 360px;">
+            <div style="font-size: 32px;">🔒</div>
+            <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 16px; margin-top: 10px;">Доступно только администратору</div>
+            <div style="font-size: 12.5px; color: #71717a; margin-top: 6px; line-height: 1.5;">Настройка справочников и политик доступна роли «Администратор». Переключите роль в левой панели, чтобы посмотреть раздел.</div>
+            <sc-if value="{{ developmentRoleSwitcher }}" hint-placeholder-val="{{ true }}"><button type="button" onclick="{{ becomeAdmin }}" style="margin-top: 14px; background: #4f46e5; color: #fff; border: none; border-radius: 8px; padding: 8px 15px; font-size: 12.5px; font-weight: 600; cursor: pointer;">Войти как администратор</button></sc-if>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ adminAllowed }}" hint-placeholder-val="{{ false }}">
+      <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+        <div style="border-bottom: 1px solid #ededed; padding: 0 20px; display: flex; gap: 2px;">
+          <sc-for list="{{ adminTabs }}" as="t" hint-placeholder-count="4">
+            <button type="button" onclick="{{ t.onPick }}" style="{{ t.style }}">{{ t.label }}</button>
+          </sc-for>
+        </div>
+
+        <div style="flex: 1; overflow: auto; padding: 18px 20px;">
+          <sc-if value="{{ adminDataLoading }}" hint-placeholder-val="false"><div style="margin-bottom: 10px; color: #a1a1aa; font-size: 11.5px;">Загрузка настроек…</div></sc-if>
+          <sc-if value="{{ adminDataHasError }}" hint-placeholder-val="false"><div style="margin-bottom: 10px; color: #dc2626; font-size: 11.5px;">{{ adminDataError }}</div></sc-if>
+          <sc-if value="{{ admSections }}" hint-placeholder-val="{{ true }}">
+            <div style="border: 1px solid #ededed; border-radius: 11px; overflow: hidden; max-width: 760px;">
+              <div style="padding: 11px 15px; border-bottom: 1px solid #f4f4f5; display: flex; align-items: center;"><div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 13.5px;">Разделы документов</div><span style="margin-left: auto; font-size: 11.5px; color: #a1a1aa;">{{ sectionTotal }} разделов</span><button type="button" onclick="{{ openSectionModal }}" style="margin-left: 12px; background: #4f46e5; color: #fff; border: none; border-radius: 7px; padding: 5px 12px; font-size: 11.5px; font-weight: 500; cursor: pointer;">＋ Раздел</button></div>
+              <div>
+                <div style="display: grid; grid-template-columns: 1.1fr 1.5fr 80px 90px; background: #fafafa; color: #a1a1aa; font-size: 10.5px;">
+                  <div style="padding: 7px 15px;">Название</div>
+                  <div style="padding: 7px 8px;">Описание</div>
+                  <div style="padding: 7px 8px;">Типов</div>
+                  <div style="padding: 7px 15px;">Активен</div>
+                </div>
+                <sc-for list="{{ adminSectionRows }}" as="s" hint-placeholder-count="6">
+                  <div onclick="{{ s.onEdit }}" title="Редактировать раздел" style="display: grid; grid-template-columns: 1.1fr 1.5fr 80px 90px; border-top: 1px solid #f4f4f5; font-size: 12.5px; align-items: center; cursor: pointer;">
+                    <div style="padding: 8px 15px; font-weight: 500;"><span style="display: inline-block; width: 9px; height: 9px; border-radius: 3px; background: {{ s.c }}; margin-right: 8px;"></span>{{ s.label }}</div>
+                    <div style="padding: 8px 8px; color:#71717a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ s.descriptionLabel }}</div>
+                    <div style="padding: 8px 8px; font-family: 'IBM Plex Mono'; color: #71717a;">{{ s.typeCount }}</div>
+                    <div style="padding: 8px 15px; color: {{ s.activeColor }};">{{ s.activeLabel }} <span style="color:#a1a1aa; margin-left:7px;">✎</span></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ admTypes }}" hint-placeholder-val="{{ false }}">
+            <div style="border: 1px solid #ededed; border-radius: 11px; overflow: hidden; max-width: 760px;">
+              <div style="padding: 11px 15px; border-bottom: 1px solid #f4f4f5; display: flex; align-items: center;"><div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 13.5px;">Типы документов</div><span style="margin-left: auto; font-size: 11.5px; color: #a1a1aa;">{{ typeTotal }} типов</span><button type="button" onclick="{{ openTypeModal }}" style="margin-left: 12px; background: #4f46e5; color: #fff; border: none; border-radius: 7px; padding: 5px 12px; font-size: 11.5px; font-weight: 500; cursor: pointer;">＋ Тип</button></div>
+              <div>
+                <div style="display: grid; grid-template-columns: 170px 1fr 150px 130px; background: #fafafa; color: #a1a1aa; font-size: 10.5px;">
+                  <div style="padding: 7px 15px;">Раздел</div>
+                  <div style="padding: 7px 8px;">Название</div>
+                  <div style="padding: 7px 8px;">Жизненный цикл</div>
+                  <div style="padding: 7px 15px;">Контент</div>
+                </div>
+                <sc-for list="{{ adminTypeRows }}" as="t" hint-placeholder-count="10">
+                  <div onclick="{{ t.onEdit }}" title="Редактировать тип" style="display: grid; grid-template-columns: 170px 1fr 150px 130px; border-top: 1px solid #f4f4f5; font-size: 12.5px; align-items: center; cursor: pointer;">
+                    <div style="padding: 7px 15px;"><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #52525b;"><span style="width: 6px; height: 6px; border-radius: 2px; background: {{ t.c }};"></span>{{ t.section }}</span></div>
+                    <div style="padding: 7px 8px; font-weight: 500;">{{ t.label }}</div>
+                    <div style="padding: 7px 8px; color:#52525b;">{{ t.lifecycle }}</div>
+                    <div style="padding: 7px 15px; color: #71717a;">{{ t.content }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ admLifecycles }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; gap: 10px; max-width: 760px;">
+              <div style="display:flex; justify-content:flex-end;"><button type="button" onclick="{{ openLifecycleModal }}" style="background:#4f46e5;color:#fff;border:none;border-radius:7px;padding:6px 12px;font-size:11.5px;font-weight:500;cursor:pointer;">＋ Жизненный цикл</button></div>
+              <sc-for list="{{ adminLifecycles }}" as="lc" hint-placeholder-count="3">
+                <div onclick="{{ lc.onEdit }}" title="Редактировать жизненный цикл" style="border: 1px solid #ededed; border-radius: 11px; padding: 14px 16px; cursor:pointer;">
+                  <div style="display: flex; align-items: center; gap: 9px;"><div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 13.5px;">{{ lc.label }}</div><span style="font-size:10.5px;color:#a1a1aa;">{{ lc.statusLabel }}</span><span style="margin-left:auto;color:#a1a1aa;">✎</span></div>
+                  <div style="display: flex; align-items: center; gap: 8px; margin-top: 11px; flex-wrap: wrap;">
+                    <sc-for list="{{ lc.states }}" as="st" hint-placeholder-count="3">
+                      <span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 7px; font-size: 11.5px; font-weight: 500; color: {{ st.c }}; background: {{ st.bg }};"><span style="width: 5px; height: 5px; border-radius: 50%; background: {{ st.c }};"></span>{{ st.label }}</span>
+                      <span style="color: #d4d4d8;">{{ st.arrow }}</span>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ admRoles }}" hint-placeholder-val="{{ false }}">
+            <div style="max-width: 760px;">
+              <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;"><div style="font-size: 12.5px; color: #71717a; line-height: 1.55;">Настройте для каждой роли доступные разделы и типы документов, видимость полей и разрешённые действия.</div><div style="flex:1;"></div><button type="button" onclick="{{ openRoleModal }}" title="Добавить роль" style="width:30px;height:30px;flex:none;border:1px solid #e4e4e7;border-radius:7px;background:#fff;color:#4f46e5;font-size:18px;cursor:pointer;">＋</button></div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <sc-for list="{{ adminRoleRows }}" as="r" hint-placeholder-count="6">
+                  <div onclick="{{ r.onEdit }}" title="Редактировать политику роли" style="border: 1px solid #ededed; border-radius: 10px; padding: 13px 15px; cursor:pointer;">
+                    <div style="display: flex; align-items: center; gap: 8px;"><div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 13px;">{{ r.label }}</div></div>
+                    <div style="font-size: 11.5px; color: #52525b; margin-top: 6px; line-height: 1.5;">{{ r.summary }}</div>
+                    <div style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap;">
+                      <span style="font-size: 10px; padding: 2px 7px; border-radius: 5px; background: {{ r.moneyBg }}; color: {{ r.moneyC }};">{{ r.moneyLabel }}</span>
+                      <span style="font-size: 10px; padding: 2px 7px; border-radius: 5px; background: #f4f4f5; color: #52525b;">{{ r.scopeLabel }}</span><span style="margin-left:auto;color:#a1a1aa;">✎</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="margin-top: 18px; border: 1px solid #ededed; border-radius: 10px; overflow: hidden;">
+                <div style="padding: 11px 14px; border-bottom: 1px solid #ededed; display: flex; align-items: center; gap: 10px;">
+                  <div><div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 13px;">Назначение пользователей</div><div style="font-size: 10.5px; color: #a1a1aa; margin-top: 2px;">Администраторы Bitrix24 получают полный доступ автоматически.</div></div>
+                  <div style="flex: 1;"></div>
+                  <sc-if value="{{ adminAccessSaved }}" hint-placeholder-val="false"><span style="font-size: 11px; color: #15803d;">Сохранено</span></sc-if>
+                  <button type="button" onclick="{{ saveAdminAccess }}" style="{{ adminAccessSaveStyle }}">{{ adminAccessSaveLabel }}</button>
+                </div>
+                <sc-if value="{{ adminAccessLoading }}" hint-placeholder-val="false"><div style="padding: 20px; text-align: center; color: #a1a1aa; font-size: 12px;">Загрузка сотрудников…</div></sc-if>
+                <sc-if value="{{ adminUsersEmpty }}" hint-placeholder-val="false"><div style="padding: 20px; text-align: center; color: #a1a1aa; font-size: 12px;">Сотрудники не найдены.</div></sc-if>
+                <sc-for list="{{ adminUserRows }}" as="u" hint-placeholder-count="4">
+                  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 12px; align-items: center; padding: 9px 14px; border-top: 1px solid #f4f4f5;">
+                    <div style="min-width: 0;"><div style="font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ u.name }}</div><div style="font-size: 10.5px; color: #a1a1aa; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ u.details }}</div></div>
+                    <select value="{{ u.roleCode }}" onchange="{{ u.onRole }}" style="width: 100%; padding: 7px 8px; border: 1px solid #e4e4e7; border-radius: 7px; background: #fff; color: #3f3f46; font-size: 11.5px;"><sc-for list="{{ u.roleOptions }}" as="o" hint-placeholder-count="5"><option value="{{ o.code }}">{{ o.label }}</option></sc-for></select>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ adminAccessHasError }}" hint-placeholder-val="false"><div style="padding: 9px 14px; border-top: 1px solid #f4f4f5; color: #dc2626; font-size: 11px;">{{ adminAccessError }}</div></sc-if>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+      </sc-if>
+    </div>
+    </sc-if>
+
+  </main>
+
+  <!-- ░░ DOCUMENT DRAWER ░░ -->
+  <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position: fixed; inset: 0; z-index: 40;">
+    <div onclick="{{ closeDoc }}" style="position: absolute; inset: 0; background: rgba(24,24,27,.32); animation: dcFade .12s;"></div>
+    <div style="position: absolute; top: 0; right: 0; height: 100%; width: 470px; background: #fff; box-shadow: -8px 0 30px rgba(0,0,0,.12); display: flex; flex-direction: column; animation: dcSlideIn .18s ease;">
+      <div style="padding: 15px 20px 13px; border-bottom: 1px solid #ededed;">
+        <div style="display: flex; align-items: flex-start; gap: 10px;">
+          <div style="flex: 1;">
+            <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 500; color: {{ doc.sectionC }};"><span style="width: 6px; height: 6px; border-radius: 2px; background: {{ doc.sectionC }};"></span>{{ doc.sectionLabel }} · {{ doc.typeLabel }}</span>
+            <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 17px; margin-top: 8px; line-height: 1.25;">{{ doc.title }}</div>
+            <div style="font-family: 'IBM Plex Mono'; font-size: 11px; color: #a1a1aa; margin-top: 2px;">{{ doc.num }}</div>
+          </div>
+          <sc-if value="{{ drawerViewing }}" hint-placeholder-val="true">
+            <sc-if value="{{ doc.canRestore }}" hint-placeholder-val="false">
+              <button type="button" onclick="{{ doc.onRestore }}" title="Восстановить документ" style="height: 28px; display: inline-flex; align-items: center; justify-content: center; background: #eef2ff; border: 1px solid #c7cdf7; border-radius: 7px; padding: 0 9px; font-size: 11px; color: #4f46e5; cursor: pointer; white-space: nowrap;">Восстановить</button>
+            </sc-if>
+            <sc-if value="{{ doc.canSupersede }}" hint-placeholder-val="true">
+              <button type="button" onclick="{{ doc.onSupersede }}" title="Создать новую редакцию" style="height: 28px; display: inline-flex; align-items: center; justify-content: center; background: #fff; border: 1px solid #e4e4e7; border-radius: 7px; padding: 0 9px; font-size: 11px; color: #52525b; cursor: pointer; white-space: nowrap;">＋ Редакция</button>
+            </sc-if>
+            <sc-if value="{{ doc.canEdit }}" hint-placeholder-val="true">
+              <button type="button" onclick="{{ doc.onEdit }}" title="Редактировать" style="width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; background: #fff; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 15px; color: #52525b; cursor: pointer; line-height: 1;">✎</button>
+            </sc-if>
+          </sc-if>
+          <button type="button" onclick="{{ closeDoc }}" style="background: none; border: none; font-size: 18px; color: #a1a1aa; cursor: pointer; line-height: 1;">✕</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px;">
+          <span style="font-size: 11.5px; color: #a1a1aa;">Статус:</span>
+          <sc-for list="{{ statusOptions }}" as="st" hint-placeholder-count="3">
+            <button type="button" onclick="{{ st.onSet }}" style="{{ st.style }}">{{ st.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="flex: 1; overflow-y: auto; padding: 16px 20px;">
+        <sc-if value="{{ drawerViewing }}" hint-placeholder-val="true">
+        <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 11.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px;">Реквизиты</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #ededed; border: 1px solid #ededed; border-radius: 9px; overflow: hidden; margin-bottom: 18px;">
+          <div style="background: #fff; padding: 9px 12px;"><div style="font-size: 10.5px; color: #a1a1aa;">Номер</div><div style="font-family: 'IBM Plex Mono'; font-size: 12.5px; margin-top: 2px;">{{ doc.number }}</div></div>
+          <div style="background: #fff; padding: 9px 12px;"><div style="font-size: 10.5px; color: #a1a1aa;">Дата документа</div><div style="font-family: 'IBM Plex Mono'; font-size: 12.5px; margin-top: 2px;">{{ doc.docDate }}</div></div>
+          <sc-if value="{{ doc.moneyVisible }}" hint-placeholder-val="true">
+            <div style="background: #fff; padding: 9px 12px;"><div style="font-size: 10.5px; color: #a1a1aa;">Сумма</div><div style="font-family: 'IBM Plex Mono'; font-size: 12.5px; margin-top: 2px;">{{ doc.amountStr }}</div></div>
+          </sc-if>
+          <div style="background: #fff; padding: 9px 12px;"><div style="font-size: 10.5px; color: #a1a1aa;">Юр. лицо</div><div style="font-size: 12.5px; margin-top: 2px;">{{ doc.legalEntity }}</div></div>
+          <div style="background: #fff; padding: 9px 12px; grid-column: span 2;"><div style="font-size: 10.5px; color: #a1a1aa;">Контрагент (Компания Bitrix24)</div><div style="font-size: 12.5px; margin-top: 2px;">{{ doc.counterparty }}</div></div>
+          <div style="background: #fff; padding: 9px 12px; grid-column: span 2;"><div style="font-size: 10.5px; color: #a1a1aa;">Этап сделки</div><div style="font-size: 12.5px; margin-top: 2px;">{{ doc.dealStage }}</div></div>
+          <div style="background: #fff; padding: 9px 12px; grid-column: span 2;"><div style="font-size: 10.5px; color: #a1a1aa;">Ответственный</div><div style="font-size: 12.5px; margin-top: 2px;">{{ doc.responsible }}</div></div>
+          <sc-for list="{{ doc.fields }}" as="f" hint-placeholder-count="2">
+            <div style="background: #fff; padding: 9px 12px; grid-column: span 2;"><div style="font-size: 10.5px; color: #a1a1aa;">{{ f.label }}</div><div style="font-size: 12.5px; margin-top: 2px;">{{ f.value }}</div></div>
+          </sc-for>
+          <div style="background: #fff; padding: 9px 12px; grid-column: span 2;"><div style="font-size: 10.5px; color: #a1a1aa;">Комментарий</div><div style="font-size: 12.5px; margin-top: 2px; white-space: pre-wrap;">{{ doc.comment }}</div></div>
+        </div>
+        </sc-if>
+
+        <sc-if value="{{ drawerEditing }}" hint-placeholder-val="false">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+            <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 11.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px;">Редактирование реквизитов</div>
+            <span style="font-size: 10.5px; color: #a1a1aa;">Раздел и тип не изменяются</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 11px; padding: 13px; border: 1px solid #ededed; border-radius: 9px; background: #fafafa; margin-bottom: 18px;">
+            <label style="display: block; grid-column: span 2;"><span style="font-size: 10.5px; color: #71717a;">Название *</span><input value="{{ drawerEditTitle }}" oninput="{{ setDrawerEditTitle }}" maxlength="500" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"></label>
+            <label style="display: block;"><span style="font-size: 10.5px; color: #71717a;">Номер</span><input value="{{ drawerEditNumber }}" oninput="{{ setDrawerEditNumber }}" maxlength="1000" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"></label>
+            <label style="display: block;"><span style="font-size: 10.5px; color: #71717a;">Дата документа *</span><input type="date" value="{{ drawerEditDate }}" oninput="{{ setDrawerEditDate }}" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"></label>
+            <sc-if value="{{ drawerEditMoneyVisible }}" hint-placeholder-val="true">
+              <label style="display: block;"><span style="font-size: 10.5px; color: #71717a;">Сумма</span><input value="{{ drawerEditAmount }}" oninput="{{ setDrawerEditAmount }}" inputmode="decimal" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"></label>
+              <label style="display: block;"><span style="font-size: 10.5px; color: #71717a;">Валюта</span><select value="{{ drawerEditCurrency }}" onchange="{{ setDrawerEditCurrency }}" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"><option>RUB</option><option>USD</option><option>EUR</option><option>CNY</option></select></label>
+            </sc-if>
+            <label style="display: block; grid-column: span 2;"><span style="font-size: 10.5px; color: #71717a;">Юр. лицо</span><input value="{{ drawerEditLegalEntity }}" oninput="{{ setDrawerEditLegalEntity }}" maxlength="1000" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"></label>
+            <label style="display: block; grid-column: span 2;"><span style="font-size: 10.5px; color: #71717a;">Контрагент (Компания Bitrix24)</span><input value="{{ drawerEditCounterparty }}" oninput="{{ setDrawerEditCounterparty }}" maxlength="1000" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"></label>
+            <label style="display: block; grid-column: span 2;"><span style="font-size: 10.5px; color: #71717a;">Этап сделки</span><input value="{{ drawerEditDealStage }}" oninput="{{ setDrawerEditDealStage }}" maxlength="1000" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"></label>
+            <label style="display: block; grid-column: span 2;"><span style="font-size: 10.5px; color: #71717a;">Ответственный *</span><select value="{{ drawerEditResponsible }}" onchange="{{ setDrawerEditResponsible }}" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"><sc-for list="{{ drawerEditResponsibleOptions }}" as="ro" hint-placeholder-count="3"><option value="{{ ro.value }}">{{ ro.label }}</option></sc-for></select></label>
+            <sc-if value="{{ drawerEditHasFields }}" hint-placeholder-val="false">
+              <sc-for list="{{ drawerEditFields }}" as="ef" hint-placeholder-count="3">
+                <label style="display: block; grid-column: span 2;"><span style="font-size: 10.5px; color: #71717a;">{{ ef.label }}{{ ef.requiredMark }}</span>
+                  <sc-if value="{{ ef.isSelect }}" hint-placeholder-val="false"><select value="{{ ef.value }}" onchange="{{ ef.onInput }}" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"><option value="">—</option><sc-for list="{{ ef.options }}" as="op" hint-placeholder-count="3"><option value="{{ op }}">{{ op }}</option></sc-for></select></sc-if>
+                  <sc-if value="{{ ef.isInput }}" hint-placeholder-val="true"><input type="{{ ef.inputType }}" value="{{ ef.value }}" oninput="{{ ef.onInput }}" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"></sc-if>
+                </label>
+              </sc-for>
+            </sc-if>
+            <label style="display: block; grid-column: span 2;"><span style="font-size: 10.5px; color: #71717a;">Комментарий</span><textarea value="{{ drawerEditComment }}" oninput="{{ setDrawerEditComment }}" maxlength="1000" rows="4" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px; resize: vertical;"></textarea></label>
+            <sc-if value="{{ drawerEditHasError }}" hint-placeholder-val="false"><div style="grid-column: span 2; color: #dc2626; font-size: 11px; line-height: 1.4;">{{ drawerEditError }}</div></sc-if>
+            <div style="grid-column: span 2; display: flex; justify-content: flex-end; gap: 7px; padding-top: 2px;"><button type="button" onclick="{{ cancelDocumentEdit }}" style="background: #fff; border: 1px solid #d4d4d8; border-radius: 7px; padding: 7px 13px; color: #52525b; font-size: 11.5px; cursor: pointer;">Отмена</button><button type="button" onclick="{{ saveDocumentEdit }}" style="{{ drawerEditSaveStyle }}">{{ drawerEditSaveLabel }}</button></div>
+          </div>
+        </sc-if>
+
+        <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 11.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px;">Содержимое · {{ doc.attCount }}</div>
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px;">
+          <sc-for list="{{ doc.attachments }}" as="a" hint-placeholder-count="2">
+            <div style="display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid #ededed; border-radius: 8px; background: #fafafa;">
+              <span style="font-size: 15px;">{{ a.icon }}</span>
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ a.name }}</div>
+                <div style="font-size: 10.5px; color: #a1a1aa;">{{ a.meta }}</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 2px;">
+                <button type="button" onclick="{{ a.onOpen }}" title="Открыть" style="background: none; border: none; color: #71717a; font-size: 14px; line-height: 1; padding: 4px; cursor: pointer;">↗</button>
+                <sc-if value="{{ a.canReplace }}" hint-placeholder-val="false"><button type="button" onclick="{{ a.onReplace }}" title="Заменить новой версией" style="background: none; border: none; color: #71717a; font-size: 14px; line-height: 1; padding: 4px; cursor: pointer;">↻</button></sc-if>
+                <sc-if value="{{ a.canDelete }}" hint-placeholder-val="true"><button type="button" onclick="{{ a.onDelete }}" title="Удалить" style="background: none; border: none; color: #a1a1aa; font-size: 12px; line-height: 1; padding: 4px; cursor: pointer;">✕</button></sc-if>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ doc.canModifyContent }}" hint-placeholder-val="true">
+        <div style="margin-bottom: 18px;">
+          <div style="display: flex; gap: 8px;">
+            <button type="button" onclick="{{ addDrawerFile }}" style="flex: 1; background: #fff; border: 1px dashed #d4d4d8; border-radius: 8px; padding: 8px; font-size: 11.5px; color: #52525b; cursor: pointer;">＋ Файл</button>
+            <button type="button" onclick="{{ openDrawerLink }}" style="flex: 1; background: #fff; border: 1px dashed #d4d4d8; border-radius: 8px; padding: 8px; font-size: 11.5px; color: #52525b; cursor: pointer;">🔗 Ссылка</button>
+          </div>
+          <sc-if value="{{ drawerLinkOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 7px; margin-top: 8px; padding: 9px; background: #fafafa; border: 1px solid #ededed; border-radius: 8px;">
+              <input value="{{ drawerLinkName }}" oninput="{{ setDrawerLinkName }}" placeholder="Название (необязательно)" style="min-width: 0; padding: 7px 9px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 11.5px;">
+              <input value="{{ drawerLinkUrl }}" oninput="{{ setDrawerLinkUrl }}" placeholder="https://" style="min-width: 0; padding: 7px 9px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 11.5px;">
+              <sc-if value="{{ drawerLinkHasError }}" hint-placeholder-val="{{ false }}">
+                <div style="grid-column: span 2; color: #dc2626; font-size: 10.5px;">{{ drawerLinkError }}</div>
+              </sc-if>
+              <div style="grid-column: span 2; display: flex; justify-content: flex-end; gap: 6px;">
+                <button type="button" onclick="{{ closeDrawerLink }}" style="background: none; border: 1px solid #e4e4e7; border-radius: 7px; padding: 6px 11px; color: #71717a; font-size: 11px; cursor: pointer;">Отмена</button>
+                <button type="button" onclick="{{ saveDrawerLink }}" style="background: #4f46e5; border: 1px solid #4f46e5; border-radius: 7px; padding: 6px 11px; color: #fff; font-size: 11px; font-weight: 600; cursor: pointer;">Добавить</button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+        </sc-if>
+
+        <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 11.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px;">Привязки · {{ doc.linkCount }}</div>
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;">
+          <sc-for list="{{ doc.links }}" as="l" hint-placeholder-count="2">
+            <div style="display: flex; align-items: center; gap: 9px; padding: 8px 11px; border: 1px solid #ededed; border-radius: 8px;">
+              <span style="font-size: 11px; padding: 1px 7px; border-radius: 4px; background: #f4f4f5; color: #52525b; font-weight: 500;">{{ l.type }}</span>
+              <span style="font-size: 12px;">{{ l.title }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ doc.canModifyContent }}" hint-placeholder-val="true">
+          <button type="button" onclick="{{ doc.onManageLinks }}" style="background: none; border: none; color: #4f46e5; font-size: 11.5px; font-weight: 500; cursor: pointer; padding: 0;">＋ Привязать к сущности Bitrix24</button>
+        </sc-if>
+
+        <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 11.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px; margin: 18px 0 8px;">История</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <sc-for list="{{ doc.history }}" as="h" hint-placeholder-count="3">
+            <div style="display: flex; gap: 9px; align-items: flex-start;">
+              <span style="width: 6px; height: 6px; border-radius: 50%; background: #d4d4d8; margin-top: 5px;"></span>
+              <div style="font-size: 11.5px; color: #52525b; line-height: 1.4;"><span style="color: #18181b;">{{ h.what }}</span> · {{ h.who }} · <span style="font-family: 'IBM Plex Mono'; color: #a1a1aa;">{{ h.when }}</span></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ░░ CREATE WIZARD ░░ -->
+  <sc-if value="{{ wizardOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;">
+    <div onclick="{{ closeWizard }}" style="position: absolute; inset: 0; background: rgba(24,24,27,.4); animation: dcFade .12s;"></div>
+    <div style="position: relative; width: 620px; max-height: 88vh; background: #fff; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.25); display: flex; flex-direction: column; animation: dcFade .18s; overflow: hidden;">
+      <div style="padding: 16px 22px; border-bottom: 1px solid #ededed; display: flex; align-items: center; gap: 12px;">
+        <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 16px;">{{ wizardTitle }}</div>
+        <div style="display: flex; gap: 6px; margin-left: 6px;">
+          <sc-for list="{{ wizardSteps }}" as="ws" hint-placeholder-count="3">
+            <span style="{{ ws.style }}">{{ ws.n }}</span>
+          </sc-for>
+        </div>
+        <div style="flex: 1;"></div>
+        <button type="button" onclick="{{ closeWizard }}" style="background: none; border: none; font-size: 18px; color: #a1a1aa; cursor: pointer;">✕</button>
+      </div>
+
+      <div style="flex: 1; overflow-y: auto; padding: 20px 22px;">
+        <sc-if value="{{ wzStep1 }}" hint-placeholder-val="{{ true }}">
+          <div style="font-size: 12.5px; color: #71717a; margin-bottom: 10px;">Шаг 1 — выберите раздел и тип документа</div>
+          <div style="display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 18px;">
+            <sc-for list="{{ wizardSections }}" as="ws" hint-placeholder-count="6">
+              <button type="button" onclick="{{ ws.onPick }}" style="{{ ws.style }}">
+                <span style="width: 9px; height: 9px; border-radius: 2px; background: {{ ws.c }}; display: inline-block; margin-bottom: 6px;"></span>
+                <div style="font-size: 12.5px; font-weight: 600;">{{ ws.label }}</div>
+              </button>
+            </sc-for>
+          </div>
+          <sc-if value="{{ wzHasSection }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size: 12px; color: #71717a; margin-bottom: 8px;">Тип документа</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <sc-for list="{{ wizardTypes }}" as="wt" hint-placeholder-count="5">
+                <button type="button" onclick="{{ wt.onPick }}" style="{{ wt.style }}">{{ wt.label }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+        </sc-if>
+
+        <sc-if value="{{ wzStep2 }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size: 12.5px; color: #71717a; margin-bottom: 12px;">Шаг 2 — реквизиты документа <b style="color: #18181b;">{{ wzTypeLabel }}</b></div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">Номер</span><input value="{{ wzNumber }}" oninput="{{ wzSetNumber }}" placeholder="К-2026/…" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;"></label>
+            <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">Дата документа</span><input value="{{ wzDate }}" oninput="{{ wzSetDate }}" placeholder="дд.мм.гггг" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;"></label>
+            <sc-if value="{{ wizardMoneyVisible }}" hint-placeholder-val="true">
+              <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">Сумма</span><input value="{{ wzAmount }}" oninput="{{ wzSetAmount }}" placeholder="0" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;"></label>
+              <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">Валюта</span>
+                <select value="{{ wzCurrency }}" onchange="{{ wzSetCurrency }}" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;"><option>RUB</option><option>USD</option><option>EUR</option><option>CNY</option></select>
+              </label>
+            </sc-if>
+            <label style="display: block; grid-column: span 2;"><span style="font-size: 11px; color: #a1a1aa;">Контрагент (Компания Bitrix24)</span><input value="{{ wzCounterparty }}" oninput="{{ wzSetCounterparty }}" placeholder="Начните вводить название…" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;"></label>
+          </div>
+          <div ondragover="{{ wzDragOver }}" ondrop="{{ wzDropFile }}" style="margin-top: 16px; padding: 11px 13px; background: #fafafa; border: 1px solid #ededed; border-radius: 9px;">
+            <div style="font-size: 11.5px; color: #71717a; margin-bottom: 7px;">Содержимое</div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" onclick="{{ wzPickFile }}" style="flex: 1; background: #fff; border: 1px dashed #d4d4d8; border-radius: 8px; padding: 9px; font-size: 11.5px; cursor: pointer;">{{ wzFileLabel }}</button>
+              <button type="button" onclick="{{ wzOpenLink }}" style="flex: 1; background: #fff; border: 1px dashed #d4d4d8; border-radius: 8px; padding: 9px; font-size: 11.5px; cursor: pointer;">{{ wzLinkLabel }}</button>
+              <button type="button" onclick="{{ wzClearContent }}" style="flex: 1; background: #fff; border: 1px solid #ededed; border-radius: 8px; padding: 9px; font-size: 11.5px; color: #a1a1aa; cursor: pointer;">Пока без файла</button>
+            </div>
+            <sc-if value="{{ wzLinkEditorOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 7px; margin-top: 8px;">
+                <input value="{{ wzLinkName }}" oninput="{{ wzSetLinkName }}" placeholder="Название (необязательно)" style="min-width: 0; padding: 7px 9px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 11.5px;">
+                <input value="{{ wzLinkUrl }}" oninput="{{ wzSetLinkUrl }}" placeholder="https://" style="min-width: 0; padding: 7px 9px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 11.5px;">
+                <sc-if value="{{ wzLinkHasError }}" hint-placeholder-val="{{ false }}">
+                  <div style="grid-column: span 2; color: #dc2626; font-size: 10.5px;">{{ wzLinkError }}</div>
+                </sc-if>
+                <div style="grid-column: span 2; display: flex; justify-content: flex-end; gap: 6px;">
+                  <button type="button" onclick="{{ wzCancelLink }}" style="background: none; border: 1px solid #e4e4e7; border-radius: 7px; padding: 6px 11px; color: #71717a; font-size: 11px; cursor: pointer;">Отмена</button>
+                  <button type="button" onclick="{{ wzSaveLink }}" style="background: #4f46e5; border: 1px solid #4f46e5; border-radius: 7px; padding: 6px 11px; color: #fff; font-size: 11px; font-weight: 600; cursor: pointer;">Добавить</button>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <sc-if value="{{ wzHasTypeFields }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top: 16px;">
+            <div style="font-size: 11.5px; color: #71717a; margin-bottom: 9px;">Поля типа «<b style="color: #18181b;">{{ wzTypeLabel }}</b>» <span style="color: #a1a1aa;">· настроены в Администрировании</span></div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <sc-for list="{{ wizardTypeFields }}" as="tf" hint-placeholder-count="3">
+                <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">{{ tf.name }}</span>
+                  <sc-if value="{{ tf.isSelect }}" hint-placeholder-val="{{ false }}">
+                    <select value="{{ tf.value }}" onchange="{{ tf.onInput }}" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;">
+                      <option value="">—</option>
+                      <sc-for list="{{ tf.options }}" as="op" hint-placeholder-count="3"><option value="{{ op }}">{{ op }}</option></sc-for>
+                    </select>
+                  </sc-if>
+                  <sc-if value="{{ tf.isText }}" hint-placeholder-val="{{ true }}">
+                    <input value="{{ tf.value }}" oninput="{{ tf.onInput }}" placeholder="{{ tf.dtype }}" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;">
+                  </sc-if>
+                </label>
+              </sc-for>
+            </div>
+          </div>
+          </sc-if>
+        </sc-if>
+
+        <sc-if value="{{ wzStep3 }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size: 12.5px; color: #71717a; margin-bottom: 12px;">Шаг 3 — привязки и подтверждение</div>
+          <div style="background: #fafafa; border: 1px solid #ededed; border-radius: 9px; padding: 13px 15px; margin-bottom: 14px;">
+            <div style="font-size: 11px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 8px;">Документ будет привязан к</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <sc-for list="{{ wizardLinks }}" as="l" hint-placeholder-count="2"><span style="{{ l.style }}">{{ l.label }}</span></sc-for>
+              <button type="button" onclick="{{ wzManageLinks }}" style="padding: 4px 10px; border-radius: 20px; background: #fff; border: 1px dashed #d4d4d8; color: #52525b; font-size: 11.5px; cursor: pointer;">＋ ещё</button>
+            </div>
+          </div>
+          <div style="border: 1px solid #ededed; border-radius: 9px; padding: 14px 16px;">
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px;"><span style="color: #a1a1aa;">Раздел / тип</span><span style="font-weight: 500;">{{ wzSectionLabel }} · {{ wzTypeLabel }}</span></div>
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px;"><span style="color: #a1a1aa;">Номер</span><span style="font-family: 'IBM Plex Mono';">{{ wzNumberShown }}</span></div>
+            <sc-if value="{{ wizardMoneyVisible }}" hint-placeholder-val="true">
+              <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px;"><span style="color: #a1a1aa;">Сумма</span><span style="font-family: 'IBM Plex Mono';">{{ wzAmountShown }}</span></div>
+            </sc-if>
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px;"><span style="color: #a1a1aa;">Контрагент</span><span style="font-weight: 500;">{{ wzCounterpartyShown }}</span></div>
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px;"><span style="color: #a1a1aa;">Статус при создании</span><span style="color: #71717a;">Черновик</span></div>
+          </div>
+        </sc-if>
+      </div>
+
+      <sc-if value="{{ wizardHasError }}" hint-placeholder-val="{{ false }}"><div style="margin:0 22px 10px;padding:9px 11px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:11.5px;">{{ wizardError }}</div></sc-if>
+      <div style="padding: 14px 22px; border-top: 1px solid #ededed; display: flex; align-items: center; gap: 10px;">
+        <button type="button" onclick="{{ wzBack }}" style="{{ wzBackStyle }}">← Назад</button>
+        <div style="flex: 1;"></div>
+        <button type="button" onclick="{{ closeWizard }}" style="background: none; border: 1px solid #e4e4e7; border-radius: 8px; padding: 9px 16px; font-size: 12.5px; color: #52525b; cursor: pointer;">Отмена</button>
+        <button type="button" onclick="{{ wzPrimary }}" style="{{ wzPrimaryStyle }}">{{ wzPrimaryLabel }}</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ░░ SECTION EDITOR ░░ -->
+  <sc-if value="{{ sectionModalOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;z-index:55;display:flex;align-items:center;justify-content:center;">
+    <div onclick="{{ closeSectionModal }}" style="position:absolute;inset:0;background:rgba(24,24,27,.4);"></div>
+    <div style="position:relative;width:500px;background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden;">
+      <div style="padding:15px 20px;border-bottom:1px solid #ededed;display:flex;align-items:center;"><div style="font-family:'Space Grotesk';font-weight:600;font-size:16px;">{{ sectionModalTitle }}</div><div style="flex:1;"></div><button type="button" onclick="{{ closeSectionModal }}" style="background:none;border:none;color:#a1a1aa;font-size:18px;cursor:pointer;">✕</button></div>
+      <div style="padding:18px 20px;display:grid;grid-template-columns:1fr 120px;gap:11px;">
+        <label style="grid-column:span 2;font-size:11px;color:#71717a;">Название<input value="{{ sectionName }}" oninput="{{ setSectionName }}" style="width:100%;margin-top:4px;padding:8px 9px;border:1px solid #e4e4e7;border-radius:7px;font-size:12.5px;"></label>
+        <label style="grid-column:span 2;font-size:11px;color:#71717a;">Описание<textarea value="{{ sectionDescription }}" oninput="{{ setSectionDescription }}" rows="3" style="width:100%;margin-top:4px;padding:8px 9px;border:1px solid #e4e4e7;border-radius:7px;font-size:12.5px;resize:vertical;"></textarea></label>
+        <label style="font-size:11px;color:#71717a;">Цвет<input type="color" value="{{ sectionColor }}" oninput="{{ setSectionColor }}" style="display:block;width:100%;height:34px;margin-top:4px;padding:3px;border:1px solid #e4e4e7;border-radius:7px;background:#fff;cursor:pointer;"></label>
+        <label style="font-size:11px;color:#71717a;">Порядок<input type="number" min="0" value="{{ sectionSortOrder }}" oninput="{{ setSectionSortOrder }}" style="width:100%;margin-top:4px;padding:8px 9px;border:1px solid #e4e4e7;border-radius:7px;font-size:12.5px;"></label>
+        <sc-if value="{{ sectionCanDeactivate }}" hint-placeholder-val="false"><button type="button" onclick="{{ toggleSectionActive }}" style="grid-column:span 2;background:#fff;border:1px solid #e4e4e7;border-radius:7px;padding:8px;color:#52525b;font-size:12px;cursor:pointer;">Активен: {{ sectionActiveLabel }}</button></sc-if>
+        <sc-if value="{{ adminEditHasError }}" hint-placeholder-val="false"><div style="grid-column:span 2;color:#dc2626;font-size:11px;">{{ adminEditError }}</div></sc-if>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid #ededed;display:flex;align-items:center;gap:8px;"><sc-if value="{{ sectionCanDelete }}" hint-placeholder-val="false"><button type="button" onclick="{{ deleteSection }}" style="background:#fff;border:1px solid #fecaca;border-radius:7px;padding:7px 13px;color:#dc2626;cursor:pointer;">Удалить</button></sc-if><div style="flex:1;"></div><button type="button" onclick="{{ closeSectionModal }}" style="background:#fff;border:1px solid #e4e4e7;border-radius:7px;padding:7px 13px;color:#52525b;cursor:pointer;">Отмена</button><button type="button" onclick="{{ saveSection }}" style="background:#4f46e5;border:none;border-radius:7px;padding:7px 13px;color:#fff;font-weight:600;cursor:pointer;">Сохранить</button></div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ░░ LIFECYCLE EDITOR ░░ -->
+  <sc-if value="{{ lifecycleModalOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;z-index:55;display:flex;align-items:center;justify-content:center;">
+    <div onclick="{{ closeLifecycleModal }}" style="position:absolute;inset:0;background:rgba(24,24,27,.4);"></div>
+    <div style="position:relative;width:760px;max-height:90vh;background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:15px 20px;border-bottom:1px solid #ededed;display:flex;align-items:center;"><div style="font-family:'Space Grotesk';font-weight:600;font-size:16px;">{{ lifecycleModalTitle }}</div><div style="flex:1;"></div><button type="button" onclick="{{ closeLifecycleModal }}" style="background:none;border:none;color:#a1a1aa;font-size:18px;cursor:pointer;">✕</button></div>
+      <div style="padding:18px 20px;overflow:auto;">
+        <div style="display:grid;grid-template-columns:1fr 220px;gap:10px;"><label style="font-size:11px;color:#71717a;">Название<input value="{{ lifecycleName }}" oninput="{{ setLifecycleName }}" style="width:100%;margin-top:4px;padding:8px;border:1px solid #e4e4e7;border-radius:7px;"></label><label style="font-size:11px;color:#71717a;">Начальный статус<select value="{{ lifecycleInitialStatus }}" onchange="{{ setLifecycleInitial }}" style="width:100%;margin-top:4px;padding:8px;border:1px solid #e4e4e7;border-radius:7px;"><sc-for list="{{ lifecycleStateOptions }}" as="o" hint-placeholder-count="3"><option value="{{ o.code }}">{{ o.label }}</option></sc-for></select></label></div>
+        <sc-if value="{{ lifecycleCanDeactivate }}" hint-placeholder-val="false"><button type="button" onclick="{{ toggleLifecycleActive }}" style="margin-top:10px;background:#fff;border:1px solid #e4e4e7;border-radius:7px;padding:7px 10px;color:#52525b;font-size:11.5px;cursor:pointer;">Активен: {{ lifecycleActiveLabel }}</button></sc-if>
+        <div style="display:flex;align-items:center;margin:17px 0 8px;"><b style="font-size:12.5px;">Статусы</b><div style="flex:1;"></div><button type="button" onclick="{{ addLifecycleState }}" style="background:#eef2ff;border:1px solid #dfe3fb;border-radius:6px;padding:5px 9px;color:#4f46e5;font-size:11px;cursor:pointer;">＋ Статус</button></div>
+        <sc-for list="{{ lifecycleStateRows }}" as="st" hint-placeholder-count="3"><div style="display:grid;grid-template-columns:1fr 58px 86px 26px;gap:7px;align-items:center;margin-bottom:6px;"><input value="{{ st.label }}" oninput="{{ st.onLabel }}" placeholder="Название статуса" style="padding:7px;border:1px solid #e4e4e7;border-radius:6px;"><input type="color" value="{{ st.color }}" oninput="{{ st.onColor }}" title="Цвет статуса" style="width:100%;height:32px;padding:3px;border:1px solid #e4e4e7;border-radius:6px;background:#fff;cursor:pointer;"><button type="button" onclick="{{ st.onTerminal }}" style="padding:7px 5px;border:1px solid #e4e4e7;border-radius:6px;background:#fff;color:#52525b;font-size:10.5px;cursor:pointer;">{{ st.terminalMark }} финал</button><button type="button" onclick="{{ st.onRemove }}" style="background:none;border:none;color:#a1a1aa;cursor:pointer;">✕</button></div></sc-for>
+        <div style="display:flex;align-items:center;margin:17px 0 8px;"><b style="font-size:12.5px;">Переходы</b><div style="flex:1;"></div><button type="button" onclick="{{ addLifecycleTransition }}" style="background:#eef2ff;border:1px solid #dfe3fb;border-radius:6px;padding:5px 9px;color:#4f46e5;font-size:11px;cursor:pointer;">＋ Переход</button></div>
+        <sc-for list="{{ lifecycleTransitionRows }}" as="tr" hint-placeholder-count="3"><div style="display:grid;grid-template-columns:120px 120px 1fr 105px 26px;gap:7px;align-items:center;margin-bottom:8px;"><select value="{{ tr.from }}" onchange="{{ tr.onFrom }}" title="Из статуса" style="padding:7px;border:1px solid #e4e4e7;border-radius:6px;"><sc-for list="{{ tr.stateOptions }}" as="o" hint-placeholder-count="3"><option value="{{ o.code }}">{{ o.label }}</option></sc-for></select><select value="{{ tr.to }}" onchange="{{ tr.onTo }}" title="В статус" style="padding:7px;border:1px solid #e4e4e7;border-radius:6px;"><sc-for list="{{ tr.stateOptions }}" as="o" hint-placeholder-count="3"><option value="{{ o.code }}">{{ o.label }}</option></sc-for></select><div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:4px;border:1px solid #e4e4e7;border-radius:6px;"><button type="button" onclick="{{ tr.onAllRoles }}" style="{{ tr.allRolesStyle }}">{{ tr.allRolesMark }} Все роли</button><sc-for list="{{ tr.roleOptions }}" as="r" hint-placeholder-count="4"><button type="button" onclick="{{ r.onToggle }}" style="{{ r.style }}">{{ r.mark }} {{ r.label }}</button></sc-for></div><button type="button" onclick="{{ tr.onAttachment }}" style="padding:7px 5px;border:1px solid #e4e4e7;border-radius:6px;background:#fff;color:#52525b;font-size:10.5px;cursor:pointer;">{{ tr.attachmentMark }} файл</button><button type="button" onclick="{{ tr.onRemove }}" style="background:none;border:none;color:#a1a1aa;cursor:pointer;">✕</button></div></sc-for>
+        <sc-if value="{{ adminEditHasError }}" hint-placeholder-val="false"><div style="margin-top:9px;color:#dc2626;font-size:11px;">{{ adminEditError }}</div></sc-if>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid #ededed;display:flex;align-items:center;gap:8px;"><sc-if value="{{ lifecycleCanDelete }}" hint-placeholder-val="false"><button type="button" onclick="{{ deleteLifecycle }}" style="background:#fff;border:1px solid #fecaca;border-radius:7px;padding:7px 13px;color:#dc2626;cursor:pointer;">Удалить</button></sc-if><div style="flex:1;"></div><button type="button" onclick="{{ closeLifecycleModal }}" style="background:#fff;border:1px solid #e4e4e7;border-radius:7px;padding:7px 13px;color:#52525b;cursor:pointer;">Отмена</button><button type="button" onclick="{{ saveLifecycle }}" style="background:#4f46e5;border:none;border-radius:7px;padding:7px 13px;color:#fff;font-weight:600;cursor:pointer;">Сохранить</button></div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ░░ ROLE POLICY EDITOR ░░ -->
+  <sc-if value="{{ roleModalOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;z-index:55;display:flex;align-items:center;justify-content:center;">
+    <div onclick="{{ closeRoleModal }}" style="position:absolute;inset:0;background:rgba(24,24,27,.4);"></div>
+    <div style="position:relative;width:700px;max-height:90vh;background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:15px 20px;border-bottom:1px solid #ededed;display:flex;align-items:center;"><div style="font-family:'Space Grotesk';font-weight:600;font-size:16px;">{{ roleModalTitle }}</div><div style="flex:1;"></div><button type="button" onclick="{{ closeRoleModal }}" style="background:none;border:none;color:#a1a1aa;font-size:18px;cursor:pointer;">✕</button></div>
+      <div style="padding:18px 20px;overflow:auto;">
+        <label style="font-size:11px;color:#71717a;">Название роли<input value="{{ roleName }}" oninput="{{ setRoleName }}" style="width:100%;margin-top:4px;padding:8px;border:1px solid #e4e4e7;border-radius:7px;"></label>
+        <div style="display:flex;gap:7px;margin-top:10px;"><button type="button" onclick="{{ toggleRoleActive }}" style="background:#fff;border:1px solid #e4e4e7;border-radius:7px;padding:7px 10px;color:#52525b;cursor:pointer;">Активна: {{ roleActiveLabel }}</button><button type="button" onclick="{{ toggleRoleHideMoney }}" style="background:#fff;border:1px solid #e4e4e7;border-radius:7px;padding:7px 10px;color:#52525b;cursor:pointer;">Скрывать суммы: {{ roleHideMoneyLabel }}</button><button type="button" onclick="{{ toggleRoleAllTypes }}" style="background:#fff;border:1px solid #e4e4e7;border-radius:7px;padding:7px 10px;color:#52525b;cursor:pointer;">Все типы: {{ roleAllTypesLabel }}</button></div>
+        <div style="font-size:11px;color:#71717a;margin:15px 0 7px;">Доступные разделы</div><div style="display:flex;flex-wrap:wrap;gap:6px;"><sc-for list="{{ roleSectionOptions }}" as="o" hint-placeholder-count="6"><button type="button" onclick="{{ o.onToggle }}" style="background:#fff;border:1px solid #e4e4e7;border-radius:7px;padding:6px 9px;color:#3f3f46;font-size:11.5px;cursor:pointer;">{{ o.mark }} {{ o.label }}</button></sc-for></div>
+        <sc-if value="{{ roleCustomTypes }}" hint-placeholder-val="false"><div style="font-size:11px;color:#71717a;margin:15px 0 7px;">Типы выбранных разделов</div><div style="display:flex;flex-wrap:wrap;gap:6px;"><sc-for list="{{ roleTypeOptions }}" as="o" hint-placeholder-count="8"><button type="button" onclick="{{ o.onToggle }}" style="background:#fff;border:1px solid #e4e4e7;border-radius:7px;padding:6px 9px;color:#3f3f46;font-size:11px;cursor:pointer;">{{ o.mark }} {{ o.label }}</button></sc-for></div></sc-if>
+        <div style="font-size:11px;color:#71717a;margin:15px 0 7px;">Скрытые поля</div><div style="display:flex;flex-wrap:wrap;gap:6px;"><sc-for list="{{ roleFieldOptions }}" as="o" hint-placeholder-count="6"><button type="button" onclick="{{ o.onToggle }}" style="background:#fff;border:1px solid #e4e4e7;border-radius:7px;padding:6px 9px;color:#3f3f46;font-size:11.5px;cursor:pointer;">{{ o.mark }} {{ o.label }}</button></sc-for></div>
+        <div style="font-size:11px;color:#71717a;margin:15px 0 7px;">Разрешения</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"><sc-for list="{{ rolePermissionOptions }}" as="o" hint-placeholder-count="9"><button type="button" onclick="{{ o.onToggle }}" style="background:#fff;border:1px solid #e4e4e7;border-radius:7px;padding:7px 9px;color:#3f3f46;font-size:11.5px;text-align:left;cursor:pointer;">{{ o.mark }} {{ o.label }}</button></sc-for></div>
+        <sc-if value="{{ adminEditHasError }}" hint-placeholder-val="false"><div style="margin-top:9px;color:#dc2626;font-size:11px;">{{ adminEditError }}</div></sc-if>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid #ededed;display:flex;align-items:center;gap:8px;"><sc-if value="{{ roleCanDelete }}" hint-placeholder-val="false"><button type="button" onclick="{{ deleteRolePolicy }}" style="background:#fff;border:1px solid #fecaca;border-radius:7px;padding:7px 13px;color:#dc2626;cursor:pointer;">Удалить</button></sc-if><div style="flex:1;"></div><button type="button" onclick="{{ closeRoleModal }}" style="background:#fff;border:1px solid #e4e4e7;border-radius:7px;padding:7px 13px;color:#52525b;cursor:pointer;">Отмена</button><button type="button" onclick="{{ saveRolePolicy }}" style="background:#4f46e5;border:none;border-radius:7px;padding:7px 13px;color:#fff;font-weight:600;cursor:pointer;">Сохранить</button></div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ░░ TYPE CONSTRUCTOR MODAL ░░ -->
+  <sc-if value="{{ typeModalOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position: fixed; inset: 0; z-index: 55; display: flex; align-items: center; justify-content: center;">
+    <div onclick="{{ closeTypeModal }}" style="position: absolute; inset: 0; background: rgba(24,24,27,.4); animation: dcFade .12s;"></div>
+    <div style="position: relative; width: 640px; max-height: 88vh; background: #fff; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.25); display: flex; flex-direction: column; animation: dcFade .18s; overflow: hidden;">
+      <div style="padding: 16px 22px; border-bottom: 1px solid #ededed; display: flex; align-items: center; gap: 12px;">
+        <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 16px;">{{ typeModalTitle }}</div>
+        <div style="flex: 1;"></div>
+        <button type="button" onclick="{{ closeTypeModal }}" style="background: none; border: none; font-size: 18px; color: #a1a1aa; cursor: pointer;">✕</button>
+      </div>
+      <div style="flex: 1; overflow-y: auto; padding: 20px 22px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">Раздел</span>
+            <select value="{{ ntSection }}" onchange="{{ ntSetSection }}" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;">
+              <sc-for list="{{ ntSectionOptions }}" as="o" hint-placeholder-count="6"><option value="{{ o.code }}">{{ o.label }}</option></sc-for>
+            </select>
+          </label>
+          <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">Жизненный цикл</span>
+            <select value="{{ ntLifecycle }}" onchange="{{ ntSetLifecycle }}" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;">
+              <sc-for list="{{ ntLifecycleOptions }}" as="o" hint-placeholder-count="3"><option value="{{ o.code }}">{{ o.label }}</option></sc-for>
+            </select>
+          </label>
+          <label style="display: block; grid-column: span 2;"><span style="font-size: 11px; color: #a1a1aa;">Название типа</span>
+            <input value="{{ ntLabel }}" oninput="{{ ntSetLabel }}" placeholder="Договор аренды" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;">
+          </label>
+          <label style="display: block; grid-column: span 2;"><span style="font-size: 11px; color: #a1a1aa;">Описание</span><input value="{{ ntDescription }}" oninput="{{ ntSetDescription }}" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e4e4e7;border-radius:7px;font-size:12.5px;"></label>
+          <label style="display:block;"><span style="font-size:11px;color:#a1a1aa;">Порядок</span><input type="number" min="0" value="{{ ntSortOrder }}" oninput="{{ ntSetSortOrder }}" style="width:100%;margin-top:4px;padding:8px 10px;border:1px solid #e4e4e7;border-radius:7px;font-size:12.5px;"></label>
+          <sc-if value="{{ ntCanDeactivate }}" hint-placeholder-val="false"><button type="button" onclick="{{ ntToggleActive }}" style="align-self:end;padding:8px 10px;border:1px solid #e4e4e7;border-radius:7px;background:#fff;color:#52525b;font-size:12px;cursor:pointer;">Активен: {{ ntActiveLabel }}</button></sc-if>
+        </div>
+
+        <div style="margin-top: 18px; display: flex; align-items: center; gap: 8px;">
+          <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 13.5px;">Поля типа</div>
+          <span style="font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ ntFieldCount }}</span>
+          <div style="flex: 1;"></div>
+          <button type="button" onclick="{{ ntAddBlank }}" style="background: #eef2ff; color: #4f46e5; border: 1px solid #dfe3fb; border-radius: 7px; padding: 5px 11px; font-size: 11.5px; font-weight: 500; cursor: pointer;">＋ Поле</button>
+        </div>
+        <div style="font-size: 11px; color: #a1a1aa; margin: 6px 0 10px;">Эти поля появятся в мастере создания документа этого типа и в карточке документа.</div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+          <sc-for list="{{ newTypeFields }}" as="f" hint-placeholder-count="2">
+            <div style="display: grid; grid-template-columns: 1fr 130px 78px 26px; gap: 8px; align-items: center;">
+              <input value="{{ f.name }}" oninput="{{ f.onName }}" placeholder="Название поля" style="padding: 7px 9px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;">
+              <select value="{{ f.dtype }}" onchange="{{ f.onType }}" style="padding: 7px 9px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;">
+                <sc-for list="{{ dataTypes }}" as="dt" hint-placeholder-count="5"><option value="{{ dt }}">{{ dt }}</option></sc-for>
+              </select>
+              <div onclick="{{ f.onReq }}" style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px; color: #52525b;"><span style="{{ f.reqStyle }}">{{ f.reqMark }}</span>обяз.</div>
+              <button type="button" onclick="{{ f.onRemove }}" style="background: none; border: none; color: #c4c4c8; font-size: 14px; cursor: pointer;">✕</button>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="margin-top: 14px; padding: 12px 14px; background: #fafafa; border: 1px solid #ededed; border-radius: 9px;">
+          <div style="font-size: 11px; color: #71717a; margin-bottom: 8px;">Быстро из библиотеки полей (переиспользуются между типами):</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <sc-for list="{{ libraryChips }}" as="lc" hint-placeholder-count="6">
+              <button type="button" onclick="{{ lc.onAdd }}" style="background: #fff; border: 1px solid #e4e4e7; border-radius: 20px; padding: 5px 11px; font-size: 11.5px; color: #3f3f46; cursor: pointer;">＋ {{ lc.name }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <sc-if value="{{ adminEditHasError }}" hint-placeholder-val="false"><div style="margin-top:10px;color:#dc2626;font-size:11px;">{{ adminEditError }}</div></sc-if>
+      </div>
+      <div style="padding: 14px 22px; border-top: 1px solid #ededed; display: flex; align-items: center; gap: 10px;">
+        <sc-if value="{{ ntCanDelete }}" hint-placeholder-val="false"><button type="button" onclick="{{ deleteDocumentType }}" style="background:#fff;border:1px solid #fecaca;border-radius:8px;padding:9px 16px;color:#dc2626;cursor:pointer;">Удалить</button></sc-if>
+        <span style="font-size: 11.5px; color: #a1a1aa;">Тип сохранится в справочник «Типы документов».</span>
+        <div style="flex: 1;"></div>
+        <button type="button" onclick="{{ closeTypeModal }}" style="background: none; border: 1px solid #e4e4e7; border-radius: 8px; padding: 9px 16px; font-size: 12.5px; color: #52525b; cursor: pointer;">Отмена</button>
+        <button type="button" onclick="{{ ntCreate }}" style="{{ ntCreateStyle }}">{{ ntCreateLabel }}</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ░░ CONFIRMATION MODAL ░░ -->
+  <sc-if value="{{ confirmOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;">
+    <div onclick="{{ cancelConfirmation }}" style="position:absolute;inset:0;background:rgba(24,24,27,.45);"></div>
+    <div role="dialog" aria-modal="true" style="position:relative;width:420px;max-width:calc(100vw - 32px);background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.28);overflow:hidden;">
+      <div style="padding:18px 20px 8px;font-family:'Space Grotesk';font-size:16px;font-weight:600;color:#18181b;">{{ confirmTitle }}</div>
+      <div style="padding:0 20px 18px;font-size:12.5px;line-height:1.55;color:#52525b;">{{ confirmMessage }}</div>
+      <div style="padding:12px 20px;border-top:1px solid #ededed;display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" onclick="{{ cancelConfirmation }}" style="background:#fff;border:1px solid #e4e4e7;border-radius:7px;padding:8px 14px;color:#52525b;font-size:12.5px;cursor:pointer;">Отмена</button>
+        <button type="button" onclick="{{ acceptConfirmation }}" style="{{ confirmButtonStyle }}">{{ confirmLabel }}</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ░░ HELP / TRAINING MODAL ░░ -->
+  <sc-if value="{{ helpOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position: fixed; inset: 0; z-index: 56; display: flex; align-items: center; justify-content: center;">
+    <div onclick="{{ closeHelp }}" style="position: absolute; inset: 0; background: rgba(24,24,27,.4); animation: dcFade .12s;"></div>
+    <div style="position: relative; width: 600px; max-height: 86vh; background: #fff; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.25); display: flex; flex-direction: column; animation: dcFade .18s; overflow: hidden;">
+      <div style="padding: 16px 22px; border-bottom: 1px solid #ededed; display: flex; align-items: center; gap: 12px;">
+        <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 16px;">Помощь и обучение</div>
+        <div style="flex: 1;"></div>
+        <button type="button" onclick="{{ closeHelp }}" style="background: none; border: none; font-size: 18px; color: #a1a1aa; cursor: pointer;">✕</button>
+      </div>
+      <div style="flex: 1; overflow-y: auto; padding: 16px 22px;">
+        <div style="font-size: 12px; color: #a1a1aa; margin-bottom: 12px;">Материалы доступны всем пользователям реестра.</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <sc-for list="{{ trainingItems }}" as="t" hint-placeholder-count="4">
+            <div style="border: 1px solid #ededed; border-radius: 10px; padding: 12px 14px; display: flex; gap: 11px;">
+              <div style="width: 30px; height: 30px; border-radius: 8px; background: #eef2ff; color: #4f46e5; display: flex; align-items: center; justify-content: center; font-size: 13px; flex: none;">{{ t.icon }}</div>
+              <div style="min-width: 0;">
+                <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 13px;">{{ t.title }}</div>
+                <div style="font-size: 11.5px; color: #52525b; margin-top: 2px; line-height: 1.5;">{{ t.desc }}</div>
+                <div style="font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa; margin-top: 5px;">{{ t.kind }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+  </sc-if>
+
+  </div>
+  </sc-if>
+
+  </div>
+</div>
+</x-dc>

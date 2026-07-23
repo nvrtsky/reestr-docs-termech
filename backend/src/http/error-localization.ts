@@ -1,0 +1,108 @@
+import type { ApiError } from './api-error.js';
+
+const messages: Record<string, string> = {
+  administrator_policy_must_be_full: 'Политика администратора должна сохранять полный доступ к реестру.',
+  attachment_disk_file_missing: 'Для вложения не указан файл на Диске Bitrix24.',
+  attachment_name_invalid: 'Некорректное название вложения.',
+  attachment_not_found: 'Вложение не найдено.',
+  attachment_required: 'Для этого действия необходимо прикрепить файл.',
+  attachment_url_missing: 'Для вложения не указана ссылка.',
+  attachment_version_conflict: 'Вложение уже было заменено. Обновите документ и повторите действие.',
+  bitrix_disk_root_not_configured: 'Корневая папка реестра на Диске Bitrix24 не настроена.',
+  bitrix_disk_session_required: 'Для работы с Диском требуется активная сессия Bitrix24.',
+  bitrix_domain_denied: 'Этот портал Bitrix24 не разрешён для подключения.',
+  bitrix_entity_title_missing: 'Не удалось получить название сущности Bitrix24.',
+  bitrix_event_access_token_missing: 'В событии Bitrix24 отсутствует токен доступа. Требуется повторная попытка.',
+  bitrix_event_token_invalid: 'Некорректный токен события Bitrix24.',
+  bitrix_event_token_not_configured: 'Токен событий Bitrix24 не настроен.',
+  bitrix_file_not_available: 'Файл на Диске Bitrix24 недоступен.',
+  bitrix_file_url_missing: 'Bitrix24 не вернул ссылку на файл.',
+  bitrix_folder_invalid: 'Bitrix24 вернул некорректные данные папки.',
+  bitrix_session_required: 'Требуется подтверждённая сессия Bitrix24.',
+  bitrix_unavailable: 'Bitrix24 временно недоступен. Повторите попытку позже.',
+  bitrix_upload_failed: 'Не удалось загрузить файл на Диск Bitrix24.',
+  bitrix_upload_initialization_invalid: 'Не удалось начать загрузку файла на Диск Bitrix24.',
+  bitrix_upload_url_invalid: 'Bitrix24 вернул некорректный адрес загрузки.',
+  bitrix_uploaded_file_invalid: 'Bitrix24 вернул некорректные данные загруженного файла.',
+  bitrix_uploaded_file_mismatch: 'Данные загруженного файла не соответствуют запросу.',
+  bitrix_user_invalid: 'Пользователь Bitrix24 неактивен.',
+  bitrix_users_invalid: 'Bitrix24 вернул некорректный список сотрудников.',
+  cannot_delete_administrator_policy: 'Роль администратора удалить нельзя.',
+  cannot_disable_administrator_policy: 'Роль администратора нельзя отключить.',
+  create_access_denied: 'У вашей роли нет права создавать документы.',
+  custom_role_administration_denied: 'Пользовательской роли нельзя выдать право администрирования.',
+  delete_access_denied: 'У вашей роли нет права удалять документы.',
+  document_abandon_has_attachments: 'Нельзя отменить создание документа после загрузки вложений.',
+  document_abandon_not_allowed: 'Создание этого документа уже нельзя отменить.',
+  document_already_superseded: 'Для документа уже существует более новая редакция.',
+  document_archived_read_only: 'Документ находится в архиве и доступен только для просмотра.',
+  document_fields_access_denied: 'Изменение одного или нескольких полей недоступно для вашей роли.',
+  document_link_not_found: 'Связь документа не найдена.',
+  document_not_deleted: 'Документ не находится в архиве.',
+  document_not_found: 'Документ не найден.',
+  document_type_code_required: 'Не указан тип документа.',
+  document_type_exists: 'Тип документа с таким названием уже существует.',
+  document_type_in_use: 'Тип используется документами и не может быть удалён.',
+  document_type_not_found: 'Тип документа не найден.',
+  duplicate_type_field: 'Поле с таким названием уже добавлено в тип документа.',
+  edit_access_denied: 'У вашей роли нет права редактировать документ.',
+  export_access_denied: 'У вашей роли нет права выгружать документы.',
+  export_row_limit_exceeded: 'В выборке слишком много документов для выгрузки. Уточните фильтры.',
+  field_definition_not_found: 'Поле документа не найдено.',
+  field_definition_type_conflict: 'Поле с таким названием уже существует с другим типом.',
+  file_name_invalid: 'Некорректное имя файла.',
+  financial_document_create_denied: 'Роль со скрытыми финансовыми данными не может создавать финансовые документы.',
+  financial_fields_access_denied: 'Финансовые поля недоступны для вашей роли.',
+  financial_fields_required: 'Для финансового документа необходимо указать сумму и валюту.',
+  invalid_document_field_value: 'Одно из полей документа заполнено некорректно.',
+  lifecycle_code_required: 'Не указан жизненный цикл.',
+  lifecycle_exists: 'Жизненный цикл с таким названием уже существует.',
+  lifecycle_in_use: 'Жизненный цикл используется типами документов и не может быть удалён.',
+  lifecycle_not_found: 'Жизненный цикл не найден.',
+  lifecycle_status_in_use: 'Статус используется документами и не может быть удалён.',
+  registry_access_not_assigned: 'Доступ к реестру не назначен.',
+  registry_admin_required: 'Для этого действия нужны права администратора реестра.',
+  replaceable_attachment_not_found: 'Вложение для замены не найдено.',
+  required_document_fields_missing: 'Заполните все обязательные поля документа.',
+  restore_access_denied: 'У вашей роли нет права восстанавливать документы.',
+  role_code_required: 'Не указана роль.',
+  role_policy_in_lifecycle: 'Роль используется в переходах жизненного цикла и не может быть удалена.',
+  role_policy_in_use: 'Роль назначена сотрудникам или подразделениям и не может быть удалена.',
+  role_policy_not_found: 'Роль не найдена.',
+  saved_view_access_denied: 'У вас нет права изменять это представление.',
+  saved_view_not_found: 'Представление не найдено.',
+  section_access_denied: 'Раздел недоступен для вашей роли.',
+  section_code_required: 'Не указан раздел.',
+  section_exists: 'Раздел с таким названием уже существует.',
+  section_in_use: 'Раздел используется типами документов и не может быть удалён.',
+  section_not_found: 'Раздел не найден.',
+  shared_saved_view_access_denied: 'Только администратор может управлять общими представлениями.',
+  status_unchanged: 'Документ уже находится в выбранном статусе.',
+  superseded_document_archive_unavailable: 'В жизненном цикле исходного документа отсутствует статус архива.',
+  superseded_document_type_mismatch: 'Новая редакция должна иметь тот же раздел и тип документа.',
+  transition_access_denied: 'У вашей роли нет права изменять статус документа.',
+  transition_not_allowed: 'Переход в выбранный статус недоступен.',
+  transition_role_denied: 'Ваша роль не может выполнить этот переход.',
+  type_access_denied: 'Тип документа недоступен для вашей роли.',
+  type_section_not_visible: 'Выбранный тип документа недоступен в этом разделе.',
+  unknown_document_fields: 'Переданы неизвестные поля документа.',
+  upload_session_denied: 'Сессия загрузки файла недоступна.',
+  upload_session_expired: 'Сессия загрузки файла истекла. Начните загрузку заново.',
+};
+
+export function localizedApiErrorMessage(error: ApiError) {
+  if (/[А-Яа-яЁё]/.test(error.message)) return error.message;
+  return messages[error.code] || 'Не удалось выполнить действие. Проверьте данные и повторите попытку.';
+}
+
+export function localizedValidationDetails(details: unknown) {
+  if (!Array.isArray(details)) return details;
+  return details.map((issue) => {
+    if (!issue || typeof issue !== 'object') return issue;
+    const current = issue as Record<string, unknown>;
+    const message = typeof current.message === 'string' && /[А-Яа-яЁё]/.test(current.message)
+      ? current.message
+      : 'Проверьте значение поля.';
+    return { ...current, message };
+  });
+}
