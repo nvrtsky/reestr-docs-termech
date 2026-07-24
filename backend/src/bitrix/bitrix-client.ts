@@ -6,6 +6,20 @@ interface BitrixResponse<T> {
   error_description?: string;
 }
 
+const RETRYABLE_READ_METHODS = new Set([
+  'profile',
+  'user.current',
+  'user.get',
+  'crm.company.get',
+  'crm.deal.get',
+  'crm.deal.list',
+  'crm.status.list',
+  'disk.file.get',
+  'disk.folder.getchildren',
+  'event.get',
+  'scope',
+]);
+
 export interface BitrixApiClient {
   normalizeDomain(value: string): string;
   call<T>(domainInput: string, accessToken: string, method: string, params?: object): Promise<T>;
@@ -39,17 +53,33 @@ export class BitrixClient implements BitrixApiClient {
 
   async call<T>(domainInput: string, accessToken: string, method: string, params: object = {}) {
     const domain = this.normalizeDomain(domainInput);
-    let response: Response;
-    try {
-      response = await fetch(`https://${domain}/rest/${method}.json`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ ...params, auth: accessToken }),
-        signal: AbortSignal.timeout(this.timeoutMs),
-      });
-    } catch (error) {
+    const retryableRead = RETRYABLE_READ_METHODS.has(method);
+    const attemptTimeouts = retryableRead
+      ? [
+          Math.min(this.timeoutMs, 1_000),
+          Math.min(this.timeoutMs, 1_000),
+          Math.min(this.timeoutMs, 1_000),
+          this.timeoutMs,
+        ]
+      : [this.timeoutMs];
+    let response: Response | undefined;
+    let requestError: unknown;
+    for (const timeoutMs of attemptTimeouts) {
+      try {
+        response = await fetch(`https://${domain}/rest/${method}.json`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify({ ...params, auth: accessToken }),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+        break;
+      } catch (error) {
+        requestError = error;
+      }
+    }
+    if (!response) {
       throw new ApiError(502, 'bitrix_unavailable', 'Bitrix24 REST API is unavailable.', {
-        cause: error instanceof Error ? error.name : 'unknown',
+        cause: requestError instanceof Error ? requestError.name : 'unknown',
       });
     }
 

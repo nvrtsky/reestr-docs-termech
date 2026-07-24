@@ -26,7 +26,10 @@ const environmentSchema = z.object({
     .min(10000)
     .max(3600000)
     .default(600000),
-  BITRIX_EVENT_APPLICATION_TOKEN: z.string().min(16).optional(),
+  BITRIX_EVENT_APPLICATION_TOKEN: z.preprocess(
+    (value) => value === '' ? undefined : value,
+    z.string().min(16).optional(),
+  ),
 });
 
 export type AppConfig = z.infer<typeof environmentSchema>;

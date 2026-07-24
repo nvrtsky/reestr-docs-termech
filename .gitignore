@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env
+/deploy/production/env.production
 *.log
 *.tsbuildinfo
 .vite/

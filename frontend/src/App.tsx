@@ -1,17 +1,42 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import './app.css';
-import { getRegistryBitrixContext } from './bitrix-context';
+import {
+  getRegistryBitrixContext,
+  validateRegistryBitrixApplication,
+} from './bitrix-context';
 import { selectCrmEntities } from './bitrix-crm-selector';
 
 export function App() {
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const [startup, setStartup] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [startupError, setStartupError] = useState('');
   const sendContext = useCallback(async (refresh = false) => {
     const context = await getRegistryBitrixContext(refresh);
     frameRef.current?.contentWindow?.postMessage(
       { type: 'registry-bitrix-context', context },
       window.location.origin,
     );
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void validateRegistryBitrixApplication()
+      .then(() => {
+        if (active) setStartup('ready');
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setStartupError(
+          error instanceof Error
+            ? error.message
+            : 'Не удалось подключить приложение к Bitrix24.',
+        );
+        setStartup('error');
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -46,11 +71,26 @@ export function App() {
     return () => window.removeEventListener('message', onMessage);
   }, [sendContext]);
 
+  if (startup === 'loading') {
+    return <div className="app-startup">Загружаем реестр...</div>;
+  }
+  if (startup === 'error') {
+    return (
+      <div className="app-startup app-startup-error">
+        <strong>Не удалось подключить реестр</strong>
+        <span>{startupError}</span>
+        <button type="button" onClick={() => window.location.reload()}>
+          Повторить
+        </button>
+      </div>
+    );
+  }
+
   return (
     <iframe
       ref={frameRef}
       className="legacy-registry"
-      src="/legacy/index.html"
+      src={`${import.meta.env.BASE_URL}legacy/index.html?v=${__LEGACY_APP_VERSION__}`}
       title="Реестр документов"
       onLoad={() => void sendContext(false)}
     />

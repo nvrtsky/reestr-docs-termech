@@ -14,6 +14,21 @@
 
   <!-- ════════ PROTOTYPE MODE ════════ -->
   <sc-if value="{{ true }}" hint-placeholder-val="{{ true }}">
+  <sc-if value="{{ registryLoading }}" hint-placeholder-val="{{ true }}">
+    <div style="height: 100%; display: flex; align-items: center; justify-content: center; background: #fff; color: #71717a; font-size: 12.5px;">
+      Проверяем доступ и загружаем реестр…
+    </div>
+  </sc-if>
+  <sc-if value="{{ registryLoadFailed }}" hint-placeholder-val="{{ false }}">
+    <div style="height: 100%; display: flex; align-items: center; justify-content: center; background: #fff; padding: 24px;">
+      <div style="text-align: center; max-width: 440px;">
+        <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 18px;">Не удалось загрузить реестр</div>
+        <div style="font-size: 12.5px; color: #71717a; margin-top: 7px; line-height: 1.55;">{{ registryLoadError }}</div>
+        <button type="button" onclick="{{ retryRegistry }}" style="margin-top: 14px; background: #4f46e5; color: #fff; border: none; border-radius: 8px; padding: 8px 15px; font-size: 12.5px; font-weight: 600; cursor: pointer;">Повторить</button>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ registryReady }}" hint-placeholder-val="{{ false }}">
   <sc-if value="{{ accessDenied }}" hint-placeholder-val="{{ false }}">
     <div style="height: 100%; display: flex; align-items: center; justify-content: center; background: #fff; padding: 24px;">
       <div style="text-align: center; max-width: 420px;">
@@ -26,6 +41,7 @@
   <div style="height: 100%; display: flex; min-width: 0; background: #fff;">
 
   <!-- ░░ LEFT RAIL ░░ -->
+  <sc-if value="{{ showSidebar }}" hint-placeholder-val="{{ true }}">
   <aside style="width: 224px; flex: none; background: #fafafa; border-right: 1px solid #ededed; display: flex; flex-direction: column;">
     <div style="padding: 13px 12px 6px; font-size: 10px; letter-spacing: 0.7px; text-transform: uppercase; color: #a1a1aa;">Контексты</div>
     <nav style="display: flex; flex-direction: column; gap: 1px; padding: 0 8px; overflow-y: auto;">
@@ -51,14 +67,6 @@
         <span style="width: 15px; text-align: center;">⌑</span> Архив
         <span style="margin-left: auto; font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ archiveCount }}</span>
       </button>
-      <button type="button" onclick="{{ goDeal }}" style="{{ navDealStyle }}">
-        <span style="width: 15px; text-align: center;">◳</span> Карточка сделки
-        <span style="margin-left: auto; font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ dealCount }}</span>
-      </button>
-      <button type="button" onclick="{{ goCompany }}" style="{{ navCompanyStyle }}">
-        <span style="width: 15px; text-align: center;">▤</span> Карточка компании
-        <span style="margin-left: auto; font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ companyDocTotal }}</span>
-      </button>
       <button type="button" onclick="{{ goAdmin }}" style="{{ navAdminStyle }}">
         <span style="width: 15px; text-align: center;">⚙</span> Администрирование
         <span style="margin-left: auto; font-size: 11px;">{{ adminLockIcon }}</span>
@@ -82,6 +90,7 @@
       <div style="font-size: 10.5px; color: #a1a1aa; margin-top: 7px; line-height: 1.4;">{{ roleHint }}</div>
     </div>
   </aside>
+  </sc-if>
 
   <!-- ░░ MAIN ░░ -->
   <main style="flex: 1; display: flex; flex-direction: column; min-width: 0; background: #fff;">
@@ -229,7 +238,13 @@
           <div style="display: flex; align-items: center; gap: 10px; animation: dcFade .15s;">
             <span style="font-weight: 600; color: #4f46e5;">Выбрано: {{ selectedCount }}</span>
             <sc-if value="{{ canBulkAssign }}" hint-placeholder-val="true"><button type="button" onclick="{{ openBulkAssign }}" style="background: #eef2ff; color: #4f46e5; border: 1px solid #dfe3fb; border-radius: 6px; padding: 4px 11px; font-size: 11.5px; font-weight: 500; cursor: pointer;">Назначить</button></sc-if>
-            <sc-if value="{{ bulkAssignOpen }}" hint-placeholder-val="false"><select value="{{ bulkResponsibleId }}" onchange="{{ setBulkResponsible }}" style="max-width: 230px; padding: 4px 7px; border: 1px solid #dfe3fb; border-radius: 6px; background: #fff; color: #3f3f46; font-size: 11.5px;"><sc-for list="{{ bulkResponsibleOptions }}" as="u" hint-placeholder-count="4"><option value="{{ u.id }}">{{ u.name }}</option></sc-for></select><button type="button" onclick="{{ applyBulkAssign }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 6px; padding: 5px 10px; font-size: 11px; font-weight: 600; cursor: pointer;">Применить</button></sc-if>
+            <sc-if value="{{ bulkAssignOpen }}" hint-placeholder-val="false">
+              <div style="position:relative;width:230px;">
+                <button type="button" onclick="{{ toggleBulkResponsible }}" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 7px;border:1px solid #dfe3fb;border-radius:6px;background:#fff;color:#3f3f46;font-size:11.5px;text-align:left;cursor:pointer;"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ bulkResponsibleLabel }}</span><span style="color:#71717a;">⌃</span></button>
+                <sc-if value="{{ bulkResponsibleMenuOpen }}" hint-placeholder-val="false"><div style="position:absolute;z-index:70;left:0;right:0;bottom:calc(100% + 4px);max-height:220px;overflow-y:auto;scrollbar-width:thin;background:#fff;border:1px solid #dfe3fb;border-radius:7px;box-shadow:0 -8px 22px rgba(24,24,27,.14);padding:4px;"><sc-for list="{{ bulkResponsibleOptions }}" as="u" hint-placeholder-count="4"><button type="button" onclick="{{ u.onPick }}" style="display:block;width:100%;padding:7px 8px;border:none;border-radius:5px;background:#fff;color:#3f3f46;font-size:11.5px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;">{{ u.name }}</button></sc-for></div></sc-if>
+              </div>
+              <button type="button" onclick="{{ applyBulkAssign }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 6px; padding: 5px 10px; font-size: 11px; font-weight: 600; cursor: pointer;">Применить</button>
+            </sc-if>
             <sc-if value="{{ canBulkDelete }}" hint-placeholder-val="false"><button type="button" onclick="{{ applyBulkDelete }}" style="background: #fff; color: #dc2626; border: 1px solid #fecaca; border-radius: 6px; padding: 4px 11px; font-size: 11.5px; font-weight: 500; cursor: pointer;">Удалить</button></sc-if>
             <sc-if value="{{ canBulkRestore }}" hint-placeholder-val="false"><button type="button" onclick="{{ applyBulkRestore }}" style="background: #eef2ff; color: #4f46e5; border: 1px solid #c7cdf7; border-radius: 6px; padding: 4px 11px; font-size: 11.5px; font-weight: 500; cursor: pointer;">Восстановить</button></sc-if>
             <button type="button" onclick="{{ clearSel }}" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 11.5px;">Снять</button>
@@ -266,14 +281,18 @@
           <span style="margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #71717a;"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{ dealStageColor }};"></span>Стадия: {{ dealStageName }}</span>
         </div>
         <div style="padding: 0 20px; display: flex; gap: 2px;">
-          <div style="padding: 10px 13px; font-size: 12.5px; color: #a1a1aa;">Общее</div>
-          <div style="padding: 10px 13px; font-size: 12.5px; color: #a1a1aa;">Товары</div>
-          <div style="padding: 10px 13px; font-size: 12.5px; color: #a1a1aa;">Дела</div>
           <div style="padding: 10px 13px; font-size: 12.5px; font-weight: 600; color: #18181b; border-bottom: 2px solid #4f46e5;">Документы</div>
         </div>
       </div>
 
       <div style="padding: 16px 20px; max-width: 1080px;">
+        <sc-if value="{{ placementContextMissing }}" hint-placeholder-val="{{ false }}">
+          <div style="border: 1px solid #e4e4e7; border-radius: 10px; padding: 18px 20px; background: #fafafa;">
+            <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 14px;">Сделка ещё не сохранена</div>
+            <div style="font-size: 12px; color: #71717a; line-height: 1.5; margin-top: 5px;">Сохраните карточку сделки и откройте вкладку «Документы» повторно. После сохранения Bitrix24 передаст ID сделки, и здесь появятся только связанные с ней документы.</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ placementContextReady }}" hint-placeholder-val="{{ true }}">
         <div style="display: flex; gap: 10px; margin-bottom: 14px;">
           <div style="flex: 1; border: 1px solid #ededed; border-radius: 10px; padding: 12px 14px;">
             <div style="font-size: 10.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .4px;">Документов в сделке</div>
@@ -347,6 +366,7 @@
             </div>
           </sc-for>
         </div>
+        </sc-if>
       </div>
     </div>
     </sc-if>
@@ -363,14 +383,18 @@
           <span style="margin-left: auto; font-size: 12px; color: #71717a;">{{ companyDocTotal }} документов по всем сделкам</span>
         </div>
         <div style="padding: 0 20px; display: flex; gap: 2px;">
-          <div style="padding: 10px 13px; font-size: 12.5px; color: #a1a1aa;">Общее</div>
-          <div style="padding: 10px 13px; font-size: 12.5px; color: #a1a1aa;">Реквизиты</div>
-          <div style="padding: 10px 13px; font-size: 12.5px; color: #a1a1aa;">Сделки</div>
           <div style="padding: 10px 13px; font-size: 12.5px; font-weight: 600; color: #18181b; border-bottom: 2px solid #4f46e5;">Документы</div>
         </div>
       </div>
 
       <div style="padding: 16px 20px; max-width: 1080px;">
+        <sc-if value="{{ placementContextMissing }}" hint-placeholder-val="{{ false }}">
+          <div style="border: 1px solid #e4e4e7; border-radius: 10px; padding: 18px 20px; background: #fafafa;">
+            <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 14px;">Компания ещё не сохранена</div>
+            <div style="font-size: 12px; color: #71717a; line-height: 1.5; margin-top: 5px;">Сохраните карточку компании и откройте вкладку «Документы» повторно. После сохранения Bitrix24 передаст ID компании, и здесь появятся только связанные с ней документы.</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ placementContextReady }}" hint-placeholder-val="{{ true }}">
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
           <div style="display: flex; background: #f4f4f5; border-radius: 8px; padding: 3px; gap: 2px;">
             <button type="button" onclick="{{ setCompanyDeals }}" style="{{ cvDealsStyle }}">По сделкам</button>
@@ -474,6 +498,7 @@
             </div>
           </sc-for>
         </div>
+        </sc-if>
         </sc-if>
       </div>
     </div>
@@ -596,11 +621,12 @@
                 <sc-if value="{{ adminUsersEmpty }}" hint-placeholder-val="false"><div style="padding: 20px; text-align: center; color: #a1a1aa; font-size: 12px;">Сотрудники не найдены.</div></sc-if>
                 <sc-for list="{{ adminUserRows }}" as="u" hint-placeholder-count="4">
                   <div style="display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 12px; align-items: center; padding: 9px 14px; border-top: 1px solid #f4f4f5;">
-                    <div style="min-width: 0;"><div style="font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ u.name }}</div><div style="font-size: 10.5px; color: #a1a1aa; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ u.details }}</div></div>
-                    <select value="{{ u.roleCode }}" onchange="{{ u.onRole }}" style="width: 100%; padding: 7px 8px; border: 1px solid #e4e4e7; border-radius: 7px; background: #fff; color: #3f3f46; font-size: 11.5px;"><sc-for list="{{ u.roleOptions }}" as="o" hint-placeholder-count="5"><option value="{{ o.code }}">{{ o.label }}</option></sc-for></select>
+                    <div style="min-width: 0;"><div style="display:flex;align-items:center;gap:7px;min-width:0;"><span style="font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ u.name }}</span><sc-if value="{{ u.bitrixAdmin }}" hint-placeholder-val="false"><span style="flex:none;padding:2px 6px;border-radius:5px;background:#eef2ff;color:#4f46e5;font-size:9.5px;font-weight:600;">Администратор Bitrix24</span></sc-if></div><div style="font-size: 10.5px; color: #a1a1aa; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ u.details }}</div></div>
+                    <sc-if value="{{ u.roleEditable }}" hint-placeholder-val="true"><select value="{{ u.roleCode }}" onchange="{{ u.onRole }}" style="width: 100%; padding: 7px 8px; border: 1px solid #e4e4e7; border-radius: 7px; background: #fff; color: #3f3f46; font-size: 11.5px;"><sc-for list="{{ u.roleOptions }}" as="o" hint-placeholder-count="5"><option value="{{ o.code }}">{{ o.label }}</option></sc-for></select></sc-if>
+                    <sc-if value="{{ u.bitrixAdmin }}" hint-placeholder-val="false"><div title="Роль назначена автоматически из Bitrix24" style="width:100%;padding:7px 8px;border:1px solid #c7cdf7;border-radius:7px;background:#f7f7ff;color:#4f46e5;font-size:11.5px;font-weight:600;">Администратор реестра</div></sc-if>
                   </div>
                 </sc-for>
-                <sc-if value="{{ adminAccessHasError }}" hint-placeholder-val="false"><div style="padding: 9px 14px; border-top: 1px solid #f4f4f5; color: #dc2626; font-size: 11px;">{{ adminAccessError }}</div></sc-if>
+                <sc-if value="{{ adminAccessHasError }}" hint-placeholder-val="false"><div style="padding: 9px 14px; border-top: 1px solid #f4f4f5; display: flex; align-items: center; gap: 10px; color: #dc2626; font-size: 11px;"><span style="flex: 1;">{{ adminAccessError }}</span><button type="button" onclick="{{ retryAdminAccess }}" style="background: #fff; border: 1px solid #fecaca; border-radius: 6px; padding: 5px 9px; color: #b91c1c; font-size: 11px; cursor: pointer;">Повторить</button></div></sc-if>
               </div>
             </div>
           </sc-if>
@@ -681,7 +707,7 @@
             <label style="display: block; grid-column: span 2;"><span style="font-size: 10.5px; color: #71717a;">Юр. лицо</span><input value="{{ drawerEditLegalEntity }}" oninput="{{ setDrawerEditLegalEntity }}" maxlength="1000" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"></label>
             <label style="display: block; grid-column: span 2;"><span style="font-size: 10.5px; color: #71717a;">Контрагент (Компания Bitrix24)</span><input value="{{ drawerEditCounterparty }}" oninput="{{ setDrawerEditCounterparty }}" maxlength="1000" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"></label>
             <label style="display: block; grid-column: span 2;"><span style="font-size: 10.5px; color: #71717a;">Этап сделки</span><input value="{{ drawerEditDealStage }}" oninput="{{ setDrawerEditDealStage }}" maxlength="1000" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"></label>
-            <label style="display: block; grid-column: span 2;"><span style="font-size: 10.5px; color: #71717a;">Ответственный *</span><select value="{{ drawerEditResponsible }}" onchange="{{ setDrawerEditResponsible }}" style="width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #d4d4d8; border-radius: 7px; background: #fff; font-size: 12.5px;"><sc-for list="{{ drawerEditResponsibleOptions }}" as="ro" hint-placeholder-count="3"><option value="{{ ro.value }}">{{ ro.label }}</option></sc-for></select></label>
+            <label style="display: block; grid-column: span 2;"><span style="font-size: 10.5px; color: #71717a;">Ответственный *</span><div style="position:relative;width:100%;margin-top:4px;"><button type="button" onclick="{{ toggleDrawerEditResponsible }}" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px;border:1px solid #d4d4d8;border-radius:7px;background:#fff;color:#3f3f46;font-size:12.5px;text-align:left;cursor:pointer;"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ drawerEditResponsibleLabel }}</span><span style="color:#71717a;">⌄</span></button><sc-if value="{{ drawerEditResponsibleMenuOpen }}" hint-placeholder-val="false"><div style="position:absolute;z-index:70;left:0;right:0;top:calc(100% + 4px);max-height:190px;overflow-y:auto;scrollbar-width:thin;background:#fff;border:1px solid #d4d4d8;border-radius:7px;box-shadow:0 8px 22px rgba(24,24,27,.14);padding:4px;"><sc-for list="{{ drawerEditResponsibleOptions }}" as="ro" hint-placeholder-count="3"><button type="button" onclick="{{ ro.onPick }}" style="display:block;width:100%;padding:8px 9px;border:none;border-radius:5px;background:#fff;color:#3f3f46;font-size:12px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;">{{ ro.label }}</button></sc-for></div></sc-if></div></label>
             <sc-if value="{{ drawerEditHasFields }}" hint-placeholder-val="false">
               <sc-for list="{{ drawerEditFields }}" as="ef" hint-placeholder-count="3">
                 <label style="display: block; grid-column: span 2;"><span style="font-size: 10.5px; color: #71717a;">{{ ef.label }}{{ ef.requiredMark }}</span>
@@ -781,6 +807,7 @@
       <div style="flex: 1; overflow-y: auto; padding: 20px 22px;">
         <sc-if value="{{ wzStep1 }}" hint-placeholder-val="{{ true }}">
           <div style="font-size: 12.5px; color: #71717a; margin-bottom: 10px;">Шаг 1 — выберите раздел и тип документа</div>
+          <div style="font-size: 11px; color: #a1a1aa; margin-bottom: 7px;">Раздел *</div>
           <div style="display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 18px;">
             <sc-for list="{{ wizardSections }}" as="ws" hint-placeholder-count="6">
               <button type="button" onclick="{{ ws.onPick }}" style="{{ ws.style }}">
@@ -790,7 +817,7 @@
             </sc-for>
           </div>
           <sc-if value="{{ wzHasSection }}" hint-placeholder-val="{{ false }}">
-            <div style="font-size: 12px; color: #71717a; margin-bottom: 8px;">Тип документа</div>
+            <div style="font-size: 12px; color: #71717a; margin-bottom: 8px;">Тип документа *</div>
             <div style="display: flex; flex-wrap: wrap; gap: 6px;">
               <sc-for list="{{ wizardTypes }}" as="wt" hint-placeholder-count="5">
                 <button type="button" onclick="{{ wt.onPick }}" style="{{ wt.style }}">{{ wt.label }}</button>
@@ -803,14 +830,15 @@
           <div style="font-size: 12.5px; color: #71717a; margin-bottom: 12px;">Шаг 2 — реквизиты документа <b style="color: #18181b;">{{ wzTypeLabel }}</b></div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">Номер</span><input value="{{ wzNumber }}" oninput="{{ wzSetNumber }}" placeholder="К-2026/…" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;"></label>
-            <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">Дата документа</span><input value="{{ wzDate }}" oninput="{{ wzSetDate }}" placeholder="дд.мм.гггг" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;"></label>
+            <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">Дата документа *</span><input type="date" value="{{ wzDate }}" oninput="{{ wzSetDate }}" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; background:#fff; font-size: 12.5px; cursor:pointer;"></label>
             <sc-if value="{{ wizardMoneyVisible }}" hint-placeholder-val="true">
-              <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">Сумма</span><input value="{{ wzAmount }}" oninput="{{ wzSetAmount }}" placeholder="0" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;"></label>
-              <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">Валюта</span>
+              <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">Сумма{{ wzMoneyRequiredMark }}</span><input value="{{ wzAmount }}" oninput="{{ wzSetAmount }}" placeholder="0" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;"></label>
+              <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">Валюта{{ wzMoneyRequiredMark }}</span>
                 <select value="{{ wzCurrency }}" onchange="{{ wzSetCurrency }}" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;"><option>RUB</option><option>USD</option><option>EUR</option><option>CNY</option></select>
               </label>
             </sc-if>
             <label style="display: block; grid-column: span 2;"><span style="font-size: 11px; color: #a1a1aa;">Контрагент (Компания Bitrix24)</span><input value="{{ wzCounterparty }}" oninput="{{ wzSetCounterparty }}" placeholder="Начните вводить название…" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;"></label>
+            <label style="display: block; grid-column: span 2;"><span style="font-size: 11px; color: #a1a1aa;">Ответственный *</span><div style="position:relative;width:100%;margin-top:4px;"><button type="button" onclick="{{ toggleWzResponsible }}" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid #e4e4e7;border-radius:7px;background:#fff;color:#3f3f46;font-size:12.5px;text-align:left;cursor:pointer;"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ wzResponsibleShown }}</span><span style="color:#71717a;">⌄</span></button><sc-if value="{{ wzResponsibleMenuOpen }}" hint-placeholder-val="false"><div style="position:absolute;z-index:70;left:0;right:0;top:calc(100% + 4px);max-height:190px;overflow-y:auto;scrollbar-width:thin;background:#fff;border:1px solid #e4e4e7;border-radius:7px;box-shadow:0 8px 22px rgba(24,24,27,.14);padding:4px;"><sc-for list="{{ wzResponsibleOptions }}" as="ro" hint-placeholder-count="3"><button type="button" onclick="{{ ro.onPick }}" style="display:block;width:100%;padding:8px 9px;border:none;border-radius:5px;background:#fff;color:#3f3f46;font-size:12px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;">{{ ro.label }}</button></sc-for></div></sc-if></div></label>
           </div>
           <div ondragover="{{ wzDragOver }}" ondrop="{{ wzDropFile }}" style="margin-top: 16px; padding: 11px 13px; background: #fafafa; border: 1px solid #ededed; border-radius: 9px;">
             <div style="font-size: 11.5px; color: #71717a; margin-bottom: 7px;">Содержимое</div>
@@ -838,7 +866,7 @@
             <div style="font-size: 11.5px; color: #71717a; margin-bottom: 9px;">Поля типа «<b style="color: #18181b;">{{ wzTypeLabel }}</b>» <span style="color: #a1a1aa;">· настроены в Администрировании</span></div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <sc-for list="{{ wizardTypeFields }}" as="tf" hint-placeholder-count="3">
-                <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">{{ tf.name }}</span>
+                <label style="display: block;"><span style="font-size: 11px; color: #a1a1aa;">{{ tf.name }}{{ tf.requiredMark }}</span>
                   <sc-if value="{{ tf.isSelect }}" hint-placeholder-val="{{ false }}">
                     <select value="{{ tf.value }}" onchange="{{ tf.onInput }}" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;">
                       <option value="">—</option>
@@ -846,7 +874,7 @@
                     </select>
                   </sc-if>
                   <sc-if value="{{ tf.isText }}" hint-placeholder-val="{{ true }}">
-                    <input value="{{ tf.value }}" oninput="{{ tf.onInput }}" placeholder="{{ tf.dtype }}" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 12.5px;">
+                    <input type="{{ tf.inputType }}" value="{{ tf.value }}" oninput="{{ tf.onInput }}" placeholder="{{ tf.dtype }}" style="width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid #e4e4e7; border-radius: 7px; background:#fff; font-size: 12.5px;">
                   </sc-if>
                 </label>
               </sc-for>
@@ -867,10 +895,15 @@
           <div style="border: 1px solid #ededed; border-radius: 9px; padding: 14px 16px;">
             <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px;"><span style="color: #a1a1aa;">Раздел / тип</span><span style="font-weight: 500;">{{ wzSectionLabel }} · {{ wzTypeLabel }}</span></div>
             <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px;"><span style="color: #a1a1aa;">Номер</span><span style="font-family: 'IBM Plex Mono';">{{ wzNumberShown }}</span></div>
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px;"><span style="color: #a1a1aa;">Дата документа *</span><span style="font-family: 'IBM Plex Mono';">{{ wzDateShown }}</span></div>
             <sc-if value="{{ wizardMoneyVisible }}" hint-placeholder-val="true">
-              <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px;"><span style="color: #a1a1aa;">Сумма</span><span style="font-family: 'IBM Plex Mono';">{{ wzAmountShown }}</span></div>
+              <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px;"><span style="color: #a1a1aa;">Сумма{{ wzMoneyRequiredMark }}</span><span style="font-family: 'IBM Plex Mono';">{{ wzAmountShown }}</span></div>
             </sc-if>
             <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px;"><span style="color: #a1a1aa;">Контрагент</span><span style="font-weight: 500;">{{ wzCounterpartyShown }}</span></div>
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px;"><span style="color: #a1a1aa;">Ответственный *</span><span style="font-weight: 500;">{{ wzResponsibleShown }}</span></div>
+            <sc-for list="{{ wizardTypeFields }}" as="tf" hint-placeholder-count="3">
+              <div style="display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; font-size: 12.5px;"><span style="color: #a1a1aa;">{{ tf.name }}{{ tf.requiredMark }}</span><span style="font-weight: 500; text-align: right;">{{ tf.valueShown }}</span></div>
+            </sc-for>
             <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 12.5px;"><span style="color: #a1a1aa;">Статус при создании</span><span style="color: #71717a;">Черновик</span></div>
           </div>
         </sc-if>
@@ -1060,6 +1093,7 @@
       </div>
     </div>
   </div>
+  </sc-if>
   </sc-if>
   </sc-if>
 

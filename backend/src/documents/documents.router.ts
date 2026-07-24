@@ -31,7 +31,7 @@ export function createDocumentsRouter({
 }) {
   const router = Router();
   const documents = createDocumentsService({ database, bitrix });
-  const documentsExport = new DocumentsExportService({ database, documents });
+  const documentsExport = new DocumentsExportService({ database, documents, bitrix });
   const crmContext = new CrmContextService(bitrix);
   const updateDocument: RequestHandler = async (request, response, next) => {
     try {

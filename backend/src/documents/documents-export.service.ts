@@ -1,11 +1,13 @@
 import ExcelJS from '@excel.js/exceljs';
 import { eq } from 'drizzle-orm';
 
+import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
 import type { Database } from '../db/database.js';
 import { registryLifecycles } from '../db/schema/index.js';
 import { ApiError } from '../http/api-error.js';
 import type { RegistryContext } from '../http/registry-context.js';
 import { loadRegistryPolicy } from '../permissions/policy.service.js';
+import { listBitrixUsers } from '../users/bitrix-users.service.js';
 import type { DocumentExportQuery } from './documents.schemas.js';
 import type { DocumentsService } from './documents.service.js';
 
@@ -15,6 +17,7 @@ const MAX_EXPORT_ROWS = 10_000;
 interface ExportDependencies {
   database: Database;
   documents: DocumentsService;
+  bitrix: BitrixApiClient;
 }
 
 interface ExportColumn {
@@ -57,6 +60,7 @@ export class DocumentsExportService {
     }
 
     const statusLabels = await this.loadStatusLabels(context.portalUrl);
+    const responsibleNames = await this.loadResponsibleNames(context);
     const columns = this.exportColumns(
       policy.hideMoney,
       policy.hiddenFields,
@@ -96,7 +100,9 @@ export class DocumentsExportService {
         row.documentDate = this.excelDate(item.documentDate);
       }
       if (query.columns === undefined || query.columns.includes('responsible')) {
-        row.responsible = item.responsibleName || `Пользователь #${item.responsibleId}`;
+        row.responsible = responsibleNames.get(item.responsibleId)
+          || item.responsibleName
+          || `Пользователь #${item.responsibleId}`;
       }
       worksheet.addRow(row);
     }
@@ -185,6 +191,15 @@ export class DocumentsExportService {
       }
     }
     return labels;
+  }
+
+  private async loadResponsibleNames(context: RegistryContext) {
+    try {
+      const users = await listBitrixUsers(context, this.dependencies.bitrix);
+      return new Map(users.map((user) => [user.id, user.name]));
+    } catch {
+      return new Map<number, string>();
+    }
   }
 
   private excelDate(value: string) {

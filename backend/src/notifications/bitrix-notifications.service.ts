@@ -21,7 +21,7 @@ export class BitrixNotificationsService {
       context,
       document.responsibleId,
       `registry-responsible-${document.id}-${document.responsibleId}`,
-      `[B]Реестр документов[/B]\nВы назначены ответственным за документ «${this.label(document)}».`,
+      `[B]Реестр документов[/B]\nВас назначили ответственным за документ «${this.label(document)}».`,
     );
   }
 
@@ -29,13 +29,15 @@ export class BitrixNotificationsService {
     context: RegistryContext,
     document: NotificationDocument,
     statusCode: string,
-    statusLabel: string,
+    previousStatusLabel: string,
+    nextStatusLabel: string,
   ) {
+    if (document.responsibleId === context.userId) return;
     await this.send(
       context,
       document.responsibleId,
       `registry-status-${document.id}-${this.tagPart(statusCode)}`,
-      `[B]Реестр документов[/B]\nСтатус документа «${this.label(document)}» изменён на «${statusLabel}».`,
+      `[B]Реестр документов[/B]\nСтатус документа «${this.label(document)}» изменён: «${previousStatusLabel}» → «${nextStatusLabel}».`,
     );
   }
 

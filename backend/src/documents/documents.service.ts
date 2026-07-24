@@ -393,9 +393,7 @@ export class DocumentsService {
       });
     });
 
-    const created = await this.getById(context, documentId);
-    await this.notifications.responsibleAssigned(context, created);
-    return created;
+    return this.getById(context, documentId);
   }
 
   async removeLink(
@@ -779,7 +777,9 @@ export class DocumentsService {
       return document.id;
     });
 
-    return this.getById(context, documentId);
+    const created = await this.getById(context, documentId);
+    await this.notifications.responsibleAssigned(context, created);
+    return created;
   }
 
   async update(
@@ -932,9 +932,17 @@ export class DocumentsService {
     });
 
     const updated = await this.getById(context, id, targetStatus === 'archived');
-    const statusLabel = current.lifecycleConfig.states
+    const previousStatusLabel = current.lifecycleConfig.states
+      .find((state) => state.code === current.status)?.label || current.status;
+    const nextStatusLabel = current.lifecycleConfig.states
       .find((state) => state.code === targetStatus)?.label || targetStatus;
-    await this.notifications.statusChanged(context, updated, targetStatus, statusLabel);
+    await this.notifications.statusChanged(
+      context,
+      updated,
+      targetStatus,
+      previousStatusLabel,
+      nextStatusLabel,
+    );
     return updated;
   }
 

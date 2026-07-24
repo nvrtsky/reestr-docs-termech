@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { and, eq } from 'drizzle-orm';
 
+import { saveBitrixAdminStatus } from '../bitrix/bitrix-admin-users.repository.js';
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
 import type { Database } from '../db/database.js';
 import { registryUserRoles } from '../db/schema/index.js';
@@ -29,6 +30,7 @@ export interface BitrixSessionResolver {
 
 export class BitrixSessionService implements BitrixSessionResolver {
   private readonly cache = new Map<string, CachedSession>();
+  private readonly pending = new Map<string, Promise<RegistryContext>>();
 
   constructor(
     private readonly database: Database,
@@ -43,16 +45,59 @@ export class BitrixSessionService implements BitrixSessionResolver {
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.context;
 
-    const [profile, user] = await Promise.all([
-      this.client.call<BitrixProfile>(domain, accessToken, 'profile'),
-      this.client.call<BitrixUser>(domain, accessToken, 'user.current'),
-    ]);
+    const pending = this.pending.get(cacheKey);
+    if (pending) return pending;
+
+    const resolution = this.resolveVerifiedSession(
+      domain,
+      accessToken,
+      memberId,
+      cacheKey,
+    ).finally(() => {
+      this.pending.delete(cacheKey);
+    });
+    this.pending.set(cacheKey, resolution);
+    return resolution;
+  }
+
+  private async resolveVerifiedSession(
+    domain: string,
+    accessToken: string,
+    memberId: string | undefined,
+    cacheKey: string,
+  ) {
+    const profile = await this.client.call<BitrixProfile>(
+      domain,
+      accessToken,
+      'profile',
+    );
+    const user = await this.client.call<BitrixUser>(
+      domain,
+      accessToken,
+      'user.current',
+    );
     const userId = Number(user.ID);
     if (!Number.isSafeInteger(userId) || userId <= 0 || !user.ACTIVE || profile.ID !== user.ID) {
       throw new ApiError(401, 'bitrix_user_invalid', 'Bitrix24 user is not active.');
     }
 
     const portalUrl = `https://${domain}`;
+    await saveBitrixAdminStatus(
+      this.database,
+      portalUrl,
+      userId,
+      profile.ADMIN === true,
+    );
+    if (profile.ADMIN) {
+      await this.database
+        .delete(registryUserRoles)
+        .where(
+          and(
+            eq(registryUserRoles.portalUrl, portalUrl),
+            eq(registryUserRoles.userId, userId),
+          ),
+        );
+    }
     const roleCode = profile.ADMIN
       ? 'admin'
       : await this.resolveUserRole(portalUrl, userId);

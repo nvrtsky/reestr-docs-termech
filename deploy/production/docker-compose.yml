@@ -1,0 +1,79 @@
+name: termech-doc-registry
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - registry-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - registry-network
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: 3001
+      WEB_ORIGIN: ${WEB_ORIGIN}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      BITRIX_ALLOWED_DOMAINS: ${BITRIX_ALLOWED_DOMAINS}
+      BITRIX_REQUEST_TIMEOUT_MS: ${BITRIX_REQUEST_TIMEOUT_MS:-10000}
+      BITRIX_UPLOAD_TIMEOUT_MS: ${BITRIX_UPLOAD_TIMEOUT_MS:-600000}
+      BITRIX_EVENT_APPLICATION_TOKEN: ${BITRIX_EVENT_APPLICATION_TOKEN:-}
+    ports:
+      - "127.0.0.1:${BACKEND_HOST_PORT:-3103}:3001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/api/v1/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 10
+    networks:
+      - registry-network
+
+  frontend:
+    build:
+      context: ../..
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_APP_BASE_URL: ${VITE_APP_BASE_URL:-/registry/}
+        VITE_BITRIX_APP_CODE: ${VITE_BITRIX_APP_CODE:-}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-3102}:8080"
+    networks:
+      - registry-network
+
+networks:
+  registry-network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "1400"
+
+volumes:
+  registry-postgres-data:

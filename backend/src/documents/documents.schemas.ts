@@ -100,7 +100,7 @@ export const createDocumentSchema = z.object({
   counterpartyName: optionalText,
   dealStageId: optionalText,
   comment: optionalText,
-  responsibleId: z.number().int().positive().optional(),
+  responsibleId: z.coerce.number().int().positive().optional(),
   responsibleName: optionalText,
   supersedesId: documentIdSchema.optional(),
   links: z

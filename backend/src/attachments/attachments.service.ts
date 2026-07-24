@@ -15,6 +15,7 @@ import {
 } from '../db/schema/index.js';
 import { ApiError } from '../http/api-error.js';
 import type { RegistryContext } from '../http/registry-context.js';
+import { logger } from '../logger.js';
 import {
   assertSectionVisible,
   assertTypeVisible,
@@ -285,19 +286,75 @@ export class AttachmentsService {
       throw new ApiError(404, 'attachment_not_found', 'Attachment was not found.');
     }
 
-    await this.database.transaction(async (transaction) => {
-      await transaction
-        .update(registryAttachments)
-        .set({ deletedAt: new Date(), isCurrent: false })
-        .where(eq(registryAttachments.id, attachmentId));
-      await transaction.insert(registryAuditLog).values({
-        portalUrl: context.portalUrl,
-        documentId,
-        event: 'attachment_deleted',
-        actorId: context.userId,
-        before: this.toAttachmentResponse(attachment),
+    const bitrixContext = attachment.kind === 'file'
+      ? this.requireBitrixContext(context)
+      : null;
+    if (attachment.kind === 'file' && !attachment.diskFileId) {
+      throw new ApiError(
+        409,
+        'attachment_disk_file_missing',
+        'Bitrix24 Disk file ID is missing.',
+      );
+    }
+
+    if (bitrixContext && attachment.diskFileId) {
+      await this.bitrix.call(
+        bitrixContext.domain,
+        bitrixContext.accessToken,
+        'disk.file.markdeleted',
+        { id: attachment.diskFileId },
+      );
+    }
+
+    try {
+      await this.database.transaction(async (transaction) => {
+        const [deleted] = await transaction
+          .update(registryAttachments)
+          .set({ deletedAt: new Date(), isCurrent: false })
+          .where(
+            and(
+              eq(registryAttachments.id, attachmentId),
+              eq(registryAttachments.documentId, documentId),
+              eq(registryAttachments.portalUrl, context.portalUrl),
+              isNull(registryAttachments.deletedAt),
+            ),
+          )
+          .returning({ id: registryAttachments.id });
+        if (!deleted) {
+          throw new ApiError(409, 'attachment_not_found', 'Attachment was not found.');
+        }
+        await transaction.insert(registryAuditLog).values({
+          portalUrl: context.portalUrl,
+          documentId,
+          event: 'attachment_deleted',
+          actorId: context.userId,
+          before: this.toAttachmentResponse(attachment),
+        });
       });
-    });
+    } catch (error) {
+      if (bitrixContext && attachment.diskFileId) {
+        await this.bitrix
+          .call(
+            bitrixContext.domain,
+            bitrixContext.accessToken,
+            'disk.file.restore',
+            { id: attachment.diskFileId },
+          )
+          .catch((restoreError) => {
+            logger.error(
+              {
+                error: restoreError,
+                portalUrl: context.portalUrl,
+                documentId,
+                attachmentId,
+                diskFileId: attachment.diskFileId,
+              },
+              'Could not restore Bitrix24 Disk file after attachment delete rollback',
+            );
+          });
+      }
+      throw error;
+    }
   }
 
   async getAccess(context: RegistryContext, documentId: string, attachmentId: string) {

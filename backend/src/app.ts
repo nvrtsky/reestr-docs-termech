@@ -6,7 +6,7 @@ import express, {
   type Request,
   type Response,
 } from 'express';
-import { pinoHttp } from 'pino-http';
+import { pinoHttp, stdSerializers } from 'pino-http';
 
 import { createAdminCatalogsRouter } from './administration/admin-catalogs.router.js';
 import { createAdministrationRouter } from './administration/administration.router.js';
@@ -15,6 +15,7 @@ import {
   type BitrixSessionResolver,
 } from './auth/bitrix-session.service.js';
 import { BitrixClient, type BitrixApiClient } from './bitrix/bitrix-client.js';
+import { createBitrixInstallRouter } from './bitrix/bitrix-install.router.js';
 import { createCatalogsRouter } from './catalogs/catalogs.router.js';
 import type { AppConfig } from './config.js';
 import { createCrmContextRouter } from './crm-context/crm-context.router.js';
@@ -55,8 +56,25 @@ export function createApp({
     pinoHttp({
       logger,
       redact: {
-        paths: ['req.headers.authorization'],
+        paths: [
+          'req.headers.authorization',
+          'req.query.APP_SID',
+          'req.query.AUTH_ID',
+          'req.query.REFRESH_ID',
+          'req.query.application_token',
+        ],
         censor: '[Redacted]',
+      },
+      serializers: {
+        req(request) {
+          const serialized = stdSerializers.req(request) as ReturnType<
+            typeof stdSerializers.req
+          > & { url?: string };
+          if (typeof serialized.url === 'string') {
+            serialized.url = serialized.url.split('?')[0];
+          }
+          return serialized;
+        },
       },
       genReqId: (request, response) => {
         const incomingId = request.headers['x-request-id'];
@@ -95,10 +113,24 @@ export function createApp({
       '/api/v1/bitrix/events',
       createCrmEventsRouter({ config, database, bitrix }),
     );
+    app.use(
+      '/api/v1/bitrix/install',
+      createBitrixInstallRouter({
+        database,
+        bitrix,
+        webOrigin: config.WEB_ORIGIN,
+      }),
+    );
     const registryRouter = express.Router();
     registryRouter.use(createRegistryContextMiddleware(config, sessions));
     registryRouter.use('/admin', createAdminCatalogsRouter({ database }));
-    registryRouter.use('/admin', createAdministrationRouter({ database, bitrix }));
+    registryRouter.use('/admin', createAdministrationRouter({
+      database,
+      bitrix,
+      bitrixEventHandlerUrl: new URL('/api/v1/bitrix/events', config.WEB_ORIGIN).toString(),
+      bitrixPlacementHandlerUrl: new URL('/registry/', config.WEB_ORIGIN).toString(),
+      bitrixEventTokenConfigured: !!config.BITRIX_EVENT_APPLICATION_TOKEN,
+    }));
     registryRouter.use(createCatalogsRouter({ database }));
     registryRouter.use('/users', createUsersRouter({ bitrix }));
     registryRouter.use('/saved-views', createSavedViewsRouter({ database }));

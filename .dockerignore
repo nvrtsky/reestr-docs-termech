@@ -1,0 +1,12 @@
+.git
+.gitignore
+.local-archive
+.runtime
+artifacts
+node_modules
+**/node_modules
+**/dist
+**/.runtime
+**/*.tsbuildinfo
+tmp
+IMPLEMENTATION_PLAN.md

@@ -4,6 +4,8 @@ import { and, asc, count, eq } from 'drizzle-orm';
 import { Router } from 'express';
 
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
+import { loadKnownBitrixAdminIds } from '../bitrix/bitrix-admin-users.repository.js';
+import { loadBitrixEventTokenHash } from '../bitrix/bitrix-event-token.repository.js';
 import type { Database } from '../db/database.js';
 import {
   registryDocumentTypes,
@@ -23,10 +25,14 @@ import {
   updateRolePolicySchema,
   type UpdateRolePolicyInput,
 } from './administration.schemas.js';
+import { BitrixIntegrationsService } from './bitrix-integrations.service.js';
 
 interface AdministrationRouterDependencies {
   database: Database;
   bitrix: BitrixApiClient;
+  bitrixEventHandlerUrl: string;
+  bitrixPlacementHandlerUrl: string;
+  bitrixEventTokenConfigured: boolean;
 }
 
 export async function requireAdministrator(database: Database, request: Parameters<typeof requireRegistryContext>[0]) {
@@ -114,8 +120,52 @@ async function assertRolePolicyReferences(
   return { knownSections };
 }
 
-export function createAdministrationRouter({ database, bitrix }: AdministrationRouterDependencies) {
+export function createAdministrationRouter({
+  database,
+  bitrix,
+  bitrixEventHandlerUrl,
+  bitrixPlacementHandlerUrl,
+  bitrixEventTokenConfigured,
+}: AdministrationRouterDependencies) {
   const router = Router();
+  const integrations = new BitrixIntegrationsService(
+    bitrix,
+    bitrixEventHandlerUrl,
+    bitrixPlacementHandlerUrl,
+  );
+
+  router.get('/integrations', async (request, response, next) => {
+    try {
+      const { context } = await requireAdministrator(database, request);
+      const [status, storedTokenHash] = await Promise.all([
+        integrations.status(context),
+        loadBitrixEventTokenHash(database, context.portalUrl),
+      ]);
+      response.json({
+        ...status,
+        eventTokenConfigured: bitrixEventTokenConfigured || !!storedTokenHash,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/integrations/ensure', async (request, response, next) => {
+    try {
+      const { context } = await requireAdministrator(database, request);
+      const storedTokenHash = await loadBitrixEventTokenHash(database, context.portalUrl);
+      if (!bitrixEventTokenConfigured && !storedTokenHash) {
+        throw new ApiError(
+          503,
+          'bitrix_event_token_not_configured',
+          'Bitrix24 event token is not configured.',
+        );
+      }
+      response.json(await integrations.ensure(context));
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get('/role-policies', async (request, response, next) => {
     try {
@@ -346,7 +396,7 @@ export function createAdministrationRouter({ database, bitrix }: AdministrationR
   router.get('/user-roles', async (request, response, next) => {
     try {
       const { context } = await requireAdministrator(database, request);
-      const [items, users] = await Promise.all([
+      const [items, loadedUsers, knownBitrixAdminIds] = await Promise.all([
         database
           .select({
             userId: registryUserRoles.userId,
@@ -357,7 +407,12 @@ export function createAdministrationRouter({ database, bitrix }: AdministrationR
           .where(eq(registryUserRoles.portalUrl, context.portalUrl))
           .orderBy(asc(registryUserRoles.userName), asc(registryUserRoles.userId)),
         listBitrixUsers(context, bitrix),
+        loadKnownBitrixAdminIds(database, context.portalUrl),
       ]);
+      const users = loadedUsers.map((user) => ({
+        ...user,
+        isBitrixAdmin: user.isBitrixAdmin || knownBitrixAdminIds.has(user.id),
+      }));
       response.json({ items, users });
     } catch (error) {
       next(error);
@@ -368,19 +423,35 @@ export function createAdministrationRouter({ database, bitrix }: AdministrationR
     try {
       const { context } = await requireAdministrator(database, request);
       const input = replaceUserRolesSchema.parse(request.body);
-      const activePolicies = await database
-        .select({ roleCode: registryRolePolicies.roleCode })
-        .from(registryRolePolicies)
-        .where(
-          and(
-            eq(registryRolePolicies.portalUrl, context.portalUrl),
-            eq(registryRolePolicies.isActive, true),
+      const [activePolicies, users, knownBitrixAdminIds] = await Promise.all([
+        database
+          .select({ roleCode: registryRolePolicies.roleCode })
+          .from(registryRolePolicies)
+          .where(
+            and(
+              eq(registryRolePolicies.portalUrl, context.portalUrl),
+              eq(registryRolePolicies.isActive, true),
+            ),
           ),
-        );
+        listBitrixUsers(context, bitrix),
+        loadKnownBitrixAdminIds(database, context.portalUrl),
+      ]);
       const activeRoleCodes = new Set(
         activePolicies.map((policy) => policy.roleCode).filter((roleCode) => roleCode !== 'admin'),
       );
+      const bitrixAdminIds = new Set(
+        users
+          .filter((user) => user.isBitrixAdmin || knownBitrixAdminIds.has(user.id))
+          .map((user) => user.id),
+      );
       for (const item of input.items) {
+        if (bitrixAdminIds.has(item.userId)) {
+          throw new ApiError(
+            400,
+            'bitrix_admin_role_fixed',
+            'Администратору Bitrix24 нельзя назначить другую роль: полный доступ к реестру предоставляется автоматически.',
+          );
+        }
         if (!activeRoleCodes.has(item.roleCode)) {
           throw new ApiError(400, 'role_policy_not_found', `Active role ${item.roleCode} was not found.`);
         }

@@ -22,21 +22,61 @@ class Component extends DCLogic {
     }
   }
   async initializeRegistry() {
-    const context = await this.requestBitrixContext(false);
-    this.applyPlacementContext(context);
-    await Promise.all([
-      this.loadCatalogs(),
-      this.loadLifecycles(),
-      this.loadPolicy(),
-      this.loadUsers(),
-      this.loadSavedViews(),
-    ]);
-    if (this.serverPolicy && this.serverPolicy.permissions.administer) {
-      await this.loadAdministrationData();
+    if (this.registryInitializing) return;
+    this.registryInitializing = true;
+    this.serverPolicy = null;
+    this.policyLoadError = null;
+    this.setState({
+      registryLoading: true,
+      registryReady: false,
+      registryLoadError: '',
+      accessDenied: false,
+    });
+    try {
+      const context = await this.requestBitrixContext(false);
+      this.applyPlacementContext(context);
+      const policyLoaded = await this.loadPolicy();
+      if (!policyLoaded) {
+        if (this.policyLoadError && this.policyLoadError.code === 'registry_access_not_assigned') {
+          this.registryInitialized = true;
+          this.setState({ registryLoading: false, registryReady: true });
+          return;
+        }
+        throw this.policyLoadError || new Error('Не удалось определить права пользователя.');
+      }
+      await Promise.all([
+        this.loadCatalogs(),
+        this.loadLifecycles(),
+        this.loadUsers(),
+        this.loadSavedViews(),
+      ]);
+      if (this.serverPolicy && this.serverPolicy.permissions.administer) {
+        await this.loadAdministrationData();
+        if (this.bitrixContext && this.bitrixContext.auth) {
+          void this.ensureBitrixIntegrations();
+        }
+      }
+      if (this.placementEntity) {
+        await this.loadContextDocuments();
+      } else if (this.placementContextType) {
+        this.clearContextDocuments();
+      } else {
+        await Promise.all([this.loadDocuments(), this.loadDocumentOptions()]);
+      }
+      this.registryInitialized = true;
+      this.setState({ registryLoading: false, registryReady: true });
+    } catch (error) {
+      console.error('Failed to initialize registry', error);
+      this.setState({
+        registryLoading: false,
+        registryReady: false,
+        registryLoadError: error instanceof Error
+          ? error.message
+          : 'Не удалось загрузить реестр.',
+      });
+    } finally {
+      this.registryInitializing = false;
     }
-    if (this.placementEntity) await this.loadContextDocuments();
-    else await Promise.all([this.loadDocuments(), this.loadDocumentOptions()]);
-    this.registryInitialized = true;
   }
   receiveBitrixContext(event) {
     if (event.origin !== window.location.origin || event.source !== window.parent) return;
@@ -60,6 +100,7 @@ class Component extends DCLogic {
       : '';
     if (this.registryInitialized && previousKey !== nextKey) {
       if (this.placementEntity) void this.loadContextDocuments();
+      else if (this.placementContextType) this.clearContextDocuments();
       else void this.loadRegistryData();
     }
     const waiters = this.bitrixContextWaiters || [];
@@ -148,9 +189,55 @@ class Component extends DCLogic {
   async loadUsers() {
     try {
       const payload = await this.api('/api/v1/registry/users');
-      this.setState({ registryUsers: payload.items || [] });
+      const registryUsers = payload.items || [];
+      this.setState({ registryUsers });
+      if (Array.isArray(this.docs) && this.docs.length) {
+        this.docs = this.docs.map(document => this.withResolvedResponsible(document, registryUsers));
+        this.forceUpdate();
+      }
     } catch (error) {
       if (!this.state.accessDenied) console.error('Failed to load Bitrix24 users', error);
+    }
+  }
+
+  responsibleNameById(responsibleId, users = this.state.registryUsers || []) {
+    const id = Number(responsibleId);
+    if (!Number.isSafeInteger(id) || id <= 0) return '';
+    const user = users.find(item => Number(item.id) === id);
+    return user && user.name ? user.name : '';
+  }
+
+  withResolvedResponsible(document, users = this.state.registryUsers || []) {
+    if (!document) return document;
+    const resolvedName = this.responsibleNameById(document.responsibleId, users)
+      || (document.responsibleNameRaw && !/^Пользователь #\d+$/.test(document.responsibleNameRaw)
+        ? document.responsibleNameRaw
+        : '');
+    return {
+      ...document,
+      responsible: resolvedName || '—',
+      responsibleNameRaw: resolvedName,
+    };
+  }
+
+  defaultResponsibleSelection() {
+    const userId = Number(this.serverPolicy && this.serverPolicy.userId);
+    const user = (this.state.registryUsers || [])
+      .find(item => Number(item.id) === userId);
+    return {
+      responsibleId: userId > 0 ? String(userId) : '',
+      responsibleName: user ? user.name : '',
+    };
+  }
+
+  async ensureBitrixIntegrations() {
+    try {
+      this.bitrixIntegrationStatus = await this.api(
+        '/api/v1/registry/admin/integrations/ensure',
+        { method: 'POST' },
+      );
+    } catch (error) {
+      console.error('Failed to ensure Bitrix24 registry integrations', error);
     }
   }
 
@@ -282,6 +369,7 @@ class Component extends DCLogic {
 
   async refreshVisibleDocuments() {
     if (this.placementEntity) await this.loadContextDocuments();
+    else if (this.placementContextType) this.clearContextDocuments();
     else await Promise.all([this.loadDocuments(), this.loadDocumentOptions()]);
   }
 
@@ -804,11 +892,19 @@ class Component extends DCLogic {
     try {
       const payload = await this.api('/api/v1/registry/admin/user-roles');
       const assignments = {};
+      const bitrixAdminIds = new Set(
+        (payload.users || []).filter(user => user.isBitrixAdmin).map(user => String(user.id)),
+      );
       (payload.items || []).forEach(item => {
-        assignments[String(item.userId)] = item.roleCode;
+        if (!bitrixAdminIds.has(String(item.userId))) {
+          assignments[String(item.userId)] = item.roleCode;
+        }
       });
       this.setState({
         adminUsers: payload.users || [],
+        registryUsers: this.state.registryUsers.length
+          ? this.state.registryUsers
+          : (payload.users || []),
         adminUserRoles: assignments,
         adminAccessLoading: false,
       });
@@ -821,6 +917,8 @@ class Component extends DCLogic {
   }
 
   setAdminUserRole(userId, roleCode) {
+    const user = (this.state.adminUsers || []).find(item => String(item.id) === String(userId));
+    if (user && user.isBitrixAdmin) return;
     const assignments = { ...this.state.adminUserRoles };
     if (roleCode) assignments[String(userId)] = roleCode;
     else delete assignments[String(userId)];
@@ -831,7 +929,7 @@ class Component extends DCLogic {
     if (this.state.adminAccessSaving) return;
     const users = new Map((this.state.adminUsers || []).map(user => [String(user.id), user]));
     const items = Object.entries(this.state.adminUserRoles)
-      .filter(([, roleCode]) => !!roleCode)
+      .filter(([userId, roleCode]) => !!roleCode && !users.get(userId)?.isBitrixAdmin)
       .map(([userId, roleCode]) => ({
         userId: Number(userId),
         userName: users.get(userId)?.name || `Пользователь #${userId}`,
@@ -883,19 +981,31 @@ class Component extends DCLogic {
   applyPlacementContext(context) {
     const placement = context && context.placement;
     const code = String(placement && placement.code || '').toUpperCase();
-    const entityId = this.placementEntityId(placement && placement.options);
-    if (code === 'CRM_DEAL_DETAIL_TAB' && entityId) {
-      this.placementEntity = { entityType: 'deal', entityId };
+    const entityId = this.positiveEntityId(placement && placement.entityId)
+      || this.placementEntityId(placement && placement.options);
+    if (code === 'CRM_DEAL_DETAIL_TAB') {
+      this.placementContextType = 'deal';
+      this.placementEntity = entityId ? { entityType: 'deal', entityId } : null;
       this.setState({ screen: 'deal' });
       return;
     }
-    if (code === 'CRM_COMPANY_DETAIL_TAB' && entityId) {
-      this.placementEntity = { entityType: 'company', entityId };
+    if (code === 'CRM_COMPANY_DETAIL_TAB') {
+      this.placementContextType = 'company';
+      this.placementEntity = entityId ? { entityType: 'company', entityId } : null;
       this.setState({ screen: 'company' });
       return;
     }
+    this.placementContextType = null;
     this.placementEntity = null;
     if (code === 'LEFT_MENU') this.setState({ screen: 'registry' });
+  }
+
+  clearContextDocuments() {
+    this.entityContext = null;
+    this.docs = [];
+    this.documentsMeta = { total: 0, limit: 1000, offset: 0 };
+    this.documentsSource = 'context_missing';
+    this.forceUpdate();
   }
 
   placementEntityId(options) {
@@ -929,6 +1039,9 @@ class Component extends DCLogic {
   state = {
     screen: 'registry',
     role: 'admin',
+    registryLoading: true,
+    registryReady: false,
+    registryLoadError: '',
     accessDenied: false,
     activeSection: 'all',
     search: '',
@@ -938,6 +1051,7 @@ class Component extends DCLogic {
     registryUsers: [],
     bulkAssignOpen: false,
     bulkResponsibleId: '',
+    responsibleMenuOpen: null,
     bulkBusy: false,
     bulkError: '',
     customSavedViews: [],
@@ -1003,6 +1117,8 @@ class Component extends DCLogic {
   TYPE_META = {};
   LIFECYCLE_BY_CODE = {};
   serverPolicy = null;
+  policyLoadError = null;
+  registryInitializing = false;
 
   async loadRegistryData() {
     await Promise.all([
@@ -1034,6 +1150,7 @@ class Component extends DCLogic {
       this.loadPolicy(),
     ]);
     if (this.placementEntity) await this.loadContextDocuments();
+    else if (this.placementContextType) this.clearContextDocuments();
     else await Promise.all([this.loadDocuments(), this.loadDocumentOptions()]);
   }
 
@@ -1097,6 +1214,7 @@ class Component extends DCLogic {
       const error = new Error(message);
       error.code = code;
       error.status = response.status;
+      error.details = payload && payload.error ? payload.error.details : null;
       throw error;
     }
     return payload;
@@ -1263,10 +1381,12 @@ class Component extends DCLogic {
 
   openWizardForFile(file, sectionCode = null, links = []) {
     if (!file) return;
+    const responsible = this.defaultResponsibleSelection();
     this.setState({
       wizardOpen: true,
       wizardError: '',
-      wz: { step: 1, sectionCode, typeLabel: null, number: '', date: '', amount: '', currency: 'RUB', counterparty: '', fieldVals: {}, links, file, externalLink: null, linkEditorOpen: false, linkName: '', linkUrl: '', linkError: '', supersedesId: null },
+      responsibleMenuOpen: null,
+      wz: { step: 1, sectionCode, typeLabel: null, number: '', date: '', amount: '', currency: 'RUB', counterparty: '', ...responsible, fieldVals: {}, links, file, externalLink: null, linkEditorOpen: false, linkName: '', linkUrl: '', linkError: '', supersedesId: null },
     });
   }
 
@@ -1278,6 +1398,7 @@ class Component extends DCLogic {
     this.setState({
       drawerId: null,
       drawerEditing: false,
+      responsibleMenuOpen: null,
       wizardOpen: true,
       wizardError: '',
       wz: {
@@ -1289,6 +1410,8 @@ class Component extends DCLogic {
         amount: document.amountRaw || '',
         currency: document.currency || 'RUB',
         counterparty: document.counterpartyNameRaw || '',
+        responsibleId: document.responsibleId ? String(document.responsibleId) : '',
+        responsibleName: document.responsibleNameRaw || '',
         fieldVals,
         links: (document.links || []).map(link => ({
           entityType: link.entityType,
@@ -1476,9 +1599,13 @@ class Component extends DCLogic {
   async loadPolicy() {
     try {
       this.serverPolicy = await this.api('/api/v1/registry/me/policy');
+      this.policyLoadError = null;
       this.setState({ role: this.serverPolicy.roleCode });
+      return true;
     } catch (error) {
+      this.policyLoadError = error;
       console.error('Failed to load registry policy', error);
+      return false;
     }
   }
 
@@ -1700,6 +1827,15 @@ class Component extends DCLogic {
           when: this.formatHistoryDate(entry.createdAt),
         }))
       : (previous.history || []);
+    const storedResponsibleName = item.responsibleName
+      && !/^Пользователь #\d+$/.test(item.responsibleName)
+      ? item.responsibleName
+      : '';
+    const responsibleName = storedResponsibleName
+      || this.responsibleNameById(item.responsibleId)
+      || (previous.responsibleNameRaw && !/^Пользователь #\d+$/.test(previous.responsibleNameRaw)
+        ? previous.responsibleNameRaw
+        : '');
     return {
       ...previous,
       id: item.id,
@@ -1727,8 +1863,8 @@ class Component extends DCLogic {
       documentDateRaw: item.documentDate || '',
       comment: item.comment || '',
       responsibleId: item.responsibleId || null,
-      responsible: item.responsibleName || (item.responsibleId ? `Пользователь #${item.responsibleId}` : '—'),
-      responsibleNameRaw: item.responsibleName || (item.responsibleId ? `Пользователь #${item.responsibleId}` : ''),
+      responsible: responsibleName || '—',
+      responsibleNameRaw: responsibleName,
       createdBy: item.createdBy || null,
       supersedesId: item.supersedesId || null,
       deletedAt: item.deletedAt || null,
@@ -1893,7 +2029,9 @@ class Component extends DCLogic {
       fields[field.key] = normalized;
     }
 
-    const responsible = (this.documentOptions.responsibles || [])
+    const responsible = (this.state.registryUsers.length
+      ? this.state.registryUsers
+      : (this.documentOptions.responsibles || []))
       .find(item => Number(item.id) === responsibleId);
     const legalEntityName = String(edit.legalEntityName || '').trim();
     const counterpartyName = String(edit.counterpartyName || '').trim();
@@ -1947,24 +2085,32 @@ class Component extends DCLogic {
   }
 
   async openDocument(id, startEditing = false) {
+    const requestId = (this.documentOpenRequestId || 0) + 1;
+    this.documentOpenRequestId = requestId;
     this.setState({
       rowMenuId: null,
-      drawerId: id,
-      drawerEditing: false,
-      drawerEditSaving: false,
-      drawerEditError: '',
-      drawerEdit: null,
     });
     try {
       const deletedQuery = this.state.screen === 'archive' ? '?deleted=only' : '';
       const payload = await this.api(`/api/v1/registry/documents/${id}${deletedQuery}`);
+      if (requestId !== this.documentOpenRequestId) return;
       const index = this.docs.findIndex(document => document.id === id);
       if (index !== -1) {
         this.docs[index] = this.toDocument(payload, this.docs[index]);
-        this.forceUpdate();
-        if (startEditing) this.beginDocumentEdit(this.docs[index]);
+        const document = this.docs[index];
+        const editing = startEditing && this.canEditDocument(document);
+        this.setState({
+          drawerId: id,
+          drawerEditing: editing,
+          drawerEditSaving: false,
+          drawerEditError: '',
+          drawerEdit: editing ? this.createDocumentEditState(document) : null,
+          drawerLinkOpen: false,
+          responsibleMenuOpen: null,
+        });
       }
     } catch (error) {
+      if (requestId !== this.documentOpenRequestId) return;
       console.error('Failed to load registry document', error);
     }
   }
@@ -1995,6 +2141,128 @@ class Component extends DCLogic {
       : null;
   }
 
+  wizardStepValidation(wz, type, step = wz.step) {
+    const missing = [];
+    const invalid = [];
+
+    if (step === 1) {
+      if (!wz.sectionCode) missing.push('Раздел');
+      if (!wz.typeLabel) missing.push('Тип документа');
+    }
+
+    if (step === 2) {
+      const rawDate = String(wz.date || '').trim();
+      if (!rawDate) missing.push('Дата документа');
+      else if (!this.toIsoDocumentDate(rawDate)) invalid.push('Дата документа — используйте формат дд.мм.гггг');
+
+      const responsibleId = Number(wz.responsibleId);
+      if (!Number.isSafeInteger(responsibleId) || responsibleId <= 0) {
+        missing.push('Ответственный');
+      }
+
+      if (type && type.isFinancial && !this.roleHidesMoney()) {
+        const amount = String(wz.amount || '').replace(/\s/g, '').replace(',', '.');
+        if (!amount) missing.push('Сумма');
+        else if (!/^\d+(\.\d{1,2})?$/.test(amount)) {
+          invalid.push('Сумма — укажите число, не более двух знаков после запятой');
+        }
+        if (!/^[A-Z]{3}$/.test(String(wz.currency || '').trim().toUpperCase())) {
+          missing.push('Валюта');
+        }
+      }
+
+      for (const field of type && type.fields ? type.fields : []) {
+        const rawValue = (wz.fieldVals || {})[field.key];
+        const value = rawValue === null || rawValue === undefined
+          ? ''
+          : String(rawValue).trim();
+        if (field.isRequired && !value) {
+          missing.push(field.label);
+          continue;
+        }
+        if (!value) continue;
+        if (field.dataType === 'date' && !this.toIsoDocumentDate(value)) {
+          invalid.push(`${field.label} — используйте формат дд.мм.гггг`);
+        }
+        if (field.dataType === 'number') {
+          const normalized = value.replace(/\s/g, '').replace(',', '.');
+          if (!/^-?\d+(\.\d+)?$/.test(normalized)) {
+            invalid.push(`${field.label} — укажите число`);
+          }
+        }
+        if (field.dataType === 'money') {
+          const normalized = value.replace(/\s/g, '').replace(',', '.');
+          if (!/^\d+(\.\d{1,2})?$/.test(normalized)) {
+            invalid.push(`${field.label} — укажите сумму, не более двух знаков после запятой`);
+          }
+        }
+      }
+    }
+
+    const parts = [];
+    if (missing.length) {
+      parts.push(`Заполните обязательные поля: ${missing.map(label => `«${label}»`).join(', ')}.`);
+    }
+    if (invalid.length) {
+      parts.push(`Исправьте заполнение: ${invalid.join('; ')}.`);
+    }
+    return {
+      valid: parts.length === 0,
+      message: parts.join(' '),
+    };
+  }
+
+  wizardApiErrorMessage(error, type) {
+    const details = error && error.details;
+    const typeFields = type && type.fields ? type.fields : [];
+    const fieldLabelByKey = new Map(typeFields.map(field => [field.key, field.label]));
+
+    if (
+      (error && error.code === 'required_document_fields_missing')
+      && details && Array.isArray(details.keys)
+    ) {
+      const labels = details.keys.map(key => fieldLabelByKey.get(key) || key);
+      return `Заполните обязательные поля: ${labels.map(label => `«${label}»`).join(', ')}.`;
+    }
+
+    if (
+      (error && error.code === 'invalid_document_field_value')
+      && details && details.key
+    ) {
+      const label = fieldLabelByKey.get(details.key) || details.key;
+      return `Исправьте заполнение поля «${label}».`;
+    }
+
+    if (error && error.code === 'validation_error' && Array.isArray(details)) {
+      const coreLabels = {
+        sectionCode: 'Раздел',
+        typeCode: 'Тип документа',
+        title: 'Название документа',
+        number: 'Номер',
+        documentDate: 'Дата документа',
+        amount: 'Сумма',
+        currency: 'Валюта',
+        responsibleId: 'Ответственный',
+        counterpartyName: 'Контрагент',
+      };
+      const labels = [];
+      details.forEach(issue => {
+        const path = issue && Array.isArray(issue.path) ? issue.path : [];
+        const first = path[0];
+        const fieldKey = first === 'fields' ? path[1] : null;
+        const label = fieldKey
+          ? (fieldLabelByKey.get(fieldKey) || fieldKey)
+          : coreLabels[first];
+        if (label && !labels.includes(label)) labels.push(label);
+      });
+      if (labels.length) {
+        return `Проверьте заполнение полей: ${labels.map(label => `«${label}»`).join(', ')}.`;
+      }
+    }
+
+    return error instanceof Error ? error.message : 'Не удалось создать документ.';
+  }
+
   roleHidesMoney() {
     if (this.serverPolicy) {
       return !!this.serverPolicy.hideMoney
@@ -2023,6 +2291,14 @@ class Component extends DCLogic {
   async createDocumentFromWizard(wz) {
     const type = this.typeMeta(wz.sectionCode, wz.typeLabel);
     if (!type) return;
+    const validation = this.wizardStepValidation(wz, type, 2);
+    if (!validation.valid) {
+      this.setState({
+        wz: { ...wz, step: 2 },
+        wizardError: validation.message,
+      });
+      return;
+    }
     const fields = {};
     const typeFieldByKey = new Map((type.fields || []).map(field => [field.key, field]));
     Object.entries(wz.fieldVals || {}).forEach(([key, value]) => {
@@ -2051,7 +2327,7 @@ class Component extends DCLogic {
       counterpartyName: wz.counterparty || null,
       dealStageId: wz.dealStageId || undefined,
       comment: wz.comment || undefined,
-      responsibleId: wz.responsibleId || undefined,
+      responsibleId: wz.responsibleId ? Number(wz.responsibleId) : undefined,
       responsibleName: wz.responsibleName || undefined,
       links: this.wizardDocumentLinks(wz),
       fields,
@@ -2096,7 +2372,16 @@ class Component extends DCLogic {
       await this.openDocument(document.id);
     } catch (error) {
       console.error('Failed to create registry document', error);
-      this.setState({ wizardError: error instanceof Error ? error.message : 'Не удалось создать документ.' });
+      const validationError = [
+        'validation_error',
+        'required_document_fields_missing',
+        'invalid_document_field_value',
+        'financial_fields_required',
+      ].includes(error && error.code);
+      this.setState({
+        wz: validationError ? { ...wz, step: 2 } : wz,
+        wizardError: this.wizardApiErrorMessage(error, type),
+      });
     }
   }
 
@@ -2342,6 +2627,7 @@ class Component extends DCLogic {
   renderVals() {
     this.ensureDocs();
     const S = this.state;
+    const registryLoadFailed = !S.registryLoading && !!S.registryLoadError;
     const archiveMode = S.screen === 'archive';
     const activeRegistry = S.screen === 'registry';
     const role = this.ROLES[S.role] || {
@@ -2370,11 +2656,25 @@ class Component extends DCLogic {
     const rows = this.filteredRows().map(d => this.enrich(d));
     const registryUsers = (S.registryUsers && S.registryUsers.length)
       ? S.registryUsers
-      : (documentOptions.responsibles || []).map(item => ({ id: item.id, name: item.name }));
+      : (S.adminUsers && S.adminUsers.length)
+        ? S.adminUsers
+        : (documentOptions.responsibles || []).map(item => ({ id: item.id, name: item.name }));
+    const uniqueRegistryUsers = [...new Map(
+      registryUsers
+        .filter(user => Number(user.id) > 0)
+        .map(user => [Number(user.id), { id: Number(user.id), name: user.name || `Пользователь #${user.id}` }]),
+    ).values()];
     const bulkResponsibleOptions = [
       { id: '', name: 'Выберите ответственного' },
-      ...registryUsers,
-    ];
+      ...uniqueRegistryUsers,
+    ].map(user => ({
+      ...user,
+      onPick: () => this.setState({
+        bulkResponsibleId: String(user.id || ''),
+        bulkError: '',
+        responsibleMenuOpen: null,
+      }),
+    }));
     const permissions = this.serverPolicy && this.serverPolicy.permissions
       ? this.serverPolicy.permissions
       : {};
@@ -2484,9 +2784,15 @@ class Component extends DCLogic {
         stages: mm.stages, rows: mm.rows, groups,
       };
     });
+    const placementContextMissing = !!this.placementContextType && !this.placementEntity;
+    const placementContextReady = !!this.placementEntity;
     const companyName = this.entityContext && this.entityContext.company
       ? this.entityContext.company.title
-      : (isLocalCompanyDemo ? 'DEMO · Компания' : 'Компания не выбрана');
+      : (isLocalCompanyDemo
+          ? 'DEMO · Компания'
+          : (placementContextMissing && this.placementContextType === 'company'
+              ? 'Новая компания'
+              : 'Компания не выбрана'));
     const companyDocTotal = S.screen === 'company'
       ? scoped.length
       : (documentOptions.scopeTotal || 0);
@@ -2503,11 +2809,17 @@ class Component extends DCLogic {
     const dealId = dealContext
       ? dealContext.id
       : (this.placementEntity && this.placementEntity.entityType === 'deal' ? this.placementEntity.entityId : '—');
-    const dealTitle = dealContext ? dealContext.title : 'Сделка не выбрана';
+    const dealTitle = dealContext
+      ? dealContext.title
+      : (placementContextMissing && this.placementContextType === 'deal'
+          ? 'Новая сделка'
+          : 'Сделка не выбрана');
     const dealCompanyName = this.entityContext && this.entityContext.company
       ? this.entityContext.company.title
       : '';
-    const dealHeaderTitle = `#${dealId} · ${dealTitle}${dealCompanyName ? ' для ' + dealCompanyName : ''}`;
+    const dealHeaderTitle = placementContextMissing && this.placementContextType === 'deal'
+      ? dealTitle
+      : `#${dealId} · ${dealTitle}${dealCompanyName ? ' для ' + dealCompanyName : ''}`;
     const dealStageName = dealContext ? dealContext.stageName : 'Не указана';
     const dealStageColor = dealContext ? dealContext.stageColor : '#d97706';
     const dealContextLabel = `привязаны к сделке #${dealId}${dealCompanyName ? ' и к ' + dealCompanyName + ' (через компанию Bitrix24)' : ''}`;
@@ -2538,14 +2850,25 @@ class Component extends DCLogic {
             onInput: event => this.updateDocumentEditField(field.key, event.target.value),
           };
         });
-        const responsibleOptions = (documentOptions.responsibles || []).map(item => ({
+        const responsibleSource = S.registryUsers.length
+          ? S.registryUsers
+          : (documentOptions.responsibles || []);
+        const responsibleOptions = responsibleSource.map(item => ({
           value: String(item.id),
           label: item.name || `Пользователь #${item.id}`,
+          onPick: () => {
+            this.updateDocumentEdit('responsibleId', String(item.id));
+            this.setState({ responsibleMenuOpen: null });
+          },
         }));
         if (dd.responsibleId && !responsibleOptions.some(item => item.value === String(dd.responsibleId))) {
           responsibleOptions.unshift({
             value: String(dd.responsibleId),
             label: dd.responsibleNameRaw || `Пользователь #${dd.responsibleId}`,
+            onPick: () => {
+              this.updateDocumentEdit('responsibleId', String(dd.responsibleId));
+              this.setState({ responsibleMenuOpen: null });
+            },
           });
         }
         const documentReadOnly = archiveMode || dd.status === 'archived' || !!dd.deletedAt;
@@ -2599,34 +2922,82 @@ class Component extends DCLogic {
     const wizardTypeFields = (wzTypeMeta && wzTypeMeta.fields ? wzTypeMeta.fields : []).map(field => {
       const isSelect = field.dataType === 'select' || field.dataType === 'boolean';
       const options = field.dataType === 'boolean' ? ['Да', 'Нет'] : (field.options || []);
-      return { name: field.label, dtype: dataTypeLabels[field.dataType] || field.dataType, isSelect, isText: !isSelect, options, value: (wz.fieldVals || {})[field.key] || '', onInput: (e) => this.setState({ wz: { ...wz, fieldVals: { ...(wz.fieldVals || {}), [field.key]: e.target.value } } }) };
+      return {
+        name: field.label,
+        requiredMark: field.isRequired ? ' *' : '',
+        dtype: dataTypeLabels[field.dataType] || field.dataType,
+        isSelect,
+        isText: !isSelect,
+        inputType: field.dataType === 'date' ? 'date' : 'text',
+        options,
+        value: (wz.fieldVals || {})[field.key] || '',
+        valueShown: (wz.fieldVals || {})[field.key]
+          ? (field.dataType === 'date'
+              ? this.formatDocumentDate((wz.fieldVals || {})[field.key])
+              : (wz.fieldVals || {})[field.key])
+          : '—',
+        onInput: (e) => this.setState({
+          wz: { ...wz, fieldVals: { ...(wz.fieldVals || {}), [field.key]: e.target.value } },
+          wizardError: '',
+        }),
+      };
     });
     const wizardSections = this.SECTIONS.map(s => ({
-      label: s.label, c: s.c, onPick: () => this.setState({ wz: { ...wz, sectionCode: s.code, typeLabel: null } }),
+      label: s.label, c: s.c, onPick: () => this.setState({
+        wz: { ...wz, sectionCode: s.code, typeLabel: null },
+        wizardError: '',
+      }),
       style: `text-align:left;background:${wz.sectionCode === s.code ? '#eef2ff' : '#fff'};border:1.5px solid ${wz.sectionCode === s.code ? '#4f46e5' : '#ededed'};border-radius:9px;padding:11px 12px;cursor:pointer;`,
     }));
     const wizardMoneyVisible = !this.roleHidesMoney();
+    const wizardResponsibleSource = S.registryUsers.length
+      ? S.registryUsers
+      : (documentOptions.responsibles || []);
+    const wizardResponsibleOptions = wizardResponsibleSource.map(item => ({
+      value: String(item.id),
+      label: item.name || `Пользователь #${item.id}`,
+      onPick: () => this.setState({
+        wz: {
+          ...this.state.wz,
+          responsibleId: String(item.id),
+          responsibleName: item.name || `Пользователь #${item.id}`,
+        },
+        responsibleMenuOpen: null,
+        wizardError: '',
+      }),
+    }));
+    if (wz.responsibleId && !wizardResponsibleOptions.some(item => item.value === String(wz.responsibleId))) {
+      wizardResponsibleOptions.unshift({
+        value: String(wz.responsibleId),
+        label: wz.responsibleName || `Пользователь #${wz.responsibleId}`,
+        onPick: () => this.setState({
+          wz: {
+            ...this.state.wz,
+            responsibleId: String(wz.responsibleId),
+            responsibleName: wz.responsibleName || `Пользователь #${wz.responsibleId}`,
+          },
+          responsibleMenuOpen: null,
+          wizardError: '',
+        }),
+      });
+    }
     const wizardTypes = wz.sectionCode ? this.TYPES[wz.sectionCode]
       .filter(t => {
         const type = this.typeMeta(wz.sectionCode, t);
         return wizardMoneyVisible || !type || !type.isFinancial;
       })
       .map(t => ({
-        label: t, onPick: () => this.setState({ wz: { ...wz, typeLabel: t } }),
+        label: t, onPick: () => this.setState({
+          wz: { ...wz, typeLabel: t },
+          wizardError: '',
+        }),
         style: `background:${wz.typeLabel === t ? '#4f46e5' : '#fafafa'};color:${wz.typeLabel === t ? '#fff' : '#3f3f46'};border:1px solid ${wz.typeLabel === t ? '#4f46e5' : '#ededed'};border-radius:20px;padding:6px 13px;font-size:12px;cursor:pointer;`,
       })) : [];
     const wizardSteps = [1, 2, 3].map(n => ({ n: String(n),
       style: `width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;${wz.step === n ? 'background:#4f46e5;color:#fff;' : (wz.step > n ? 'background:#e7f5ec;color:#15803d;' : 'background:#f4f4f5;color:#a1a1aa;')}` }));
     const wzSec = this.SECTIONS.find(s => s.code === wz.sectionCode);
-    const requiredTypeFieldsValid = !wzTypeMeta || (wzTypeMeta.fields || []).every(field => {
-      if (!field.isRequired) return true;
-      const value = (wz.fieldVals || {})[field.key];
-      if (value === undefined || value === null || value === '') return false;
-      return field.dataType !== 'date' || !!this.toIsoDocumentDate(value);
-    });
-    const wzCanNext = wz.step === 1
-      ? !!(wz.sectionCode && wz.typeLabel)
-      : (wz.step === 2 ? !!(this.toIsoDocumentDate(wz.date) && requiredTypeFieldsValid && (!wzTypeMeta || !wzTypeMeta.isFinancial || String(wz.amount).trim())) : true);
+    const wizardValidation = this.wizardStepValidation(wz, wzTypeMeta, wz.step);
+    const wzCanNext = wizardValidation.valid;
     const wizardLinks = this.wizardDocumentLinks(wz).map(link => ({
       label: link.entityType === 'deal'
         ? `Сделка #${link.entityId} «${link.entityTitle}»`
@@ -2716,14 +3087,19 @@ class Component extends DCLogic {
     const developmentRoleOptions = adminRoleRows.length
       ? adminRoleRows.filter(item => item.isActive).map(item => ({ code: item.code, label: item.label }))
       : Object.entries(this.ROLES).map(([code, item]) => ({ code, label: item.label }));
-    const adminUserRows = (S.adminUsers || []).map(user => ({
-      id: user.id,
-      name: user.name,
-      details: [user.position, user.email].filter(Boolean).join(' · '),
-      roleCode: S.adminUserRoles[String(user.id)] || '',
-      roleOptions: adminRoleOptions,
-      onRole: event => this.setAdminUserRole(user.id, event.target.value),
-    }));
+    const adminUserRows = (S.adminUsers || []).map(user => {
+      const isBitrixAdmin = !!user.isBitrixAdmin;
+      return {
+        id: user.id,
+        name: user.name,
+        details: [user.position, user.email].filter(Boolean).join(' · '),
+        bitrixAdmin: isBitrixAdmin,
+        roleEditable: !isBitrixAdmin,
+        roleCode: isBitrixAdmin ? 'admin' : (S.adminUserRoles[String(user.id)] || ''),
+        roleOptions: adminRoleOptions,
+        onRole: event => this.setAdminUserRole(user.id, event.target.value),
+      };
+    });
 
     const trainingItems = this.TRAINING.map(([title, desc, kind, icon]) => ({ title, desc, kind, icon }));
 
@@ -2805,8 +3181,11 @@ class Component extends DCLogic {
 
     return {
       // nav
+      showSidebar: !this.placementContextType,
       isRegistry: activeRegistry || archiveMode, isActiveRegistry: activeRegistry, isArchive: archiveMode,
       isDeal: S.screen === 'deal', isCompany: S.screen === 'company',
+      placementContextMissing,
+      placementContextReady,
       goRegistry: () => {
         this.setState({
           screen: 'registry',
@@ -2937,6 +3316,7 @@ class Component extends DCLogic {
       adminAccessError: S.adminAccessError,
       adminAccessHasError: !!S.adminAccessError,
       adminAccessSaved: S.adminAccessSaved,
+      retryAdminAccess: () => { void this.loadAdminAccess(); },
       saveAdminAccess: () => { void this.saveAdminAccess(); },
       adminAccessSaveLabel: S.adminAccessSaving ? 'Сохранение…' : 'Сохранить назначения',
       adminAccessSaveStyle: `background:${S.adminAccessSaving ? '#c7c5ef' : '#4f46e5'};color:#fff;border:none;border-radius:7px;padding:7px 13px;font-size:11.5px;font-weight:600;cursor:${S.adminAccessSaving ? 'default' : 'pointer'};`,
@@ -2973,6 +3353,11 @@ class Component extends DCLogic {
       ntLifecycleOptions: (S.adminLifecyclesData || []).filter(lifecycle => lifecycle.isActive !== false).map(lifecycle => ({ code: lifecycle.code, label: lifecycle.name })),
       ntCreateStyle: `background:${nt.label.trim() ? '#4f46e5' : '#c7c5ef'};color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:12.5px;font-weight:600;cursor:${nt.label.trim() ? 'pointer' : 'not-allowed'};`,
       role: S.role, roleLabel: role.label, roleHint: role.hint,
+      registryLoading: S.registryLoading,
+      registryLoadFailed,
+      registryReady: S.registryReady && !S.registryLoading,
+      registryLoadError: S.registryLoadError,
+      retryRegistry: () => { void this.initializeRegistry(); },
       accessDenied: S.accessDenied,
       accessGranted: !S.accessDenied,
       developmentRoleSwitcher: !(this.bitrixContext && this.bitrixContext.auth),
@@ -3028,18 +3413,26 @@ class Component extends DCLogic {
       nextPageStyle: `background:none;border:none;color:${S.registryPage + 1 < Math.ceil(this.documentsMeta.total / this.documentPageSize) ? '#52525b' : '#d4d4d8'};font-size:16px;line-height:1;padding:2px 4px;cursor:${S.registryPage + 1 < Math.ceil(this.documentsMeta.total / this.documentPageSize) ? 'pointer' : 'default'};`,
       hasSelection: Object.keys(S.sel).length > 0, noSelection: Object.keys(S.sel).length === 0,
       selectedCount: Object.keys(S.sel).length,
-      clearSel: () => this.setState({ sel: {}, bulkAssignOpen: false, bulkError: '' }),
+      clearSel: () => this.setState({ sel: {}, bulkAssignOpen: false, bulkError: '', responsibleMenuOpen: null }),
       bulkAssignOpen: S.bulkAssignOpen,
       bulkResponsibleId: S.bulkResponsibleId,
       bulkResponsibleOptions,
+      bulkResponsibleLabel: (bulkResponsibleOptions.find(item => String(item.id) === String(S.bulkResponsibleId)) || bulkResponsibleOptions[0]).name,
+      bulkResponsibleMenuOpen: S.responsibleMenuOpen === 'bulk',
       bulkBusy: S.bulkBusy,
       bulkHasError: !!S.bulkError,
       bulkError: S.bulkError,
       canBulkAssign: !archiveMode && !!(permissions.editAny || permissions.editOwn),
       canBulkDelete: !archiveMode && !!permissions.softDelete,
       canBulkRestore: archiveMode && !!permissions.restore,
-      openBulkAssign: () => this.setState({ bulkAssignOpen: !S.bulkAssignOpen, bulkError: '' }),
-      setBulkResponsible: event => this.setState({ bulkResponsibleId: event.target.value, bulkError: '' }),
+      openBulkAssign: () => this.setState({
+        bulkAssignOpen: !S.bulkAssignOpen,
+        bulkError: '',
+        responsibleMenuOpen: S.bulkAssignOpen ? null : 'bulk',
+      }),
+      toggleBulkResponsible: () => this.setState({
+        responsibleMenuOpen: S.responsibleMenuOpen === 'bulk' ? null : 'bulk',
+      }),
       applyBulkAssign: () => { void this.bulkAssignDocuments(); },
       applyBulkDelete: () => { void this.bulkDeleteDocuments(); },
       applyBulkRestore: () => { void this.bulkRestoreDocuments(); },
@@ -3051,18 +3444,22 @@ class Component extends DCLogic {
       drawerViewing: !!doc && !S.drawerEditing,
       drawerEditing: !!doc && S.drawerEditing,
       doc,
-      closeDoc: () => this.setState({
-        rowMenuId: null,
-        drawerId: null,
-        drawerEditing: false,
-        drawerEditSaving: false,
-        drawerEditError: '',
-        drawerEdit: null,
-        drawerLinkOpen: false,
-        drawerLinkName: '',
-        drawerLinkUrl: '',
-        drawerLinkError: '',
-      }),
+      closeDoc: () => {
+        this.documentOpenRequestId = (this.documentOpenRequestId || 0) + 1;
+        this.setState({
+          rowMenuId: null,
+          drawerId: null,
+          drawerEditing: false,
+          drawerEditSaving: false,
+          drawerEditError: '',
+          drawerEdit: null,
+          responsibleMenuOpen: null,
+          drawerLinkOpen: false,
+          drawerLinkName: '',
+          drawerLinkUrl: '',
+          drawerLinkError: '',
+        });
+      },
       cancelDocumentEdit: () => this.cancelDocumentEdit(),
       saveDocumentEdit: () => { void this.saveDocumentEdit(); },
       drawerEditSaving: S.drawerEditSaving,
@@ -3084,6 +3481,11 @@ class Component extends DCLogic {
       drawerEditFields: doc ? doc.editFields : [],
       drawerEditHasFields: !!(doc && doc.editHasFields),
       drawerEditResponsibleOptions: doc ? doc.responsibleOptions : [],
+      drawerEditResponsibleLabel: doc
+        ? ((doc.responsibleOptions.find(item => item.value === String(doc.edit.responsibleId)) || {}).label
+          || `Пользователь #${doc.edit.responsibleId}`)
+        : 'Выберите ответственного',
+      drawerEditResponsibleMenuOpen: S.responsibleMenuOpen === 'edit',
       setDrawerEditTitle: event => this.updateDocumentEdit('title', event.target.value),
       setDrawerEditNumber: event => this.updateDocumentEdit('number', event.target.value),
       setDrawerEditDate: event => this.updateDocumentEdit('date', event.target.value),
@@ -3092,7 +3494,9 @@ class Component extends DCLogic {
       setDrawerEditLegalEntity: event => this.updateDocumentEdit('legalEntityName', event.target.value),
       setDrawerEditCounterparty: event => this.updateDocumentEdit('counterpartyName', event.target.value),
       setDrawerEditDealStage: event => this.updateDocumentEdit('dealStageId', event.target.value),
-      setDrawerEditResponsible: event => this.updateDocumentEdit('responsibleId', event.target.value),
+      toggleDrawerEditResponsible: () => this.setState({
+        responsibleMenuOpen: S.responsibleMenuOpen === 'edit' ? null : 'edit',
+      }),
       setDrawerEditComment: event => this.updateDocumentEdit('comment', event.target.value),
       addDrawerFile: () => { if (S.drawerId) void this.addFileToDocument(S.drawerId); },
       openDrawerLink: () => this.setState({ drawerLinkOpen: true, drawerLinkError: '' }),
@@ -3107,8 +3511,32 @@ class Component extends DCLogic {
       setDrawerLinkUrl: (event) => this.setState({ drawerLinkUrl: event.target.value, drawerLinkError: '' }),
       statusOptions: doc ? doc.statusOptions : [],
       wizardOpen: S.wizardOpen,
-      openWizard: () => this.setState({ wizardOpen: true, wizardError: '', wz: { step: 1, sectionCode: null, typeLabel: null, number: '', date: '', amount: '', currency: 'RUB', counterparty: '', fieldVals: {}, links: [], file: null, externalLink: null, linkEditorOpen: false, linkName: '', linkUrl: '', linkError: '', supersedesId: null } }),
-      closeWizard: () => this.setState({ wizardOpen: false, wizardError: '' }),
+      openWizard: () => this.setState({
+        wizardOpen: true,
+        wizardError: '',
+        responsibleMenuOpen: null,
+        wz: {
+          step: 1,
+          sectionCode: null,
+          typeLabel: null,
+          number: '',
+          date: '',
+          amount: '',
+          currency: 'RUB',
+          counterparty: '',
+          ...this.defaultResponsibleSelection(),
+          fieldVals: {},
+          links: [],
+          file: null,
+          externalLink: null,
+          linkEditorOpen: false,
+          linkName: '',
+          linkUrl: '',
+          linkError: '',
+          supersedesId: null,
+        },
+      }),
+      closeWizard: () => this.setState({ wizardOpen: false, wizardError: '', responsibleMenuOpen: null }),
       wizardTitle: wz.supersedesId ? 'Новая редакция документа' : 'Новый документ',
       wizardError: S.wizardError,
       wizardHasError: !!S.wizardError,
@@ -3120,6 +3548,15 @@ class Component extends DCLogic {
       wzHasSection: !!wz.sectionCode,
       wzTypeLabel: wz.typeLabel || '—', wzSectionLabel: wzSec ? wzSec.label : '—',
       wzNumber: wz.number, wzDate: wz.date, wzAmount: wz.amount, wzCurrency: wz.currency, wzCounterparty: wz.counterparty,
+      wzDateShown: wz.date ? this.formatDocumentDate(wz.date) : '—',
+      wzResponsible: wz.responsibleId || '',
+      wzResponsibleOptions: wizardResponsibleOptions,
+      wzMoneyRequiredMark: wzTypeMeta && wzTypeMeta.isFinancial ? ' *' : '',
+      wzResponsibleShown: wz.responsibleName || (wz.responsibleId ? `Пользователь #${wz.responsibleId}` : '—'),
+      wzResponsibleMenuOpen: S.responsibleMenuOpen === 'wizard',
+      toggleWzResponsible: () => this.setState({
+        responsibleMenuOpen: S.responsibleMenuOpen === 'wizard' ? null : 'wizard',
+      }),
       wzFileLabel: wz.file ? ('📎 ' + (wz.file.name.length > 34 ? wz.file.name.slice(0, 31) + '…' : wz.file.name)) : '⬆ Загрузить файл',
       wzLinkLabel: wz.externalLink
         ? ('🔗 ' + ((wz.externalLink.name || new URL(wz.externalLink.url).hostname).slice(0, 30)))
@@ -3130,11 +3567,11 @@ class Component extends DCLogic {
       wzLinkError: wz.linkError || '',
       wzLinkHasError: !!wz.linkError,
       wzNumberShown: wz.number || '—', wzAmountShown: wz.amount ? (wz.amount + ' ' + wz.currency) : '—', wzCounterpartyShown: wz.counterparty || '—',
-      wzSetNumber: (e) => this.setState({ wz: { ...wz, number: e.target.value } }),
-      wzSetDate: (e) => this.setState({ wz: { ...wz, date: e.target.value } }),
-      wzSetAmount: (e) => this.setState({ wz: { ...wz, amount: e.target.value } }),
-      wzSetCurrency: (e) => this.setState({ wz: { ...wz, currency: e.target.value } }),
-      wzSetCounterparty: (e) => this.setState({ wz: { ...wz, counterparty: e.target.value } }),
+      wzSetNumber: (e) => this.setState({ wz: { ...wz, number: e.target.value }, wizardError: '' }),
+      wzSetDate: (e) => this.setState({ wz: { ...wz, date: e.target.value }, wizardError: '' }),
+      wzSetAmount: (e) => this.setState({ wz: { ...wz, amount: e.target.value }, wizardError: '' }),
+      wzSetCurrency: (e) => this.setState({ wz: { ...wz, currency: e.target.value }, wizardError: '' }),
+      wzSetCounterparty: (e) => this.setState({ wz: { ...wz, counterparty: e.target.value }, wizardError: '' }),
       wzPickFile: async () => { const file = await this.chooseFile(); if (file) this.setState({ wz: { ...this.state.wz, file, externalLink: null, linkEditorOpen: false, linkName: '', linkUrl: '', linkError: '' } }); },
       wzOpenLink: () => this.setState({ wz: { ...wz, file: null, linkEditorOpen: true, linkName: wz.externalLink ? wz.externalLink.name || '' : '', linkUrl: wz.externalLink ? wz.externalLink.url : '', linkError: '' } }),
       wzSetLinkName: (event) => this.setState({ wz: { ...wz, linkName: event.target.value } }),
@@ -3154,10 +3591,16 @@ class Component extends DCLogic {
       wzBack: () => { if (wz.step > (wz.supersedesId ? 2 : 1)) this.setState({ wz: { ...wz, step: wz.step - 1 } }); },
       wzBackStyle: `background:none;border:1px solid #e4e4e7;border-radius:8px;padding:9px 16px;font-size:12.5px;color:#52525b;cursor:pointer;visibility:${wz.step > (wz.supersedesId ? 2 : 1) ? 'visible' : 'hidden'};`,
       wzPrimaryLabel: wz.step < 3 ? 'Далее →' : (wz.supersedesId ? 'Создать редакцию' : 'Создать документ'),
-      wzPrimaryStyle: `background:${wzCanNext ? '#4f46e5' : '#c7c5ef'};color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:12.5px;font-weight:600;cursor:${wzCanNext ? 'pointer' : 'not-allowed'};`,
+      wzPrimaryStyle: 'background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:12.5px;font-weight:600;cursor:pointer;',
       wzPrimary: () => {
-        if (!wzCanNext) return;
-        if (wz.step < 3) { this.setState({ wz: { ...wz, step: wz.step + 1 } }); return; }
+        if (!wzCanNext) {
+          this.setState({ wizardError: wizardValidation.message });
+          return;
+        }
+        if (wz.step < 3) {
+          this.setState({ wz: { ...wz, step: wz.step + 1 }, wizardError: '' });
+          return;
+        }
         void this.createDocumentFromWizard(wz);
       },
     };
