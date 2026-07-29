@@ -1,8 +1,10 @@
 import { writeFile } from 'node:fs/promises';
 
+const reviewUrl = process.env.TERMECH_REVIEW_URL || 'http://127.0.0.1:4173/index.html';
+const reviewHost = new URL(reviewUrl).host;
 const pages = await fetch('http://127.0.0.1:9223/json/list').then(response => response.json());
-const page = pages.find(item => item.type === 'page' && item.url.includes('127.0.0.1:4173'));
-if (!page) throw new Error('Prototype page on 127.0.0.1:4173 not found');
+const page = pages.find(item => item.type === 'page' && item.url.includes(reviewHost));
+if (!page) throw new Error(`Prototype page on ${reviewHost} not found`);
 
 const socket = new WebSocket(page.webSocketDebuggerUrl);
 const pending = new Map();
@@ -78,6 +80,19 @@ async function setTextarea(selector, value) {
   await new Promise(resolve => setTimeout(resolve, 180));
 }
 
+async function setInput(selector, value) {
+  const changed = await evaluate(`(() => {
+    const input = document.querySelector(${JSON.stringify(selector)});
+    if (!input) return false;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    setter.call(input, ${JSON.stringify(value)});
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  })()`);
+  if (!changed) throw new Error(`Input not found: ${selector}`);
+  await new Promise(resolve => setTimeout(resolve, 180));
+}
+
 async function screenshot(path) {
   const result = await command('Page.captureScreenshot', {
     format: 'png',
@@ -142,6 +157,7 @@ await waitFor(`!!document.querySelector('.tz-selection-action')`, 'selection com
 
 await clickButton('Комментировать');
 await waitFor(`!!document.querySelector('.tz-comment-compose')`, 'comment composer');
+await setInput('.tz-comment-author-field', 'Проверка Codex');
 await setTextarea('.tz-comment-compose .tz-comment-textarea', 'Уточнить, кто согласует итоговую редакцию перед запуском.');
 await clickButton('Добавить комментарий');
 await waitFor(
@@ -149,8 +165,16 @@ await waitFor(
    JSON.parse(localStorage.getItem('termech-tz-comments-v2') || '[]').length === 1`,
   'saved comment thread',
 );
+await waitFor(`document.body.innerText.includes('Общий журнал')`, 'shared comment saved');
 
 const evidence = {};
+evidence.commentGuideVisible = await evaluate(`(() => {
+  const guide = document.querySelector('.tz-comment-guide');
+  return !!guide &&
+    guide.innerText.includes('Как оставить комментарий') &&
+    guide.innerText.includes('Ваше имя') === false &&
+    guide.innerText.includes('видят все участники');
+})()`);
 evidence.anchorHighlight = await evaluate(`
   CSS.highlights.has('tz-comment-highlight-active') &&
   CSS.highlights.get('tz-comment-highlight-active').size === 1
@@ -170,12 +194,29 @@ await waitFor(
   `document.body.innerText.includes('Согласование выполняет Заказчик после проверки HTML-версии.')`,
   'saved reply',
 );
+await waitFor(`document.body.innerText.includes('Общий журнал')`, 'shared reply saved');
 evidence.replyCreated = await evaluate(`
   JSON.parse(localStorage.getItem('termech-tz-comments-v2') || '[]')[0].replies.length === 1
 `);
 
+await evaluate(`localStorage.removeItem('termech-tz-comments-v2')`);
+await command('Page.reload', { ignoreCache: true });
+await waitFor(`document.body.innerText.includes('Договор поставки оборудования')`, 'reload for shared persistence');
+await clickButton('Техническое задание');
+await clickButton('Комментарии');
+await waitFor(
+  `document.body.innerText.includes('Уточнить, кто согласует итоговую редакцию перед запуском.') &&
+   document.body.innerText.includes('Согласование выполняет Заказчик после проверки HTML-версии.')`,
+  'shared discussion after local storage reset',
+);
+evidence.sharedPersistenceWorks = true;
+evidence.authorVisible = await evaluate(`
+  document.querySelector('.tz-comments-panel')?.innerText.includes('Проверка Codex') === true
+`);
+
 await clickButton('Закрыть обсуждение');
 await waitFor(`document.body.innerText.includes('Открытые · 0')`, 'resolved thread');
+await waitFor(`document.body.innerText.includes('Общий журнал')`, 'shared resolve saved');
 await clickButton('Закрытые');
 await waitFor(
   `document.body.innerText.includes('Закрыто') &&
@@ -221,16 +262,28 @@ evidence.highlightClickWorks = true;
 await new Promise(resolve => setTimeout(resolve, 260));
 await screenshot('/private/tmp/nvr270-tz-comments-desktop.png');
 
-await command('Page.reload', { ignoreCache: true });
-await waitFor(`document.body.innerText.includes('Договор поставки оборудования')`, 'reload for persistence');
-await clickButton('Техническое задание');
+await clickButton('×');
+await waitFor(`!document.querySelector('.tz-comments-panel')`, 'close comments before prototype return test');
+const openedFromChange = await evaluate(`(() => {
+  const card = document.querySelector('#tz-change-05');
+  const button = card && card.querySelector('.tz-open-screen');
+  if (!button) return false;
+  card.scrollIntoView({ block: 'start' });
+  button.click();
+  return true;
+})()`);
+if (!openedFromChange) throw new Error('Change 05 prototype button not found');
+await waitFor(`!!document.querySelector('.prototype-back-to-tz')`, 'prototype back button');
+evidence.prototypeBackButtonVisible = true;
+await clickButton('Вернуться к карточке ТЗ');
+await waitFor(`!!document.querySelector('#tz-change-05') && !document.querySelector('.prototype-back-to-tz')`, 'return to specification');
+evidence.returnToSameChange = await evaluate(`(() => {
+  const card = document.querySelector('#tz-change-05');
+  const rect = card && card.getBoundingClientRect();
+  return !!rect && rect.top >= 45 && rect.top < 180;
+})()`);
 await clickButton('Комментарии');
-await waitFor(
-  `document.body.innerText.includes('Уточнить, кто согласует итоговую редакцию перед запуском.') &&
-   document.body.innerText.includes('Согласование выполняет Заказчик после проверки HTML-версии.')`,
-  'persisted discussion after reload',
-);
-evidence.persistenceWorks = true;
+await waitFor(`!!document.querySelector('.tz-comments-panel')`, 'reopen comments after return test');
 
 await command('Emulation.setDeviceMetricsOverride', {
   width: 390,
@@ -255,6 +308,7 @@ evidence.allPassed = Object.values(evidence).every(value => value === true);
 
 console.log(JSON.stringify(evidence, null, 2));
 await evaluate(`localStorage.removeItem('termech-tz-comments-v2')`);
+await evaluate(`localStorage.removeItem('termech-tz-comment-author-v2')`);
 await command('Emulation.clearDeviceMetricsOverride');
 await command('Page.reload', { ignoreCache: true });
 socket.close();

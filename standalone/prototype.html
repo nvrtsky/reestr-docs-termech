@@ -446,6 +446,15 @@
   .tz-evidence-card:hover, .tz-evidence-card:focus-visible { border-color: #a78bfa; background: #faf5ff; outline: none; }
   .tz-comments-toggle { margin-left: auto; background: #312e81 !important; color: #ddd6fe !important; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
   .tz-comments-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: #f5f3ff; color: #6d28d9; font-family: 'IBM Plex Mono'; font-size: 9px; }
+  .tz-comment-guide { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 13px; align-items: center; padding: 14px 16px; border: 1px solid #fde68a; border-radius: 11px; background: #fffbeb; color: #3f3f46; }
+  .tz-comment-guide-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: #fef3c7; color: #a16207; font-size: 17px; }
+  .tz-comment-guide-title { font-family: 'Space Grotesk'; font-size: 12.5px; font-weight: 700; }
+  .tz-comment-guide-steps { margin-top: 4px; color: #52525b; font-size: 10.8px; line-height: 1.55; }
+  .tz-comment-guide-note { margin-top: 4px; color: #92400e; font-size: 10px; line-height: 1.45; }
+  .tz-comment-guide-button { border: 1px solid #f59e0b; border-radius: 8px; padding: 8px 10px; background: #fff; color: #92400e; font-size: 10.8px; font-weight: 700; cursor: pointer; }
+  .tz-comment-guide-button:hover, .tz-comment-guide-button:focus-visible { background: #fef3c7; outline: 2px solid #fcd34d; outline-offset: 1px; }
+  .prototype-back-to-tz { position: fixed; top: 58px; right: 16px; z-index: 45; display: inline-flex; align-items: center; gap: 7px; border: 1px solid #c4b5fd; border-radius: 9px; padding: 9px 12px; background: #fff; color: #5b21b6; box-shadow: 0 8px 24px rgba(76,29,149,.16); font-size: 11.5px; font-weight: 700; cursor: pointer; }
+  .prototype-back-to-tz:hover, .prototype-back-to-tz:focus-visible { background: #f5f3ff; outline: 2px solid #a78bfa; outline-offset: 1px; }
   ::highlight(tz-comment-highlight) { background-color: #fef08a; text-decoration: underline #eab308 2px; }
   ::highlight(tz-comment-highlight-active) { background-color: #fde68a; text-decoration: underline #ca8a04 3px; }
   .tz-selection-action { position: fixed; z-index: 72; display: inline-flex; align-items: center; gap: 7px; border: 1px solid #4f46e5; border-radius: 9px; padding: 8px 11px; background: #18181b; color: #fff; box-shadow: 0 10px 26px rgba(24,24,27,.24); font-size: 11px; font-weight: 700; cursor: pointer; animation: dcFade .12s; }
@@ -454,7 +463,13 @@
   .tz-comments-head { flex: none; padding: 14px 15px 11px; border-bottom: 1px solid #ededed; background: #fafafa; }
   .tz-comments-title-row { display: flex; align-items: center; gap: 9px; }
   .tz-comments-title { font-family: 'Space Grotesk'; font-size: 16px; font-weight: 700; }
-  .tz-comments-close { margin-left: auto; width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: #71717a; font-size: 17px; cursor: pointer; }
+  .tz-comments-sync { margin-left: auto; color: #71717a; font-size: 9.5px; white-space: nowrap; }
+  .tz-comments-refresh { border: 0; border-radius: 6px; padding: 5px 7px; background: #f4f4f5; color: #52525b; font-size: 9.5px; cursor: pointer; }
+  .tz-comments-refresh:hover, .tz-comments-refresh:focus-visible { background: #e4e4e7; outline: none; }
+  .tz-comment-author-field { width: 100%; border: 1px solid #d4d4d8; border-radius: 8px; padding: 8px 9px; background: #fff; color: #18181b; font-size: 11px; outline: none; }
+  .tz-comment-author-field:focus { border-color: #8b5cf6; box-shadow: 0 0 0 2px #ede9fe; }
+  .tz-comment-error { margin-top: 6px; color: #b91c1c; font-size: 9.8px; line-height: 1.4; }
+  .tz-comments-close { width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: #71717a; font-size: 17px; cursor: pointer; }
   .tz-comments-close:hover, .tz-comments-close:focus-visible { background: #e4e4e7; color: #18181b; outline: none; }
   .tz-comments-tabs { display: flex; gap: 5px; margin-top: 10px; }
   .tz-comments-tab { border: 1px solid #e4e4e7; border-radius: 999px; padding: 5px 9px; background: #fff; color: #71717a; font-size: 10.5px; cursor: pointer; }
@@ -526,6 +541,7 @@
   <!-- ════════ PROTOTYPE MODE ════════ -->
   <sc-if value="{{ isProto }}" hint-placeholder-val="{{ true }}">
   <div class="prototype-shell" style="height: 100%; display: flex; min-width: 0; background: #fff;">
+  <button type="button" class="prototype-back-to-tz" onclick="{{ returnToTz }}" aria-label="Вернуться к карточке технического задания"><span>←</span><span>Вернуться к карточке ТЗ</span></button>
 
   <!-- ░░ LEFT RAIL ░░ -->
   <aside class="side-rail" style="width: 224px; flex: none; background: #fafafa; border-right: 1px solid #ededed; display: flex; flex-direction: column;">
@@ -1657,6 +1673,16 @@
         <button type="button" class="tz-comments-toggle" onclick="{{ openTzComments }}" aria-label="Открыть комментарии к техническому заданию"><span>◧</span><span>Комментарии</span><span class="tz-comments-count">{{ tzOpenCommentCount }}</span></button>
       </nav>
 
+      <section class="tz-comment-guide" aria-labelledby="tz-comment-guide-title">
+        <div class="tz-comment-guide-icon" aria-hidden="true">◧</div>
+        <div>
+          <div id="tz-comment-guide-title" class="tz-comment-guide-title">Как оставить комментарий</div>
+          <div class="tz-comment-guide-steps">1. Выделите нужный фрагмент ТЗ. 2. Нажмите появившуюся кнопку «Комментировать». 3. Напишите замечание и нажмите «Добавить комментарий».</div>
+          <div class="tz-comment-guide-note">Перед первым комментарием укажите имя. Комментарии, ответы и статусы видят все участники, у которых есть эта ссылка.</div>
+        </div>
+        <button type="button" class="tz-comment-guide-button" onclick="{{ openTzComments }}">Открыть комментарии</button>
+      </section>
+
       <sc-if value="{{ tzSelectionReady }}" hint-placeholder-val="{{ false }}">
         <button type="button" class="tz-selection-action" style="{{ tzSelectionActionStyle }}" onclick="{{ startTzComment }}"><span>＋</span><span>Комментировать</span></button>
       </sc-if>
@@ -1667,9 +1693,15 @@
             <div class="tz-comments-title-row">
               <div class="tz-comments-title">Комментарии к ТЗ</div>
               <span class="tz-comments-count">{{ tzOpenCommentCount }}</span>
+              <span class="tz-comments-sync">{{ tzCommentsSyncLabel }}</span>
+              <button type="button" class="tz-comments-refresh" onclick="{{ refreshTzComments }}">Обновить</button>
               <button type="button" class="tz-comments-close" onclick="{{ closeTzComments }}" aria-label="Закрыть панель комментариев">×</button>
             </div>
-            <div style="margin-top:4px;color:#71717a;font-size:10.5px;line-height:1.4;">Выделите фрагмент текста и нажмите «Комментировать».</div>
+            <div style="margin-top:8px;">
+              <input class="tz-comment-author-field" value="{{ tzCommentAuthor }}" oninput="{{ setTzCommentAuthor }}" placeholder="Ваше имя" aria-label="Имя автора комментария">
+            </div>
+            <sc-if value="{{ tzCommentHasError }}" hint-placeholder-val="{{ false }}"><div class="tz-comment-error">{{ tzCommentError }}</div></sc-if>
+            <div style="margin-top:5px;color:#71717a;font-size:10.5px;line-height:1.4;">Выделите фрагмент текста и нажмите «Комментировать».</div>
             <div class="tz-comments-tabs">
               <button type="button" class="tz-comments-tab" style="{{ tzOpenTabStyle }}" onclick="{{ showOpenTzComments }}">Открытые · {{ tzOpenCommentCount }}</button>
               <button type="button" class="tz-comments-tab" style="{{ tzResolvedTabStyle }}" onclick="{{ showResolvedTzComments }}">Закрытые · {{ tzResolvedCommentCount }}</button>
@@ -1777,7 +1809,7 @@
               <div class="tz-group-heading"><span class="tz-group-number">{{ group.number }}</span><span class="tz-group-title">{{ group.title }}</span></div>
               <div class="tz-change-list">
                 <sc-for list="{{ group.changes }}" as="change" hint-placeholder-count="5">
-                  <article class="tz-change-card">
+                  <article id="tz-change-{{ change.number }}" class="tz-change-card" style="scroll-margin-top:72px;">
                     <div class="tz-change-head">
                       <div class="tz-change-index">{{ change.number }}</div>
                       <div><div class="tz-change-title">{{ change.title }}</div><div class="tz-change-source">{{ change.source }}</div></div>
@@ -2191,7 +2223,9 @@ class Component extends DCLogic {
     document.addEventListener('keyup', this.tzSelectionHandler, true);
     document.addEventListener('click', this.tzHighlightClickHandler, true);
     const tzComments = this.loadTzComments();
-    if (tzComments.length) this.setState({ tzComments });
+    const tzCommentAuthor = this.loadTzCommentAuthor();
+    this.setState({ tzComments, tzCommentAuthor });
+    this.refreshTzComments();
     requestAnimationFrame(() => this.forceUpdate());
   }
 
@@ -2216,27 +2250,89 @@ class Component extends DCLogic {
     return 'termech-tz-comments-v2';
   }
 
+  tzCommentAuthorKey() {
+    return 'termech-tz-comment-author-v2';
+  }
+
+  tzCommentsEndpoint() {
+    return '/api/comments';
+  }
+
+  loadTzCommentAuthor() {
+    try {
+      return String(localStorage.getItem(this.tzCommentAuthorKey()) || '').trim();
+    } catch {
+      return '';
+    }
+  }
+
+  setTzCommentAuthor(value) {
+    const author = String(value || '').slice(0, 80);
+    try {
+      localStorage.setItem(this.tzCommentAuthorKey(), author);
+    } catch {
+      // Имя всё равно останется в текущей сессии.
+    }
+    this.setState({ tzCommentAuthor: author, tzCommentError: '' });
+  }
+
+  normalizeTzComments(items) {
+    if (!Array.isArray(items)) return [];
+    return items.filter(item =>
+      item
+      && typeof item.id === 'string'
+      && typeof item.quote === 'string'
+      && item.anchor
+      && Number.isFinite(item.anchor.start)
+      && Number.isFinite(item.anchor.end)
+    ).map(item => ({
+      ...item,
+      body: String(item.body || ''),
+      author: String(item.author || 'Участник'),
+      createdAt: item.createdAt || new Date().toISOString(),
+      resolved: !!item.resolved,
+      replies: Array.isArray(item.replies) ? item.replies : [],
+    }));
+  }
+
   loadTzComments() {
     try {
       const stored = JSON.parse(localStorage.getItem(this.tzCommentStorageKey()) || '[]');
-      if (!Array.isArray(stored)) return [];
-      return stored.filter(item =>
-        item
-        && typeof item.id === 'string'
-        && typeof item.quote === 'string'
-        && item.anchor
-        && Number.isFinite(item.anchor.start)
-        && Number.isFinite(item.anchor.end)
-      ).map(item => ({
-        ...item,
-        body: String(item.body || ''),
-        author: String(item.author || 'Вы'),
-        createdAt: item.createdAt || new Date().toISOString(),
-        resolved: !!item.resolved,
-        replies: Array.isArray(item.replies) ? item.replies : [],
-      }));
+      return this.normalizeTzComments(stored);
     } catch {
       return [];
+    }
+  }
+
+  async refreshTzComments(silent = false) {
+    if (this.tzPendingSaves) return this.state.tzComments || [];
+    if (!silent) this.setState({ tzCommentsSyncStatus: 'loading' });
+    try {
+      const response = await fetch(`${this.tzCommentsEndpoint()}?t=${Date.now()}`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      const comments = this.normalizeTzComments(payload && payload.comments);
+      try {
+        localStorage.setItem(this.tzCommentStorageKey(), JSON.stringify(comments));
+      } catch {
+        // Общий журнал продолжает работать без локальной копии.
+      }
+      this.setState({
+        tzComments: comments,
+        tzCommentsSyncStatus: 'ready',
+        tzCommentsSyncedAt: new Date().toISOString(),
+      });
+      return comments;
+    } catch (error) {
+      this.setState({
+        tzCommentsSyncStatus: 'error',
+        tzCommentsSyncError: String(error && error.message ? error.message : error),
+      });
+      return this.state.tzComments || [];
     }
   }
 
@@ -2244,9 +2340,63 @@ class Component extends DCLogic {
     try {
       localStorage.setItem(this.tzCommentStorageKey(), JSON.stringify(comments));
     } catch {
-      // The prototype still works for the current session when storage is unavailable.
+      // Общий журнал продолжает работать без локальной копии.
     }
-    this.setState({ tzComments: comments, ...patch });
+    this.setState({ tzComments: comments, tzCommentsSyncStatus: 'saving', ...patch });
+    this.tzPendingSaves = (this.tzPendingSaves || 0) + 1;
+    const previous = this.tzSaveQueue || Promise.resolve();
+    this.tzSaveQueue = previous
+      .catch(() => null)
+      .then(() => this.persistTzComments(comments))
+      .then(mergedComments => {
+        this.tzPendingSaves -= 1;
+        if (this.tzPendingSaves > 0) return;
+        try {
+          localStorage.setItem(this.tzCommentStorageKey(), JSON.stringify(mergedComments));
+        } catch {
+          // Общий журнал продолжает работать без локальной копии.
+        }
+        this.setState({
+          tzComments: mergedComments,
+          tzCommentsSyncStatus: 'ready',
+          tzCommentsSyncedAt: new Date().toISOString(),
+        });
+      })
+      .catch(error => {
+        this.tzPendingSaves -= 1;
+        if (this.tzPendingSaves === 0) {
+          this.setState({
+            tzCommentsSyncStatus: 'error',
+            tzCommentsSyncError: String(error && error.message ? error.message : error),
+          });
+        }
+      });
+  }
+
+  async persistTzComments(comments) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const response = await fetch(this.tzCommentsEndpoint(), {
+          method: 'PUT',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            version: 1,
+            comments,
+            updatedAt: new Date().toISOString(),
+          }),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        return this.normalizeTzComments(payload && payload.comments);
+      } catch {
+        if (attempt === 2) break;
+        await new Promise(resolve => setTimeout(resolve, 700 * (attempt + 1)));
+      }
+    }
+    throw new Error('Не удалось сохранить общий журнал комментариев.');
   }
 
   tzTextNodes(root = document.querySelector('.tz-page')) {
@@ -2257,7 +2407,7 @@ class Component extends DCLogic {
         if (!node.nodeValue || !node.nodeValue.length) return NodeFilter.FILTER_REJECT;
         const parent = node.parentElement;
         if (!parent) return NodeFilter.FILTER_REJECT;
-        if (parent.closest('.tz-jump-nav, .tz-comments-panel, .tz-selection-action, button, textarea, input, select, script, style')) {
+        if (parent.closest('.tz-jump-nav, .tz-comment-guide, .tz-comments-panel, .tz-selection-action, button, textarea, input, select, script, style')) {
           return NodeFilter.FILTER_REJECT;
         }
         return NodeFilter.FILTER_ACCEPT;
@@ -2360,7 +2510,7 @@ class Component extends DCLogic {
   captureTzSelection(event) {
     if (this.state.mode !== 'tz') return;
     const target = event && event.target && event.target.closest ? event.target : null;
-    if (target && target.closest('.tz-comments-panel, .tz-selection-action, .tz-jump-nav, button, textarea, input, select')) return;
+    if (target && target.closest('.tz-comment-guide, .tz-comments-panel, .tz-selection-action, .tz-jump-nav, button, textarea, input, select')) return;
     const root = document.querySelector('.tz-page');
     const selection = window.getSelection();
     if (!root || !selection || selection.rangeCount === 0 || selection.isCollapsed) {
@@ -2393,7 +2543,7 @@ class Component extends DCLogic {
 
   openTzCommentAtPoint(event) {
     if (this.state.mode !== 'tz' || !event || !event.target || !event.target.closest) return;
-    if (event.target.closest('.tz-comments-panel, .tz-selection-action, .tz-jump-nav, button, textarea, input, select')) return;
+    if (event.target.closest('.tz-comment-guide, .tz-comments-panel, .tz-selection-action, .tz-jump-nav, button, textarea, input, select')) return;
     const root = document.querySelector('.tz-page');
     if (!root || !root.contains(event.target)) return;
     const caret = document.caretRangeFromPoint
@@ -2419,6 +2569,7 @@ class Component extends DCLogic {
       tzCommentFilter: 'open',
       tzSelectionReady: false,
       tzActiveCommentId: null,
+      tzCommentError: '',
     });
   }
 
@@ -2428,20 +2579,25 @@ class Component extends DCLogic {
       tzSelectionReady: false,
       tzPendingSelection: null,
       tzCommentDraft: '',
+      tzCommentError: '',
     });
   }
 
   addTzComment() {
     const pending = this.state.tzPendingSelection;
     const body = String(this.state.tzCommentDraft || '').trim();
-    if (!pending || !body) return;
+    const author = String(this.state.tzCommentAuthor || '').trim();
+    if (!pending || !body || !author) {
+      this.setState({ tzCommentError: !author ? 'Укажите ваше имя.' : 'Напишите комментарий.' });
+      return;
+    }
     const id = `tz-comment-${Date.now()}`;
     const comment = {
       id,
       quote: pending.quote,
       anchor: pending.anchor,
       body,
-      author: 'Вы',
+      author,
       createdAt: new Date().toISOString(),
       resolved: false,
       replies: [],
@@ -2451,6 +2607,7 @@ class Component extends DCLogic {
       tzComposerOpen: false,
       tzPendingSelection: null,
       tzCommentDraft: '',
+      tzCommentError: '',
       tzCommentFilter: 'open',
       tzActiveCommentId: id,
     });
@@ -2497,10 +2654,14 @@ class Component extends DCLogic {
 
   sendTzReply(id) {
     const body = String((this.state.tzReplyDrafts || {})[id] || '').trim();
-    if (!body) return;
+    const author = String(this.state.tzCommentAuthor || '').trim();
+    if (!body || !author) {
+      this.setState({ tzCommentError: !author ? 'Укажите ваше имя.' : 'Напишите ответ.' });
+      return;
+    }
     const reply = {
       id: `tz-reply-${Date.now()}`,
-      author: 'Вы',
+      author,
       createdAt: new Date().toISOString(),
       body,
     };
@@ -2511,6 +2672,7 @@ class Component extends DCLogic {
       tzReplyOpenId: null,
       tzReplyDrafts: { ...(this.state.tzReplyDrafts || {}), [id]: '' },
       tzActiveCommentId: id,
+      tzCommentError: '',
     });
   }
 
@@ -2523,6 +2685,16 @@ class Component extends DCLogic {
       hour: '2-digit',
       minute: '2-digit',
     }).format(date);
+  }
+
+  returnToTz() {
+    const targetId = this.state.tzReturnTarget || 'tz-v2-overview';
+    this.setState({ mode: 'tz' }, () => {
+      requestAnimationFrame(() => {
+        const target = document.getElementById(targetId);
+        if (target) target.scrollIntoView({ behavior: 'auto', block: 'start' });
+      });
+    });
   }
 
   state = {
@@ -2573,9 +2745,15 @@ class Component extends DCLogic {
     tzPendingSelection: null,
     tzSelectionPosition: { left: 12, top: 58 },
     tzCommentDraft: '',
+    tzCommentAuthor: '',
+    tzCommentError: '',
+    tzCommentsSyncStatus: 'loading',
+    tzCommentsSyncError: '',
+    tzCommentsSyncedAt: '',
     tzReplyOpenId: null,
     tzReplyDrafts: {},
     tzActiveCommentId: null,
+    tzReturnTarget: 'tz-v2-overview',
   };
 
   SECTIONS = [
@@ -3776,7 +3954,7 @@ class Component extends DCLogic {
     const dataModel = this.DATA_MODEL.map(([t, d]) => ({ t, d }));
     const historySpec = this.HISTORY_SPEC.map(([event, detail]) => ({ event, detail }));
     const trainingItems = this.TRAINING.map(([title, desc, kind, icon]) => ({ title, desc, kind, icon }));
-    const openTzScreen = (screenKey) => {
+    const openTzScreen = (screenKey, returnTarget = 'tz-v2-overview') => {
       const actions = {
         bulk: () => this.setState({
           mode: 'proto',
@@ -3867,7 +4045,8 @@ class Component extends DCLogic {
           role: 'manager',
         }),
       };
-      return actions[screenKey] || (() => this.setState({ mode: 'proto', screen: 'registry' }));
+      const action = actions[screenKey] || (() => this.setState({ mode: 'proto', screen: 'registry' }));
+      return () => this.setState({ tzReturnTarget: returnTarget }, action);
     };
     const badgeStyles = {
       ready: 'background:#ecfdf3;color:#15803d;',
@@ -3884,7 +4063,7 @@ class Component extends DCLogic {
         ...change,
         badgeStyle: badgeStyles[change.badgeTone] || badgeStyles.spec,
         details: change.details.map(text => ({ text })),
-        onOpen: openTzScreen(change.screenKey),
+        onOpen: openTzScreen(change.screenKey, `tz-change-${change.number}`),
       })),
     }));
     const v2Conflicts = this.V2_CONFLICTS.map(([title, before, after]) => ({ title, before, after }));
@@ -3894,31 +4073,38 @@ class Component extends DCLogic {
       requirement,
       section,
       screen,
-      onOpen: openTzScreen(screenKey),
+      onOpen: openTzScreen(screenKey, 'tz-v2-trace'),
     }));
     const evidenceScreens = [
       {
         title: 'Массовая загрузка',
         desc: '2+ файлов, общие значения и поля каждой строки.',
-        onOpen: openTzScreen('bulk'),
+        onOpen: openTzScreen('bulk', 'tz-v2-trace'),
       },
       {
         title: 'Связанные документы и версии',
         desc: 'Договор, допсоглашения, копии и двусторонние переходы.',
-        onOpen: openTzScreen('relations'),
+        onOpen: openTzScreen('relations', 'tz-v2-trace'),
       },
       {
         title: 'Финансовый итог сделки',
         desc: 'Выбор валюты, курс на дату и импорт Bitrix24 без дублей.',
-        onOpen: openTzScreen('deal'),
+        onOpen: openTzScreen('deal', 'tz-v2-trace'),
       },
       {
         title: 'Десктопная версия на телефоне',
         desc: 'Без мобильной адаптации; вход только через учётную запись Bitrix24.',
-        onOpen: openTzScreen('desktopPhone'),
+        onOpen: openTzScreen('desktopPhone', 'tz-v2-trace'),
       },
     ];
     const tzComments = S.tzComments || [];
+    const tzCommentsSyncLabel = S.tzCommentsSyncStatus === 'saving'
+        ? 'Сохраняем…'
+      : S.tzCommentsSyncStatus === 'loading'
+        ? 'Обновляем…'
+        : S.tzCommentsSyncStatus === 'error'
+          ? `Нет связи: ${S.tzCommentsSyncError || 'ошибка загрузки'}`
+          : 'Общий журнал';
     const tzOpenCommentCount = tzComments.filter(comment => !comment.resolved).length;
     const tzResolvedCommentCount = tzComments.filter(comment => comment.resolved).length;
     const tzFilteredComments = tzComments
@@ -3936,14 +4122,14 @@ class Component extends DCLogic {
         id: comment.id,
         quote: comment.quote,
         body: comment.body,
-        author: comment.author || 'Вы',
-        initials: (comment.author || 'Вы').slice(0, 2).toLocaleUpperCase('ru'),
+        author: comment.author || 'Участник',
+        initials: (comment.author || 'Участник').slice(0, 2).toLocaleUpperCase('ru'),
         time: this.formatTzCommentTime(comment.createdAt),
         open: !resolved,
         resolved,
         style,
         replies: (comment.replies || []).map(reply => ({
-          author: reply.author || 'Вы',
+          author: reply.author || 'Участник',
           time: this.formatTzCommentTime(reply.createdAt),
           body: reply.body,
         })),
@@ -4000,7 +4186,8 @@ class Component extends DCLogic {
       // mode switcher
       isProto: S.mode === 'proto', isTz: S.mode === 'tz',
       showProto: () => this.setState({ mode: 'proto' }),
-      showTz: () => this.setState({ mode: 'tz' }),
+      showTz: () => this.returnToTz(),
+      returnToTz: () => this.returnToTz(),
       tabProtoStyle: segStyle(S.mode === 'proto'),
       tabTzStyle: segStyle(S.mode === 'tz'),
       // tz content
@@ -4023,6 +4210,8 @@ class Component extends DCLogic {
       }),
       tzOpenCommentCount,
       tzResolvedCommentCount,
+      tzCommentsSyncLabel,
+      refreshTzComments: () => this.refreshTzComments(),
       tzCommentThreads,
       tzHasCommentThreads: tzCommentThreads.length > 0,
       tzNoCommentThreads: tzCommentThreads.length === 0 && !S.tzComposerOpen,
@@ -4043,7 +4232,11 @@ class Component extends DCLogic {
       tzComposerOpen: S.tzComposerOpen,
       tzPendingQuote: S.tzPendingSelection ? S.tzPendingSelection.quote : '',
       tzCommentDraft: S.tzCommentDraft,
-      setTzCommentDraft: event => this.setState({ tzCommentDraft: event.target.value }),
+      setTzCommentDraft: event => this.setState({ tzCommentDraft: event.target.value, tzCommentError: '' }),
+      tzCommentAuthor: S.tzCommentAuthor,
+      setTzCommentAuthor: event => this.setTzCommentAuthor(event.target.value),
+      tzCommentHasError: !!S.tzCommentError,
+      tzCommentError: S.tzCommentError,
       cancelTzComment: () => this.cancelTzComment(),
       addTzComment: () => this.addTzComment(),
       // nav
