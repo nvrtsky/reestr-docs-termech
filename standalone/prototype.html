@@ -444,42 +444,58 @@
   .tz-evidence-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
   .tz-evidence-card { display: block; text-align: left; border: 1px solid #ddd6fe; border-radius: 9px; padding: 12px; background: #fff; cursor: pointer; }
   .tz-evidence-card:hover, .tz-evidence-card:focus-visible { border-color: #a78bfa; background: #faf5ff; outline: none; }
+  .tz-comments-toggle { margin-left: auto; background: #312e81 !important; color: #ddd6fe !important; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+  .tz-comments-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: #f5f3ff; color: #6d28d9; font-family: 'IBM Plex Mono'; font-size: 9px; }
+  ::highlight(tz-comment-highlight) { background-color: #fef08a; text-decoration: underline #eab308 2px; }
+  ::highlight(tz-comment-highlight-active) { background-color: #fde68a; text-decoration: underline #ca8a04 3px; }
+  .tz-selection-action { position: fixed; z-index: 72; display: inline-flex; align-items: center; gap: 7px; border: 1px solid #4f46e5; border-radius: 9px; padding: 8px 11px; background: #18181b; color: #fff; box-shadow: 0 10px 26px rgba(24,24,27,.24); font-size: 11px; font-weight: 700; cursor: pointer; animation: dcFade .12s; }
+  .tz-selection-action:hover, .tz-selection-action:focus-visible { background: #312e81; outline: 2px solid #c4b5fd; outline-offset: 2px; }
+  .tz-comments-panel { position: fixed; z-index: 65; top: 58px; right: 12px; bottom: 12px; width: 370px; display: flex; flex-direction: column; overflow: hidden; background: #fff; border: 1px solid #d4d4d8; border-radius: 13px; box-shadow: 0 18px 50px rgba(24,24,27,.22); animation: dcSlideIn .18s; }
+  .tz-comments-head { flex: none; padding: 14px 15px 11px; border-bottom: 1px solid #ededed; background: #fafafa; }
+  .tz-comments-title-row { display: flex; align-items: center; gap: 9px; }
+  .tz-comments-title { font-family: 'Space Grotesk'; font-size: 16px; font-weight: 700; }
+  .tz-comments-close { margin-left: auto; width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: #71717a; font-size: 17px; cursor: pointer; }
+  .tz-comments-close:hover, .tz-comments-close:focus-visible { background: #e4e4e7; color: #18181b; outline: none; }
+  .tz-comments-tabs { display: flex; gap: 5px; margin-top: 10px; }
+  .tz-comments-tab { border: 1px solid #e4e4e7; border-radius: 999px; padding: 5px 9px; background: #fff; color: #71717a; font-size: 10.5px; cursor: pointer; }
+  .tz-comments-tab-active { border-color: #c4b5fd; background: #f5f3ff; color: #6d28d9; font-weight: 700; }
+  .tz-comments-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; background: #f8fafc; }
+  .tz-comment-compose { padding: 12px; border: 1px solid #c4b5fd; border-radius: 10px; background: #fff; box-shadow: 0 5px 16px rgba(79,70,229,.08); }
+  .tz-comment-quote { margin: 0; padding: 8px 9px; border-left: 3px solid #a78bfa; border-radius: 0 7px 7px 0; background: #faf5ff; color: #52525b; font-size: 10.5px; line-height: 1.45; }
+  .tz-comment-textarea { width: 100%; min-height: 74px; margin-top: 9px; resize: vertical; border: 1px solid #d4d4d8; border-radius: 8px; padding: 9px 10px; color: #18181b; background: #fff; font-size: 11.5px; line-height: 1.45; }
+  .tz-comment-textarea:focus { border-color: #8b5cf6; outline: 2px solid #ede9fe; }
+  .tz-comment-compose-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; margin-top: 8px; }
+  .tz-comment-button { border: 1px solid #d4d4d8; border-radius: 7px; padding: 6px 9px; background: #fff; color: #52525b; font-size: 10.5px; font-weight: 650; cursor: pointer; }
+  .tz-comment-button:hover, .tz-comment-button:focus-visible { background: #f4f4f5; color: #18181b; outline: none; }
+  .tz-comment-button-primary { border-color: #4f46e5; background: #4f46e5; color: #fff; }
+  .tz-comment-button-primary:hover, .tz-comment-button-primary:focus-visible { background: #4338ca; color: #fff; }
+  .tz-comment-list { display: flex; flex-direction: column; gap: 9px; }
+  .tz-comment-thread { border: 1px solid #e4e4e7; border-radius: 10px; padding: 11px; background: #fff; transition: border-color .15s, box-shadow .15s; }
+  .tz-comment-thread-active { border-color: #a78bfa; box-shadow: 0 0 0 2px #ede9fe; }
+  .tz-comment-thread-resolved { background: #fafafa; opacity: .88; }
+  .tz-comment-meta { display: flex; align-items: center; gap: 7px; }
+  .tz-comment-avatar { width: 25px; height: 25px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #4f46e5; color: #fff; font-size: 9px; font-weight: 750; }
+  .tz-comment-author { color: #18181b; font-size: 11px; font-weight: 700; }
+  .tz-comment-time { color: #a1a1aa; font-size: 9.5px; }
+  .tz-comment-status { margin-left: auto; border-radius: 999px; padding: 3px 6px; background: #ecfdf3; color: #15803d; font-size: 9px; font-weight: 700; }
+  .tz-comment-body { margin-top: 8px; color: #3f3f46; font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; }
+  .tz-comment-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+  .tz-comment-link { border: 0; padding: 0; background: transparent; color: #4f46e5; font-size: 10px; font-weight: 650; cursor: pointer; }
+  .tz-comment-link:hover, .tz-comment-link:focus-visible { color: #312e81; text-decoration: underline; outline: none; }
+  .tz-comment-replies { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 0 17px; padding-left: 10px; border-left: 2px solid #ede9fe; }
+  .tz-comment-reply { color: #3f3f46; font-size: 10.8px; line-height: 1.45; }
+  .tz-comment-reply-meta { color: #71717a; font-size: 9.5px; margin-bottom: 2px; }
+  .tz-comment-reply-box { margin-top: 9px; padding-top: 9px; border-top: 1px solid #ededed; }
+  .tz-comment-reply-box .tz-comment-textarea { min-height: 58px; margin-top: 0; }
+  .tz-comments-empty { padding: 28px 18px; text-align: center; color: #71717a; font-size: 11.5px; line-height: 1.55; }
+  .tz-comments-empty-icon { width: 42px; height: 42px; margin: 0 auto 10px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #ede9fe; color: #6d28d9; font-size: 18px; }
   @keyframes dcSlideIn { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
   @keyframes dcFade { from { opacity: 0; } to { opacity: 1; } }
-  @media (max-width: 900px) {
-    .tz-page { padding: 20px 14px 56px; }
-    .tz-cover, .tz-section { padding: 28px 24px; }
-    .tz-summary-grid { grid-template-columns: repeat(2, 1fr); }
-    .tz-source-grid { grid-template-columns: repeat(2, 1fr); }
-    .tz-source-card:last-child { grid-column: 1 / -1; }
-    .tz-change-body { grid-template-columns: 1fr; }
-    .tz-change-before { border-right: 0; border-bottom: 1px solid #f4e8e8; }
-    .tz-evidence-grid { grid-template-columns: repeat(2, 1fr); }
-  }
   @media (max-width: 600px) {
-    .app-shell { height: 100dvh !important; }
-    .top-switcher { height: 46px !important; padding: 0 10px !important; gap: 7px !important; }
-    .top-switcher .mode-switcher, .top-switcher .desktop-top-meta { display: none !important; }
-    .prototype-shell { display: block !important; }
-    .side-rail { display: none !important; }
-    .main-panel { width: 100% !important; height: 100% !important; }
-    .registry-header { display: grid !important; grid-template-columns: 1fr !important; padding: 10px 12px !important; gap: 8px !important; }
-    .registry-header .registry-heading { display: none !important; }
-    .registry-header .registry-search { width: 100% !important; margin: 0 !important; }
-    .registry-header .registry-search input { width: 100% !important; }
-    .desktop-complex-action, .registry-controls, .desktop-registry-table, .registry-footer { display: none !important; }
-    .mobile-registry { display: block !important; overflow-y: auto !important; flex: 1 !important; padding: 10px 11px 22px !important; background: #f8fafc !important; }
-    .mobile-only { display: block !important; }
-    .mobile-doc-card { display: block !important; }
-    .tz-page { padding: 12px 9px 40px; gap: 12px; }
-    .tz-cover, .tz-section { padding: 22px 16px; border-radius: 10px; }
-    .tz-jump-nav { top: 5px; }
-    .tz-summary-grid, .tz-source-grid, .tz-compare-grid, .tz-decision-grid, .tz-evidence-grid { grid-template-columns: 1fr; }
-    .tz-source-card:last-child { grid-column: auto; }
-    .tz-change-head { grid-template-columns: 34px minmax(0, 1fr); }
-    .tz-change-head .tz-chip { grid-column: 2; justify-self: start; }
-    .tz-change-check { align-items: flex-start; flex-direction: column; }
-    .tz-open-screen { width: 100%; }
+    html, body { min-width: 1120px; }
+    .app-shell { min-width: 1120px; height: 100vh !important; }
+    .prototype-shell { min-width: 1120px !important; }
+    .mobile-registry, .mobile-only, .mobile-doc-card { display: none !important; }
   }
 </style>
 </helmet>
@@ -505,7 +521,7 @@
   </div>
 
   <!-- ░░ CONTENT ░░ -->
-  <div style="flex: 1; min-height: 0; position: relative;">
+  <div class="content-stage" style="flex: 1; min-height: 0; position: relative;">
 
   <!-- ════════ PROTOTYPE MODE ════════ -->
   <sc-if value="{{ isProto }}" hint-placeholder-val="{{ true }}">
@@ -584,26 +600,6 @@
         <button class="desktop-complex-action" type="button" onclick="{{ openBulk }}" style="background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; border-radius: 8px; padding: 8px 13px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;"><span style="font-size: 10px;">[v2]</span> ⇧ Массовая загрузка</button>
         <button class="desktop-complex-action" type="button" onclick="{{ openWizard }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 8px; padding: 8px 15px; font-size: 12.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">＋ Создать документ</button>
       </header>
-
-      <div class="mobile-registry">
-        <div style="padding: 11px; border: 1px solid #ddd6fe; border-radius: 11px; background: #faf5ff; margin-bottom: 9px;">
-          <div style="display: flex; align-items: center; gap: 6px;"><span style="color: #7c3aed; font-size: 10px; font-weight: 750;">[v2]</span><div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 13px; color: #6b21a8;">Мобильный вход</div></div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px;"><button type="button" onclick="{{ useMobileSession }}" style="{{ mobileSessionStyle }}">Сессия Bitrix24</button><button type="button" onclick="{{ useSeparateMobileAuth }}" style="{{ mobileSeparateStyle }}">Отдельный вход</button></div>
-          <div style="font-size: 10.5px; color: #52525b; line-height: 1.45; margin-top: 7px;">{{ mobileAuthHint }}</div>
-        </div>
-        <div style="padding: 8px 10px; border-radius: 9px; background: #fff7ed; color: #9a3412; font-size: 10.5px; line-height: 1.45; margin-bottom: 9px;">Создание, массовая загрузка и администрирование: рекомендуется продолжить на компьютере.</div>
-        <sc-if value="{{ mobileToast }}" hint-placeholder-val="{{ false }}"><div style="padding: 7px 9px; border-radius: 8px; background: #e7f5ec; color: #15803d; font-size: 10.5px; margin-bottom: 8px;">{{ mobileToast }}</div></sc-if>
-        <div style="font-size: 10.5px; color: #71717a; margin: 4px 2px 7px;">Документы · {{ rowCount }}</div>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-          <sc-for list="{{ rows }}" as="m" hint-placeholder-count="6">
-            <div class="mobile-doc-card" style="padding: 11px; border: 1px solid #e4e4e7; border-radius: 11px; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.04);">
-              <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="font-size: 15px;">{{ m.attachIcon }}</span><div style="min-width: 0; flex: 1;"><div style="font-weight: 650; font-size: 12.5px; line-height: 1.35;">{{ m.title }}</div><div style="font-family: 'IBM Plex Mono'; font-size: 9.5px; color: #a1a1aa; margin-top: 2px;">{{ m.num }}</div></div><span style="font-size: 10px; color: {{ m.statusC }}; white-space: nowrap;">{{ m.statusLabel }}</span></div>
-              <div style="display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 10px; color: #71717a;"><span>{{ m.counterparty }}</span><span style="margin-left: auto;">{{ m.sourceLabel }}</span></div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 9px;"><button type="button" onclick="{{ m.onOpen }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 8px; padding: 7px 8px; font-size: 10.5px; font-weight: 650; cursor: pointer;">Открыть карточку</button><button type="button" onclick="{{ m.onDownload }}" style="background: #fff; color: #4f46e5; border: 1px solid #c7cdf7; border-radius: 8px; padding: 7px 8px; font-size: 10.5px; font-weight: 650; cursor: pointer;">Скачать файл</button></div>
-            </div>
-          </sc-for>
-        </div>
-      </div>
 
       <div class="registry-controls" style="border-bottom: 1px solid #ededed; padding: 0 20px; display: flex; align-items: center; gap: 4px;">
         <sc-for list="{{ savedViews }}" as="v" hint-placeholder-count="4">
@@ -1658,7 +1654,91 @@
         <button type="button" onclick="{{ scrollTzMeeting }}">Решения созвона</button>
         <button type="button" onclick="{{ scrollTzTrace }}">Матрица и экраны</button>
         <button type="button" onclick="{{ scrollTzFull }}">Полный текст ТЗ</button>
+        <button type="button" class="tz-comments-toggle" onclick="{{ openTzComments }}" aria-label="Открыть комментарии к техническому заданию"><span>◧</span><span>Комментарии</span><span class="tz-comments-count">{{ tzOpenCommentCount }}</span></button>
       </nav>
+
+      <sc-if value="{{ tzSelectionReady }}" hint-placeholder-val="{{ false }}">
+        <button type="button" class="tz-selection-action" style="{{ tzSelectionActionStyle }}" onclick="{{ startTzComment }}"><span>＋</span><span>Комментировать</span></button>
+      </sc-if>
+
+      <sc-if value="{{ tzCommentsOpen }}" hint-placeholder-val="{{ false }}">
+        <aside class="tz-comments-panel" aria-label="Комментарии к техническому заданию">
+          <div class="tz-comments-head">
+            <div class="tz-comments-title-row">
+              <div class="tz-comments-title">Комментарии к ТЗ</div>
+              <span class="tz-comments-count">{{ tzOpenCommentCount }}</span>
+              <button type="button" class="tz-comments-close" onclick="{{ closeTzComments }}" aria-label="Закрыть панель комментариев">×</button>
+            </div>
+            <div style="margin-top:4px;color:#71717a;font-size:10.5px;line-height:1.4;">Выделите фрагмент текста и нажмите «Комментировать».</div>
+            <div class="tz-comments-tabs">
+              <button type="button" class="tz-comments-tab" style="{{ tzOpenTabStyle }}" onclick="{{ showOpenTzComments }}">Открытые · {{ tzOpenCommentCount }}</button>
+              <button type="button" class="tz-comments-tab" style="{{ tzResolvedTabStyle }}" onclick="{{ showResolvedTzComments }}">Закрытые · {{ tzResolvedCommentCount }}</button>
+            </div>
+          </div>
+          <div class="tz-comments-body">
+            <sc-if value="{{ tzComposerOpen }}" hint-placeholder-val="{{ false }}">
+              <div class="tz-comment-compose">
+                <div style="font-size:10px;color:#6d28d9;font-weight:700;margin-bottom:6px;">Новый комментарий к фрагменту</div>
+                <blockquote class="tz-comment-quote">«{{ tzPendingQuote }}»</blockquote>
+                <textarea class="tz-comment-textarea" value="{{ tzCommentDraft }}" oninput="{{ setTzCommentDraft }}" placeholder="Напишите замечание или вопрос"></textarea>
+                <div class="tz-comment-compose-actions">
+                  <button type="button" class="tz-comment-button" onclick="{{ cancelTzComment }}">Отмена</button>
+                  <button type="button" class="tz-comment-button tz-comment-button-primary" onclick="{{ addTzComment }}">Добавить комментарий</button>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ tzNoCommentThreads }}" hint-placeholder-val="{{ true }}">
+              <div class="tz-comments-empty">
+                <div class="tz-comments-empty-icon">◧</div>
+                <div>{{ tzEmptyCommentText }}</div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ tzHasCommentThreads }}" hint-placeholder-val="{{ false }}">
+              <div class="tz-comment-list">
+                <sc-for list="{{ tzCommentThreads }}" as="thread" hint-placeholder-count="3">
+                  <article class="tz-comment-thread" style="{{ thread.style }}">
+                    <div class="tz-comment-meta">
+                      <span class="tz-comment-avatar">{{ thread.initials }}</span>
+                      <div><div class="tz-comment-author">{{ thread.author }}</div><div class="tz-comment-time">{{ thread.time }}</div></div>
+                      <sc-if value="{{ thread.resolved }}" hint-placeholder-val="{{ false }}"><span class="tz-comment-status">Закрыто</span></sc-if>
+                    </div>
+                    <button type="button" class="tz-comment-quote" onclick="{{ thread.onFocus }}" style="width:100%;border-top:0;border-right:0;border-bottom:0;text-align:left;cursor:pointer;margin-top:9px;">«{{ thread.quote }}»</button>
+                    <div class="tz-comment-body">{{ thread.body }}</div>
+                    <sc-if value="{{ thread.hasReplies }}" hint-placeholder-val="{{ false }}">
+                      <div class="tz-comment-replies">
+                        <sc-for list="{{ thread.replies }}" as="reply" hint-placeholder-count="2">
+                          <div class="tz-comment-reply"><div class="tz-comment-reply-meta">{{ reply.author }} · {{ reply.time }}</div><div>{{ reply.body }}</div></div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <div class="tz-comment-actions">
+                      <button type="button" class="tz-comment-link" onclick="{{ thread.onFocus }}">К тексту</button>
+                      <sc-if value="{{ thread.open }}" hint-placeholder-val="{{ true }}">
+                        <button type="button" class="tz-comment-link" onclick="{{ thread.onReply }}">Ответить</button>
+                        <button type="button" class="tz-comment-link" onclick="{{ thread.onResolve }}">Закрыть обсуждение</button>
+                      </sc-if>
+                      <sc-if value="{{ thread.resolved }}" hint-placeholder-val="{{ false }}">
+                        <button type="button" class="tz-comment-link" onclick="{{ thread.onReopen }}">Восстановить</button>
+                      </sc-if>
+                    </div>
+                    <sc-if value="{{ thread.replyOpen }}" hint-placeholder-val="{{ false }}">
+                      <div class="tz-comment-reply-box">
+                        <textarea class="tz-comment-textarea" value="{{ thread.replyDraft }}" oninput="{{ thread.onReplyInput }}" placeholder="Ответить в ветке"></textarea>
+                        <div class="tz-comment-compose-actions">
+                          <button type="button" class="tz-comment-button" onclick="{{ thread.onCancelReply }}">Отмена</button>
+                          <button type="button" class="tz-comment-button tz-comment-button-primary" onclick="{{ thread.onSendReply }}">Отправить</button>
+                        </div>
+                      </div>
+                    </sc-if>
+                  </article>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </aside>
+      </sc-if>
 
       <!-- v2 overview -->
       <section id="tz-v2-overview" class="tz-surface tz-section">
@@ -1672,6 +1752,7 @@
           <span class="tz-chip tz-chip-deferred">[отложено] следующая фаза</span>
           <span class="tz-chip tz-chip-estimate">[оценка] до разработки</span>
         </div>
+        <div id="tz-device-scope" style="margin-top:15px;padding:13px 14px;border:1px solid #fecaca;border-left:4px solid #dc2626;border-radius:9px;background:#fef2f2;color:#7f1d1d;font-size:11.5px;line-height:1.55;"><b>Ограничение первой фазы:</b> мобильной версии не будет. На телефоне открывается десктопный интерфейс без отдельной адаптации. Авторизация доступна только через действующую учётную запись Bitrix24; отдельный вход, OTP и SSO не входят в объём.</div>
         <div class="tz-summary-grid">
           <sc-for list="{{ v2Summary }}" as="item" hint-placeholder-count="4">
             <div class="tz-summary-card"><div class="tz-summary-value">{{ item.value }}</div><div class="tz-summary-label">{{ item.label }}</div></div>
@@ -1838,7 +1919,7 @@
           </div>
           <div style="border:1px solid #ededed; border-radius:11px; overflow:hidden;">
             <div style="background:#fafafa; padding:10px 15px; font-family:'Space Grotesk'; font-weight:600; font-size:13.5px; color:#71717a;">Не входит в объём</div>
-            <div style="padding:6px 15px 12px;"><div style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:#52525b; margin-top:7px;"><span style="color:#c4c4c8;">—</span><span>Юридически значимый ЭДО и подписание КЭП.</span></div><div style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:#52525b; margin-top:7px;"><span style="color:#c4c4c8;">—</span><span>Бухгалтерские проводки и интеграция с учётными системами.</span></div><div style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:#52525b; margin-top:7px;"><span style="color:#c4c4c8;">—</span><span>Генерация документов из шаблонов (кандидат на фазу 2).</span></div><div style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:#52525b; margin-top:7px;"><span style="color:#c4c4c8;">—</span><span>OCR / распознавание содержимого файлов.</span></div><div style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:#52525b; margin-top:7px;"><span style="color:#c4c4c8;">—</span><span>Согласование через Бизнес-процессы Bitrix (BP).</span></div><div style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:#52525b; margin-top:7px;"><span style="color:#c4c4c8;">—</span><span>Отдельное мобильное приложение (поддерживается адаптив).</span></div><div style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:#52525b; margin-top:7px;"><span style="color:#c4c4c8;">—</span><span>Интеграции с внешними ЭДО (СБИС / Диадок) сверх хранения ссылок.</span></div></div>
+            <div style="padding:6px 15px 12px;"><div style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:#52525b; margin-top:7px;"><span style="color:#c4c4c8;">—</span><span>Юридически значимый ЭДО и подписание КЭП.</span></div><div style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:#52525b; margin-top:7px;"><span style="color:#c4c4c8;">—</span><span>Бухгалтерские проводки и интеграция с учётными системами.</span></div><div style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:#52525b; margin-top:7px;"><span style="color:#c4c4c8;">—</span><span>Генерация документов из шаблонов (кандидат на фазу 2).</span></div><div style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:#52525b; margin-top:7px;"><span style="color:#c4c4c8;">—</span><span>OCR / распознавание содержимого файлов.</span></div><div style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:#52525b; margin-top:7px;"><span style="color:#c4c4c8;">—</span><span>Согласование через Бизнес-процессы Bitrix (BP).</span></div><div style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:#52525b; margin-top:7px;"><span style="color:#c4c4c8;">—</span><span>Мобильная версия, отдельное приложение и отдельная авторизация вне Bitrix24.</span></div><div style="display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5; color:#52525b; margin-top:7px;"><span style="color:#c4c4c8;">—</span><span>Интеграции с внешними ЭДО (СБИС / Диадок) сверх хранения ссылок.</span></div></div>
           </div>
         </div>
         <div style="margin-top:14px; padding:12px 14px; background:#fafafa; border:1px solid #ededed; border-radius:9px; font-size:12.5px; line-height:1.55; color:#52525b;"><b style="color:#18181b;">Допущения и ограничения.</b> Портал Bitrix24 развёрнут и обслуживается Заказчиком; компании ведутся в CRM Bitrix24; файлы хранятся на Bitrix Disk; пользователи и отделы заведены в Bitrix24. Сбой синхронизации с Bitrix не должен прерывать работу модуля.</div>
@@ -1905,7 +1986,7 @@
       <div style="background: #fff; border: 1px solid #ededed; border-radius: 12px; padding: 32px 44px;">
         <div style="font-family: 'IBM Plex Mono'; font-size: 11.5px; color: #4f46e5; letter-spacing: 1px;">8 · БИЗНЕС-УРОВЕНЬ</div>
         <h2 style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 24px; margin: 6px 0 16px; letter-spacing: -.5px;">Экраны системы</h2>
-        <p style="font-size: 14px; line-height: 1.65; color: #3f3f46; margin: 0 0 14px;"><span style="color:#7c3aed;font-weight:700;">[v2]</span> Ниже сохранены базовые экраны исходной спецификации. Актуальные состояния массовой загрузки, связанных документов, финансового итога и мобильного просмотра размещены в блоке v2.0 выше и в Google Doc v2.0; кнопки блока открывают интерактивные экраны.</p>
+        <p style="font-size: 14px; line-height: 1.65; color: #3f3f46; margin: 0 0 14px;"><span style="color:#7c3aed;font-weight:700;">[v2]</span> Ниже сохранены базовые экраны исходной спецификации. Актуальные состояния массовой загрузки, связанных документов и финансового итога размещены в блоке v2.0 выше; кнопки блока открывают интерактивные экраны. Мобильная версия не входит в объём.</p>
         <figure style="margin:0 0 22px;"><img src="c212f48f-e809-41d3-9ac2-7ebbcbd8bb6f" alt="Рис. 1. Полноэкранный реестр." style="width:100%; display:block; border:1px solid #ededed; border-radius:9px;"><figcaption style="margin-top:8px; font-size:12.5px; color:#52525b; line-height:1.5;"><b style="color:#18181b;">Рис. 1. Полноэкранный реестр.</b> Плотная таблица всех документов в зоне видимости роли: разделы слева, сохранённые виды (Все / Мои / В работе / Черновики), поиск, фильтры, массовые действия и экспорт XLSX.</figcaption></figure><figure style="margin:0 0 22px;"><img src="ed95e9b0-9449-4b11-aa83-779348febde1" alt="Рис. 2. Карточка документа." style="width:100%; display:block; border:1px solid #ededed; border-radius:9px;"><figcaption style="margin-top:8px; font-size:12.5px; color:#52525b; line-height:1.5;"><b style="color:#18181b;">Рис. 2. Карточка документа.</b> Боковая панель: реквизиты (номер, дата, сумма, компания-контрагент, ответственный), содержимое (файлы и ссылки), привязки к сущностям Bitrix24, переключатель статуса и история изменений.</figcaption></figure><figure style="margin:0 0 22px;"><img src="e5b7fdfc-5dee-484b-8ed5-2c86b7efe350" alt="Рис. 3. Мастер создания документа." style="width:100%; display:block; border:1px solid #ededed; border-radius:9px;"><figcaption style="margin-top:8px; font-size:12.5px; color:#52525b; line-height:1.5;"><b style="color:#18181b;">Рис. 3. Мастер создания документа.</b> Три шага: выбор раздела и типа → реквизиты и содержимое → привязки и подтверждение. Прогресс по шагам показан индикатором.</figcaption></figure><figure style="margin:0 0 22px;"><img src="e62247cf-1278-4543-8a8c-96b588b0ffb4" alt="Рис. 4. Документы в карточке сделки." style="width:100%; display:block; border:1px solid #ededed; border-radius:9px;"><figcaption style="margin-top:8px; font-size:12.5px; color:#52525b; line-height:1.5;"><b style="color:#18181b;">Рис. 4. Документы в карточке сделки.</b> Встроенная вкладка: сводка по документам сделки, группировка по разделам, контекстное добавление. Документы привязаны к сделке и её компании.</figcaption></figure><figure style="margin:0 0 22px;"><img src="c7d89c52-0b79-4d0b-9504-aa13217a1053" alt="Рис. 5. Реестр глазами менеджера продаж." style="width:100%; display:block; border:1px solid #ededed; border-radius:9px;"><figcaption style="margin-top:8px; font-size:12.5px; color:#52525b; line-height:1.5;"><b style="color:#18181b;">Рис. 5. Реестр глазами менеджера продаж.</b> Тот же реестр под ролью «Менеджер продаж»: видны только клиентские и внутренние разделы, суммы и финансовые поля скрыты (прочерк).</figcaption></figure><figure style="margin:0 0 22px;"><img src="c593ca13-7ed1-48aa-9881-ae2efbba95ea" alt="Рис. 6. Администрирование." style="width:100%; display:block; border:1px solid #ededed; border-radius:9px;"><figcaption style="margin-top:8px; font-size:12.5px; color:#52525b; line-height:1.5;"><b style="color:#18181b;">Рис. 6. Администрирование.</b> Справочники разделов и типов, шаблоны жизненного цикла статусов и политики ролей. Доступно только роли «Администратор».</figcaption></figure>
       </div>
       <!-- 9 scenarios -->
@@ -2104,13 +2185,346 @@ class Component extends DCLogic {
     };
     document.addEventListener('dragover', this.bulkNativeDragHandler, true);
     document.addEventListener('drop', this.bulkNativeDragHandler, true);
+    this.tzSelectionHandler = event => this.captureTzSelection(event);
+    this.tzHighlightClickHandler = event => this.openTzCommentAtPoint(event);
+    document.addEventListener('mouseup', this.tzSelectionHandler, true);
+    document.addEventListener('keyup', this.tzSelectionHandler, true);
+    document.addEventListener('click', this.tzHighlightClickHandler, true);
+    const tzComments = this.loadTzComments();
+    if (tzComments.length) this.setState({ tzComments });
     requestAnimationFrame(() => this.forceUpdate());
+  }
+
+  componentDidUpdate() {
+    this.scheduleTzHighlights();
   }
 
   componentWillUnmount() {
     document.removeEventListener('dragover', this.bulkNativeDragHandler, true);
     document.removeEventListener('drop', this.bulkNativeDragHandler, true);
+    document.removeEventListener('mouseup', this.tzSelectionHandler, true);
+    document.removeEventListener('keyup', this.tzSelectionHandler, true);
+    document.removeEventListener('click', this.tzHighlightClickHandler, true);
+    if (this.tzHighlightFrame) cancelAnimationFrame(this.tzHighlightFrame);
+    if (window.CSS && CSS.highlights) {
+      CSS.highlights.delete('tz-comment-highlight');
+      CSS.highlights.delete('tz-comment-highlight-active');
+    }
   }
+
+  tzCommentStorageKey() {
+    return 'termech-tz-comments-v2';
+  }
+
+  loadTzComments() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(this.tzCommentStorageKey()) || '[]');
+      if (!Array.isArray(stored)) return [];
+      return stored.filter(item =>
+        item
+        && typeof item.id === 'string'
+        && typeof item.quote === 'string'
+        && item.anchor
+        && Number.isFinite(item.anchor.start)
+        && Number.isFinite(item.anchor.end)
+      ).map(item => ({
+        ...item,
+        body: String(item.body || ''),
+        author: String(item.author || 'Вы'),
+        createdAt: item.createdAt || new Date().toISOString(),
+        resolved: !!item.resolved,
+        replies: Array.isArray(item.replies) ? item.replies : [],
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  saveTzComments(comments, patch = {}) {
+    try {
+      localStorage.setItem(this.tzCommentStorageKey(), JSON.stringify(comments));
+    } catch {
+      // The prototype still works for the current session when storage is unavailable.
+    }
+    this.setState({ tzComments: comments, ...patch });
+  }
+
+  tzTextNodes(root = document.querySelector('.tz-page')) {
+    if (!root) return [];
+    const nodes = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: node => {
+        if (!node.nodeValue || !node.nodeValue.length) return NodeFilter.FILTER_REJECT;
+        const parent = node.parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+        if (parent.closest('.tz-jump-nav, .tz-comments-panel, .tz-selection-action, button, textarea, input, select, script, style')) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    return nodes;
+  }
+
+  tzGlobalOffset(nodes, node, offset) {
+    if (!node || node.nodeType !== Node.TEXT_NODE) return null;
+    let total = 0;
+    for (const item of nodes) {
+      if (item === node) return total + Math.max(0, Math.min(offset, item.nodeValue.length));
+      total += item.nodeValue.length;
+    }
+    return null;
+  }
+
+  tzResolvedAnchor(comment, nodes) {
+    const text = nodes.map(node => node.nodeValue).join('');
+    let start = Math.max(0, Math.min(comment.anchor.start, text.length));
+    let end = Math.max(start, Math.min(comment.anchor.end, text.length));
+    if (text.slice(start, end) === comment.quote) return { start, end };
+    let nearest = -1;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    let from = 0;
+    while (from <= text.length) {
+      const found = text.indexOf(comment.quote, from);
+      if (found < 0) break;
+      const distance = Math.abs(found - start);
+      if (distance < nearestDistance) {
+        nearest = found;
+        nearestDistance = distance;
+      }
+      from = found + Math.max(1, comment.quote.length);
+    }
+    if (nearest >= 0) {
+      start = nearest;
+      end = nearest + comment.quote.length;
+    }
+    return { start, end };
+  }
+
+  tzRangeForAnchor(anchor, nodes) {
+    let cursor = 0;
+    let startNode = null;
+    let startOffset = 0;
+    let endNode = null;
+    let endOffset = 0;
+    for (const node of nodes) {
+      const next = cursor + node.nodeValue.length;
+      if (!startNode && anchor.start >= cursor && anchor.start <= next) {
+        startNode = node;
+        startOffset = anchor.start - cursor;
+      }
+      if (!endNode && anchor.end >= cursor && anchor.end <= next) {
+        endNode = node;
+        endOffset = anchor.end - cursor;
+        break;
+      }
+      cursor = next;
+    }
+    if (!startNode || !endNode) return null;
+    const range = document.createRange();
+    range.setStart(startNode, Math.max(0, Math.min(startOffset, startNode.nodeValue.length)));
+    range.setEnd(endNode, Math.max(0, Math.min(endOffset, endNode.nodeValue.length)));
+    return range.collapsed ? null : range;
+  }
+
+  scheduleTzHighlights() {
+    if (this.tzHighlightFrame) cancelAnimationFrame(this.tzHighlightFrame);
+    this.tzHighlightFrame = requestAnimationFrame(() => {
+      this.tzHighlightFrame = null;
+      this.applyTzHighlights();
+    });
+  }
+
+  applyTzHighlights() {
+    if (!window.CSS || !CSS.highlights || typeof window.Highlight !== 'function') return;
+    CSS.highlights.delete('tz-comment-highlight');
+    CSS.highlights.delete('tz-comment-highlight-active');
+    if (this.state.mode !== 'tz') return;
+    const nodes = this.tzTextNodes();
+    if (!nodes.length) return;
+    const normal = new window.Highlight();
+    const active = new window.Highlight();
+    (this.state.tzComments || []).forEach(comment => {
+      if (comment.resolved && this.state.tzActiveCommentId !== comment.id) return;
+      const anchor = this.tzResolvedAnchor(comment, nodes);
+      const range = this.tzRangeForAnchor(anchor, nodes);
+      if (!range) return;
+      if (this.state.tzActiveCommentId === comment.id) active.add(range);
+      else normal.add(range);
+    });
+    if (normal.size) CSS.highlights.set('tz-comment-highlight', normal);
+    if (active.size) CSS.highlights.set('tz-comment-highlight-active', active);
+  }
+
+  captureTzSelection(event) {
+    if (this.state.mode !== 'tz') return;
+    const target = event && event.target && event.target.closest ? event.target : null;
+    if (target && target.closest('.tz-comments-panel, .tz-selection-action, .tz-jump-nav, button, textarea, input, select')) return;
+    const root = document.querySelector('.tz-page');
+    const selection = window.getSelection();
+    if (!root || !selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      if (this.state.tzSelectionReady) this.setState({ tzSelectionReady: false });
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return;
+    const nodes = this.tzTextNodes(root);
+    let start = this.tzGlobalOffset(nodes, range.startContainer, range.startOffset);
+    let end = this.tzGlobalOffset(nodes, range.endContainer, range.endOffset);
+    if (start == null || end == null || end <= start) return;
+    const rawQuote = selection.toString();
+    const quote = rawQuote.trim();
+    if (!quote || quote.length < 2) return;
+    const leading = rawQuote.indexOf(quote);
+    start += Math.max(0, leading);
+    end = start + quote.length;
+    const rect = range.getBoundingClientRect();
+    const left = Math.max(10, Math.min(window.innerWidth - 154, rect.left + rect.width / 2 - 72));
+    const top = Math.max(54, rect.top - 44);
+    selection.removeAllRanges();
+    this.setState({
+      tzSelectionReady: true,
+      tzPendingSelection: { quote, anchor: { start, end } },
+      tzSelectionPosition: { left, top },
+      tzCommentDraft: '',
+    });
+  }
+
+  openTzCommentAtPoint(event) {
+    if (this.state.mode !== 'tz' || !event || !event.target || !event.target.closest) return;
+    if (event.target.closest('.tz-comments-panel, .tz-selection-action, .tz-jump-nav, button, textarea, input, select')) return;
+    const root = document.querySelector('.tz-page');
+    if (!root || !root.contains(event.target)) return;
+    const caret = document.caretRangeFromPoint
+      ? document.caretRangeFromPoint(event.clientX, event.clientY)
+      : null;
+    if (!caret) return;
+    const nodes = this.tzTextNodes(root);
+    const offset = this.tzGlobalOffset(nodes, caret.startContainer, caret.startOffset);
+    if (offset == null) return;
+    const hit = (this.state.tzComments || [])
+      .filter(comment => !comment.resolved)
+      .map(comment => ({ comment, anchor: this.tzResolvedAnchor(comment, nodes) }))
+      .filter(item => offset >= item.anchor.start && offset <= item.anchor.end)
+      .sort((a, b) => (a.anchor.end - a.anchor.start) - (b.anchor.end - b.anchor.start))[0];
+    if (hit) this.focusTzComment(hit.comment.id);
+  }
+
+  startTzComment() {
+    if (!this.state.tzPendingSelection) return;
+    this.setState({
+      tzCommentsOpen: true,
+      tzComposerOpen: true,
+      tzCommentFilter: 'open',
+      tzSelectionReady: false,
+      tzActiveCommentId: null,
+    });
+  }
+
+  cancelTzComment() {
+    this.setState({
+      tzComposerOpen: false,
+      tzSelectionReady: false,
+      tzPendingSelection: null,
+      tzCommentDraft: '',
+    });
+  }
+
+  addTzComment() {
+    const pending = this.state.tzPendingSelection;
+    const body = String(this.state.tzCommentDraft || '').trim();
+    if (!pending || !body) return;
+    const id = `tz-comment-${Date.now()}`;
+    const comment = {
+      id,
+      quote: pending.quote,
+      anchor: pending.anchor,
+      body,
+      author: 'Вы',
+      createdAt: new Date().toISOString(),
+      resolved: false,
+      replies: [],
+    };
+    const comments = [...(this.state.tzComments || []), comment];
+    this.saveTzComments(comments, {
+      tzComposerOpen: false,
+      tzPendingSelection: null,
+      tzCommentDraft: '',
+      tzCommentFilter: 'open',
+      tzActiveCommentId: id,
+    });
+  }
+
+  updateTzComment(id, updater, patch = {}) {
+    const comments = (this.state.tzComments || []).map(comment =>
+      comment.id === id ? updater(comment) : comment
+    );
+    this.saveTzComments(comments, patch);
+  }
+
+  focusTzComment(id) {
+    this.setState({
+      tzCommentsOpen: true,
+      tzActiveCommentId: id,
+      tzSelectionReady: false,
+    }, () => {
+      this.scheduleTzHighlights();
+      requestAnimationFrame(() => {
+        const comment = (this.state.tzComments || []).find(item => item.id === id);
+        const nodes = this.tzTextNodes();
+        if (!comment || !nodes.length) return;
+        const range = this.tzRangeForAnchor(this.tzResolvedAnchor(comment, nodes), nodes);
+        const parent = range && range.startContainer && range.startContainer.parentElement;
+        if (parent) parent.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+  }
+
+  resolveTzComment(id) {
+    this.updateTzComment(id, comment => ({ ...comment, resolved: true }), {
+      tzActiveCommentId: null,
+      tzReplyOpenId: null,
+    });
+  }
+
+  reopenTzComment(id) {
+    this.updateTzComment(id, comment => ({ ...comment, resolved: false }), {
+      tzCommentFilter: 'open',
+      tzActiveCommentId: id,
+    });
+  }
+
+  sendTzReply(id) {
+    const body = String((this.state.tzReplyDrafts || {})[id] || '').trim();
+    if (!body) return;
+    const reply = {
+      id: `tz-reply-${Date.now()}`,
+      author: 'Вы',
+      createdAt: new Date().toISOString(),
+      body,
+    };
+    this.updateTzComment(id, comment => ({
+      ...comment,
+      replies: [...(comment.replies || []), reply],
+    }), {
+      tzReplyOpenId: null,
+      tzReplyDrafts: { ...(this.state.tzReplyDrafts || {}), [id]: '' },
+      tzActiveCommentId: id,
+    });
+  }
+
+  formatTzCommentTime(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  }
+
   state = {
     mode: 'proto',
     screen: 'registry',
@@ -2138,7 +2552,6 @@ class Component extends DCLogic {
     dealTotalCurrency: 'RUB',
     syncCount: 0,
     syncMessage: '',
-    mobileAuthMode: 'session',
     mobileToast: '',
     newType: { section: 'client', label: '', lifecycle: 'simple', contentRequirement: 'required', fields: [] },
     bulkOpen: false,
@@ -2152,6 +2565,17 @@ class Component extends DCLogic {
     bulkValidationShown: false,
     wizardOpen: false,
     wz: { step: 1, sectionCode: null, typeLabel: null, number: '', date: '', amount: '', currency: 'RUB', counterparty: '', task: '', fileName: '', url: '', contentError: false, fieldVals: {} },
+    tzComments: [],
+    tzCommentsOpen: false,
+    tzCommentFilter: 'open',
+    tzComposerOpen: false,
+    tzSelectionReady: false,
+    tzPendingSelection: null,
+    tzSelectionPosition: { left: 12, top: 58 },
+    tzCommentDraft: '',
+    tzReplyOpenId: null,
+    tzReplyDrafts: {},
+    tzActiveCommentId: null,
   };
 
   SECTIONS = [
@@ -2325,7 +2749,7 @@ class Component extends DCLogic {
     ['BLK-01', '[v2] Массовая загрузка 2+ файлов с общей шапкой и отдельными значениями каждой строки в трёх контекстах', 'P0'],
     ['FIN-01', '[v2] Итог сделки в выбранной валюте; курс ЦБ РФ на дату документа, расшифровка и 0 при отсутствии суммы', 'P0'],
     ['B24-01', '[v2] Все счета и КП сделки импортируются отдельно; повторная синхронизация по внешнему ID без дублей', 'P0'],
-    ['MOB-01', '[v2] Chrome 360–430 px: поиск, карточка, скачивание; сессия Bitrix24 и отдельный вход с оценкой 32–56 часов', 'P1'],
+    ['DEV-01', '[v2] Мобильная версия не входит в объём; на телефоне открывается десктопный интерфейс, вход только через учётную запись Bitrix24', 'P0'],
     ['HLP-01', '[v2] Помощь содержит будущие инструкции пользователя и администратора', 'P1'],
   ];
 
@@ -2546,7 +2970,7 @@ class Component extends DCLogic {
     },
     {
       number: '03',
-      title: 'Финансы, список, импорт и мобильный доступ',
+      title: 'Финансы, список, импорт и ограничения устройств',
       changes: [
         {
           number: '12',
@@ -2601,21 +3025,21 @@ class Component extends DCLogic {
         },
         {
           number: '15',
-          title: 'Мобильный Chrome и два пути входа',
-          source: 'Прямое требование 9; отдельная оценка',
-          badge: 'ТЗ + оценка',
-          badgeTone: 'estimate',
-          before: 'Интерфейс и авторизация рассматривались только внутри Bitrix24 на компьютере.',
-          after: 'На ширине 360–430 px доступны список, поиск, карточка, открытие и скачивание файла.',
+          title: 'Мобильная версия не входит в текущий объём',
+          source: 'Последнее уточнение Заказчика; имеет приоритет',
+          badge: 'Не входит в фазу 1',
+          badgeTone: 'excluded',
+          before: 'Предыдущая редакция предусматривала отдельную адаптацию под телефон и два способа входа.',
+          after: 'Отдельной мобильной версии сейчас не будет.',
           details: [
-            'Первый вход использует действующую сессию Bitrix24 в мобильном браузере.',
-            'Отдельный вход показан как сценарий прототипа; production-механизм выбирается после оценки безопасности.',
-            'Оценка: 8–16 часов для сессии Bitrix24; 32–56 часов для OTP или корпоративного SSO.',
-            'Создание, массовая загрузка и администрирование могут рекомендовать перейти на компьютер.',
+            'Авторизация выполняется только через действующую учётную запись Bitrix24.',
+            'На телефоне браузер открывает тот же десктопный интерфейс без отдельной адаптивной вёрстки.',
+            'Отдельный вход, OTP, корпоративный SSO и отдельное мобильное приложение не входят в объём.',
+            'Для работы пользователь перемещается по десктопному экрану телефона масштабированием и прокруткой.',
           ],
-          verify: 'Открыть ширину 390 px, выполнить поиск, открыть карточку, скачать файл и переключить способ входа.',
-          screenKey: 'mobile',
-          actionLabel: 'Мобильный сценарий',
+          verify: 'Проверить отсутствие мобильных карточек и переключателя способа входа; на телефоне должен остаться десктопный интерфейс.',
+          screenKey: 'desktopPhone',
+          actionLabel: 'Десктопный интерфейс',
         },
         {
           number: '16',
@@ -2682,7 +3106,7 @@ class Component extends DCLogic {
     ['Содержимое карточки', 'Карточка всегда может существовать без вложения или всегда требует файл.', 'Администратор задаёт по типу: требовать файл либо ссылку или разрешить добавить содержимое позже.'],
     ['Закрытая сделка', 'Менеджер сохраняет просмотр после закрытия.', 'После закрытия всех связанных сделок менеджер полностью теряет доступ.'],
     ['Связь с задачей', 'Любая связь с задачами относится к будущему.', 'Ручная привязка к существующей задаче входит в фазу 1; автоматическое создание отложено.'],
-    ['Мобильный вход', 'Доступ возможен только через текущую авторизацию Bitrix24.', 'Показаны сессия Bitrix24 и отдельный вход; production-вариант требует оценки.'],
+    ['Доступ с телефона', 'Предлагались отдельная мобильная вёрстка и дополнительный способ входа.', 'Мобильная версия исключена: на телефоне открывается десктопный интерфейс, вход только через Bitrix24.'],
     ['Счета и КП', 'Пользователь добавляет их только вручную.', 'Карточки импортируются из Bitrix24 и обновляются по внешнему идентификатору без дублей.'],
     ['Хранение файла', 'Несколько сделок ссылаются на одну физическую копию.', 'Каждая сделка получает собственную копию; новая версия обновляет все копии.'],
     ['Юридическое лицо', 'Два обязательных поля: юридическое лицо и контрагент.', 'Одно поле «Компания-контрагент» связано с Компанией Bitrix24.'],
@@ -2706,9 +3130,9 @@ class Component extends DCLogic {
     ['[отложено]', 'Автоматическое создание задач и бизнес-процессы согласования.'],
     ['[отложено]', 'Индивидуальные наблюдатели и точечное открытие документа вне политики типа.'],
     ['[отложено]', 'Срок хранения и процесс законного уничтожения архивных файлов.'],
-    ['[оценка]', 'Production-механизм отдельной мобильной авторизации, восстановление доступа и аудит безопасности.'],
+    ['[не входит]', 'Адаптивная мобильная версия и отдельное мобильное приложение.'],
     ['[отложено]', 'Публичные ссылки и отправка документов через почту самого реестра.'],
-    ['[отложено]', 'Отдельное мобильное приложение.'],
+    ['[не входит]', 'Отдельная авторизация, OTP и корпоративный SSO вне учётной записи Bitrix24.'],
     ['[отложено]', 'Юридически значимый ЭДО, КЭП и бухгалтерские проводки.'],
   ];
 
@@ -2721,7 +3145,7 @@ class Component extends DCLogic {
     ['Все версии и мягкое удаление', '§10 Версии и удаление', 'Версии и архив', 'versions'],
     ['Снятие доступа после закрытия сделок', '§4 Роли и права', 'Экран отказа', 'accessDenied'],
     ['Договор и зависимые документы', '§11 Зависимые документы', 'Поиск / карточка', 'relations'],
-    ['Два мобильных входа и оценка', '§16 Мобильный сценарий', 'Мобильный реестр', 'mobile'],
+    ['Только Bitrix24 и десктопная версия на телефоне', '§16 Устройства и авторизация', 'Десктопный реестр', 'desktopPhone'],
     ['Права отдельно по типам', '§4 Роли и права', 'Администрирование', 'admin'],
     ['Итог сделки и курс ЦБ', '§12 Суммы и валюты', 'Карточка сделки', 'deal'],
     ['Уведомление создателя и загрузившего', '§15 Уведомления', 'Архив / история', 'versions'],
@@ -3426,11 +3850,10 @@ class Component extends DCLogic {
           colsOpen: true,
           cols: { ...S.cols, dynamic: true },
         }),
-        mobile: () => this.setState({
+        desktopPhone: () => this.setState({
           mode: 'proto',
           screen: 'registry',
           role: 'manager',
-          mobileAuthMode: 'separate',
         }),
         training: () => this.setState({
           mode: 'proto',
@@ -3450,6 +3873,7 @@ class Component extends DCLogic {
       ready: 'background:#ecfdf3;color:#15803d;',
       spec: 'background:#eff6ff;color:#1d4ed8;',
       estimate: 'background:#fff7ed;color:#c2410c;font-style:italic;',
+      excluded: 'background:#fef2f2;color:#b91c1c;',
     };
     const v2Summary = this.V2_SUMMARY.map(([value, label]) => ({ value, label }));
     const v2Sources = this.V2_SOURCES.map(([count, title, note]) => ({ count, title, note }));
@@ -3489,11 +3913,54 @@ class Component extends DCLogic {
         onOpen: openTzScreen('deal'),
       },
       {
-        title: 'Мобильный просмотр 390 px',
-        desc: 'Два пути входа, поиск, карточка и скачивание файла.',
-        onOpen: openTzScreen('mobile'),
+        title: 'Десктопная версия на телефоне',
+        desc: 'Без мобильной адаптации; вход только через учётную запись Bitrix24.',
+        onOpen: openTzScreen('desktopPhone'),
       },
     ];
+    const tzComments = S.tzComments || [];
+    const tzOpenCommentCount = tzComments.filter(comment => !comment.resolved).length;
+    const tzResolvedCommentCount = tzComments.filter(comment => comment.resolved).length;
+    const tzFilteredComments = tzComments
+      .filter(comment => S.tzCommentFilter === 'resolved' ? comment.resolved : !comment.resolved)
+      .slice()
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const tzCommentThreads = tzFilteredComments.map(comment => {
+      const active = S.tzActiveCommentId === comment.id;
+      const resolved = !!comment.resolved;
+      const style = [
+        active ? 'border-color:#a78bfa;box-shadow:0 0 0 2px #ede9fe;' : '',
+        resolved ? 'background:#fafafa;opacity:.88;' : '',
+      ].join('');
+      return {
+        id: comment.id,
+        quote: comment.quote,
+        body: comment.body,
+        author: comment.author || 'Вы',
+        initials: (comment.author || 'Вы').slice(0, 2).toLocaleUpperCase('ru'),
+        time: this.formatTzCommentTime(comment.createdAt),
+        open: !resolved,
+        resolved,
+        style,
+        replies: (comment.replies || []).map(reply => ({
+          author: reply.author || 'Вы',
+          time: this.formatTzCommentTime(reply.createdAt),
+          body: reply.body,
+        })),
+        hasReplies: (comment.replies || []).length > 0,
+        replyOpen: S.tzReplyOpenId === comment.id,
+        replyDraft: (S.tzReplyDrafts || {})[comment.id] || '',
+        onFocus: () => this.focusTzComment(comment.id),
+        onReply: () => this.setState({ tzReplyOpenId: comment.id, tzActiveCommentId: comment.id }),
+        onReplyInput: event => this.setState({
+          tzReplyDrafts: { ...(this.state.tzReplyDrafts || {}), [comment.id]: event.target.value },
+        }),
+        onCancelReply: () => this.setState({ tzReplyOpenId: null }),
+        onSendReply: () => this.sendTzReply(comment.id),
+        onResolve: () => this.resolveTzComment(comment.id),
+        onReopen: () => this.reopenTzComment(comment.id),
+      };
+    });
     const scrollToTz = id => () => {
       const section = document.getElementById(id);
       if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -3514,10 +3981,6 @@ class Component extends DCLogic {
       cells: activeXlsxDefs.map(([, , getter]) => ({ value: getter(item) })),
     }));
     const xlsxGridStyle = `display:grid;grid-template-columns:repeat(${activeXlsxDefs.length},minmax(112px,1fr));min-width:${Math.max(560, activeXlsxDefs.length * 122)}px;`;
-    const mobileAuthHint = S.mobileAuthMode === 'session'
-      ? 'Сессия Bitrix24 найдена: дополнительный ввод данных не требуется.'
-      : 'Отдельный вход: прототип интерфейса, учётные данные не сохраняются. Оценка реализации OTP/SSO: 32–56 часов.';
-
     const nt = S.newType;
     const dataTypes = ['Текст', 'Число', 'Дата', 'Сумма', 'Список', 'Да/Нет', 'Файл'];
     const newTypeFields = nt.fields.map((f, i) => ({
@@ -3550,6 +4013,39 @@ class Component extends DCLogic {
       scrollTzMeeting: scrollToTz('tz-v2-meeting'),
       scrollTzTrace: scrollToTz('tz-v2-trace'),
       scrollTzFull: scrollToTz('tz-full-text'),
+      tzCommentsOpen: S.tzCommentsOpen,
+      openTzComments: () => this.setState({ tzCommentsOpen: true, tzSelectionReady: false }),
+      closeTzComments: () => this.setState({
+        tzCommentsOpen: false,
+        tzComposerOpen: false,
+        tzReplyOpenId: null,
+        tzActiveCommentId: null,
+      }),
+      tzOpenCommentCount,
+      tzResolvedCommentCount,
+      tzCommentThreads,
+      tzHasCommentThreads: tzCommentThreads.length > 0,
+      tzNoCommentThreads: tzCommentThreads.length === 0 && !S.tzComposerOpen,
+      tzEmptyCommentText: S.tzCommentFilter === 'resolved'
+        ? 'Закрытых обсуждений пока нет.'
+        : 'Открытых обсуждений пока нет. Выделите текст ТЗ, чтобы оставить первое замечание.',
+      tzOpenTabStyle: S.tzCommentFilter === 'open'
+        ? 'border-color:#c4b5fd;background:#f5f3ff;color:#6d28d9;font-weight:700;'
+        : '',
+      tzResolvedTabStyle: S.tzCommentFilter === 'resolved'
+        ? 'border-color:#c4b5fd;background:#f5f3ff;color:#6d28d9;font-weight:700;'
+        : '',
+      showOpenTzComments: () => this.setState({ tzCommentFilter: 'open', tzActiveCommentId: null }),
+      showResolvedTzComments: () => this.setState({ tzCommentFilter: 'resolved', tzActiveCommentId: null, tzComposerOpen: false }),
+      tzSelectionReady: S.tzSelectionReady,
+      tzSelectionActionStyle: `left:${S.tzSelectionPosition.left}px;top:${S.tzSelectionPosition.top}px;`,
+      startTzComment: () => this.startTzComment(),
+      tzComposerOpen: S.tzComposerOpen,
+      tzPendingQuote: S.tzPendingSelection ? S.tzPendingSelection.quote : '',
+      tzCommentDraft: S.tzCommentDraft,
+      setTzCommentDraft: event => this.setState({ tzCommentDraft: event.target.value }),
+      cancelTzComment: () => this.cancelTzComment(),
+      addTzComment: () => this.addTzComment(),
       // nav
       isRegistry: S.screen === 'registry', isDeal: S.screen === 'deal', isCompany: S.screen === 'company',
       goRegistry: () => this.setState({ screen: 'registry' }),
@@ -3580,11 +4076,6 @@ class Component extends DCLogic {
       xlsxPreviewRows,
       xlsxGridStyle,
       xlsxColumnCount: xlsxColumns.length,
-      mobileAuthHint,
-      mobileSessionStyle: `background:${S.mobileAuthMode === 'session' ? '#4f46e5' : '#fff'};color:${S.mobileAuthMode === 'session' ? '#fff' : '#4f46e5'};border:1px solid #c7cdf7;border-radius:8px;padding:7px 9px;font-size:10.5px;font-weight:650;cursor:pointer;`,
-      mobileSeparateStyle: `background:${S.mobileAuthMode === 'separate' ? '#4f46e5' : '#fff'};color:${S.mobileAuthMode === 'separate' ? '#fff' : '#4f46e5'};border:1px solid #c7cdf7;border-radius:8px;padding:7px 9px;font-size:10.5px;font-weight:650;cursor:pointer;`,
-      useMobileSession: () => this.setState({ mobileAuthMode: 'session' }),
-      useSeparateMobileAuth: () => this.setState({ mobileAuthMode: 'separate' }),
       mobileToast: S.mobileToast,
       helpOpen: S.helpOpen,
       openHelp: () => this.setState({ helpOpen: true }),

@@ -136,7 +136,7 @@ evidence.traceability = await evaluate(`(() => {
     'Все версии и мягкое удаление',
     'Снятие доступа после закрытия сделок',
     'Договор и зависимые документы',
-    'Два мобильных входа и оценка',
+    'Только Bitrix24 и десктопная версия на телефоне',
     'Итог сделки и курс ЦБ',
     'Все счета и КП из Bitrix24',
     'Копия в папке каждой сделки',
@@ -156,7 +156,17 @@ evidence.noContradictions = await evaluate(`(() => {
     !text.includes('Публичная ссылка на документ') &&
     !text.includes('Требуется файл для всех типов') &&
     !text.includes('Одна физическая копия для нескольких сделок') &&
-    !text.includes('Отдельное обязательное поле «Юридическое лицо»');
+    !text.includes('Отдельное обязательное поле «Юридическое лицо»') &&
+    !text.includes('Мобильный Chrome и два пути входа') &&
+    !text.includes('32–56 часов') &&
+    !text.includes('Мобильный просмотр 390 px');
+})()`);
+evidence.deviceScope = await evaluate(`(() => {
+  const text = document.querySelector('#tz-device-scope')?.innerText || '';
+  return text.includes('мобильной версии не будет') &&
+    text.includes('десктопный интерфейс') &&
+    text.includes('только через действующую учётную запись Bitrix24') &&
+    text.includes('OTP и SSO не входят в объём');
 })()`);
 
 await evaluate(`document.querySelector('#tz-top')?.scrollIntoView({ block: 'start' })`);
@@ -172,6 +182,14 @@ await clickButton('Было → стало');
 await new Promise(resolve => setTimeout(resolve, 550));
 await screenshot('/private/tmp/nvr270-html-tz-conflicts.png');
 
+await evaluate(`(() => {
+  const card = [...document.querySelectorAll('#tz-v2-changes .tz-change-card')]
+    .find(item => item.innerText.includes('Мобильная версия не входит в текущий объём'));
+  if (card) card.scrollIntoView({ block: 'center' });
+})()`);
+await new Promise(resolve => setTimeout(resolve, 300));
+await screenshot('/private/tmp/nvr270-html-tz-device-scope.png');
+
 await command('Emulation.setDeviceMetricsOverride', {
   width: 390,
   height: 844,
@@ -180,15 +198,14 @@ await command('Emulation.setDeviceMetricsOverride', {
 });
 await evaluate(`document.querySelector('#tz-v2-changes')?.scrollIntoView({ block: 'start' })`);
 await new Promise(resolve => setTimeout(resolve, 300));
-evidence.mobileLayout = await evaluate(`(() => {
+evidence.phoneDesktopLayout = await evaluate(`(() => {
   const body = document.querySelector('#tz-v2-changes .tz-change-body');
-  const card = document.querySelector('#tz-v2-changes .tz-change-card');
   const columns = body ? getComputedStyle(body).gridTemplateColumns.split(' ').filter(Boolean).length : 0;
-  return columns === 1 &&
-    card.getBoundingClientRect().width <= 366 &&
-    document.documentElement.scrollWidth <= 390;
+  return columns === 2 &&
+    document.documentElement.scrollWidth >= 1120 &&
+    !document.querySelector('.mobile-registry');
 })()`);
-await screenshot('/private/tmp/nvr270-html-tz-mobile.png');
+await screenshot('/private/tmp/nvr270-html-tz-desktop-on-phone.png');
 
 await command('Emulation.setDeviceMetricsOverride', {
   width: 1440,
