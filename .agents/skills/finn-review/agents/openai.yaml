@@ -1,0 +1,15 @@
+interface:
+  display_name: "Finn Review"
+  short_description: "Review one Термех PR against Linear and CI"
+  default_prompt: "Run one independent Finn-loop reviewer pass for the Термех project."
+
+policy:
+  allow_implicit_invocation: false
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "linear"
+      description: "Read the exact Linear issue contract and relations"
+      transport: "streamable_http"
+      url: "https://mcp.linear.app/mcp"
