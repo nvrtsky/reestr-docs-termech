@@ -1,0 +1,12 @@
+interface:
+  display_name: "Finn Spec"
+  short_description: "Turn an idea into approved-scope Linear specs for Термех"
+  default_prompt: "Interview me, draft the complete Linear contract, and file it only after I approve the draft."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "linear"
+      description: "Read and write project-scoped Linear issues and relations"
+      transport: "streamable_http"
+      url: "https://mcp.linear.app/mcp"
