@@ -444,7 +444,7 @@
 
     <div style="padding: 11px 12px; border-top: 1px solid #ededed;">
       <div style="font-size: 10px; letter-spacing: 0.7px; text-transform: uppercase; color: #a1a1aa; margin-bottom: 6px;">Ваша роль</div>
-      <select onchange="{{ setRole }}" style="width: 100%; background: #fff; color: #18181b; border: 1px solid #e4e4e7; border-radius: 7px; padding: 7px 9px; font-size: 12.5px; font-weight: 500; cursor: pointer;">
+      <select value="{{ role }}" onchange="{{ setRole }}" style="width: 100%; background: #fff; color: #18181b; border: 1px solid #e4e4e7; border-radius: 7px; padding: 7px 9px; font-size: 12.5px; font-weight: 500; cursor: pointer;">
         <option value="manager">Руководитель</option>
         <option value="sales">Менеджер продаж</option>
         <option value="accounting">Бухгалтер</option>
@@ -531,22 +531,37 @@
             <div style="padding: 7px 20px 7px 8px;"></div>
           </div>
           <sc-for list="{{ rows }}" as="r" hint-placeholder-count="12">
-            <div onclick="{{ r.onOpen }}" style="{{ r.rowGridStyle }}">
-              <div onclick="{{ r.onToggleSel }}" style="padding: 0 8px 0 20px; display: flex; align-items: center;"><span style="{{ r.checkStyle }}">{{ r.checkMark }}</span></div>
-              <div style="padding: 7px 8px; display: flex; align-items: center; gap: 8px; min-width: 0;">
-                <span style="font-size: 12px; opacity: .5;">{{ r.attachIcon }}</span>
-                <div style="min-width: 0;">
-                  <div style="font-weight: 500; color: #18181b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.title }}</div>
-                  <div style="font-family: 'IBM Plex Mono'; font-size: 10px; color: #a1a1aa;">{{ r.num }}</div>
+            <div>
+              <div onclick="{{ r.onOpen }}" style="{{ r.rowGridStyle }}">
+                <div onclick="{{ r.onToggleSel }}" style="padding: 0 8px 0 20px; display: flex; align-items: center;"><span style="{{ r.checkStyle }}">{{ r.checkMark }}</span></div>
+                <div style="padding: 7px 8px; display: flex; align-items: center; gap: 8px; min-width: 0;">
+                  <span style="font-size: 12px; opacity: .5;">{{ r.attachIcon }}</span>
+                  <div style="min-width: 0;">
+                    <div style="font-weight: 500; color: #18181b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.title }}</div>
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <span style="font-family: 'IBM Plex Mono'; font-size: 10px; color: #a1a1aa;">{{ r.num }}</span>
+                      <sc-if value="{{ r.hasDependents }}" hint-placeholder-val="{{ false }}"><button type="button" onclick="{{ r.onToggleRelationships }}" style="background: #f5f3ff; border: none; border-radius: 5px; padding: 1px 6px; color: #7c3aed; font-size: 9.5px; font-weight: 650; cursor: pointer;"><span style="font-size: 8px;">[v2]</span> {{ r.relationshipCaret }} {{ r.relationshipCount }} связанных</button></sc-if>
+                    </div>
+                  </div>
                 </div>
+                <sc-if value="{{ colSection }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; min-width: 0;"><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: #52525b;"><span style="width: 6px; height: 6px; border-radius: 2px; background: {{ r.sectionC }}; flex: none;"></span>{{ r.sectionLabel }}</span></div></sc-if>
+                <sc-if value="{{ colCounterparty }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; min-width: 0; color: #52525b;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.counterparty }}</span></div></sc-if>
+                <sc-if value="{{ colStatus }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; min-width: 0;"><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: {{ r.statusC }}; white-space: nowrap;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ r.statusC }}; flex: none;"></span>{{ r.statusLabel }}</span></div></sc-if>
+                <sc-if value="{{ colAmount }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; justify-content: flex-end; font-family: 'IBM Plex Mono'; font-size: 12px; color: #18181b; white-space: nowrap;">{{ r.amountStr }}</div></sc-if>
+                <sc-if value="{{ colDocDate }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; font-family: 'IBM Plex Mono'; font-size: 11px; color: #71717a; white-space: nowrap;">{{ r.docDate }}</div></sc-if>
+                <sc-if value="{{ colResponsible }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; color: #52525b; white-space: nowrap; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.responsible }}</span></div></sc-if>
+                <div style="padding: 7px 20px 7px 8px; display: flex; align-items: center; justify-content: center; color: #c4c4c8;">⋯</div>
               </div>
-              <sc-if value="{{ colSection }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; min-width: 0;"><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: #52525b;"><span style="width: 6px; height: 6px; border-radius: 2px; background: {{ r.sectionC }}; flex: none;"></span>{{ r.sectionLabel }}</span></div></sc-if>
-              <sc-if value="{{ colCounterparty }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; min-width: 0; color: #52525b;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.counterparty }}</span></div></sc-if>
-              <sc-if value="{{ colStatus }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; min-width: 0;"><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: {{ r.statusC }}; white-space: nowrap;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ r.statusC }}; flex: none;"></span>{{ r.statusLabel }}</span></div></sc-if>
-              <sc-if value="{{ colAmount }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; justify-content: flex-end; font-family: 'IBM Plex Mono'; font-size: 12px; color: #18181b; white-space: nowrap;">{{ r.amountStr }}</div></sc-if>
-              <sc-if value="{{ colDocDate }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; font-family: 'IBM Plex Mono'; font-size: 11px; color: #71717a; white-space: nowrap;">{{ r.docDate }}</div></sc-if>
-              <sc-if value="{{ colResponsible }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; color: #52525b; white-space: nowrap; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.responsible }}</span></div></sc-if>
-              <div style="padding: 7px 20px 7px 8px; display: flex; align-items: center; justify-content: center; color: #c4c4c8;">⋯</div>
+              <sc-if value="{{ r.showRelationshipSearch }}" hint-placeholder-val="{{ false }}">
+                <div style="margin: 0 20px 7px 76px; padding: 8px 10px; border: 1px solid #ddd6fe; border-radius: 8px; background: #faf5ff;">
+                  <div style="display: flex; align-items: center; gap: 7px; color: #6d28d9; font-size: 10px; font-weight: 700; margin-bottom: 5px;"><span>[v2]</span> Зависимые документы в результатах поиска</div>
+                  <sc-for list="{{ r.dependents }}" as="dep" hint-placeholder-count="2">
+                    <button type="button" onclick="{{ dep.onOpen }}" style="width: 100%; display: flex; align-items: center; gap: 8px; background: transparent; border: none; padding: 5px 3px; color: #3f3f46; cursor: pointer; text-align: left;">
+                      <span style="color: #7c3aed;">↳</span><span style="font-size: 11.5px; font-weight: 550;">{{ dep.title }}</span><span style="font-family: 'IBM Plex Mono'; font-size: 9.5px; color: #a1a1aa;">{{ dep.num }}</span><span style="margin-left: auto; font-size: 10px; color: #7c3aed;">{{ dep.type }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+              </sc-if>
             </div>
           </sc-for>
         </div>
@@ -942,7 +957,7 @@
   <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
   <div style="position: fixed; inset: 0; z-index: 40;">
     <div onclick="{{ closeDoc }}" style="position: absolute; inset: 0; background: rgba(24,24,27,.32); animation: dcFade .12s;"></div>
-    <div style="position: absolute; top: 0; right: 0; height: 100%; width: 470px; background: #fff; box-shadow: -8px 0 30px rgba(0,0,0,.12); display: flex; flex-direction: column; animation: dcSlideIn .18s ease;">
+    <div style="position: absolute; top: 0; right: 0; height: 100%; width: min(570px, 96vw); background: #fff; box-shadow: -8px 0 30px rgba(0,0,0,.12); display: flex; flex-direction: column; animation: dcSlideIn .18s ease;">
       <div style="padding: 15px 20px 13px; border-bottom: 1px solid #ededed;">
         <div style="display: flex; align-items: flex-start; gap: 10px;">
           <div style="flex: 1;">
@@ -981,6 +996,20 @@
           <div style="font-size: 10.5px; color: #71717a; margin-top: 5px;">Ссылка непубличная: получателю потребуется авторизация в Bitrix24. Её можно скопировать и отправить вручную.</div>
         </div>
 
+        <sc-if value="{{ doc.hasRelationships }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-bottom: 18px; padding: 11px 12px; border: 1px solid #ddd6fe; border-radius: 9px; background: #faf5ff;">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 4px;"><span style="color: #7c3aed; font-size: 10px; font-weight: 750;">[v2]</span><div style="font-family: 'Space Grotesk'; font-weight: 650; font-size: 11.5px; color: #6b21a8;">{{ doc.relationshipHeading }}</div></div>
+            <div style="font-size: 10.5px; color: #71717a; margin-bottom: 7px;">{{ doc.relationshipHint }}</div>
+            <sc-for list="{{ doc.relationshipItems }}" as="rel" hint-placeholder-count="2">
+              <button type="button" onclick="{{ rel.onOpen }}" style="width: 100%; display: grid; grid-template-columns: 104px 1fr auto; gap: 8px; align-items: center; padding: 8px 9px; margin-top: 5px; background: #fff; border: 1px solid #ede9fe; border-radius: 8px; cursor: pointer; text-align: left;">
+                <span style="font-size: 9.5px; color: #7c3aed; font-weight: 700;">{{ rel.relation }}</span>
+                <span style="font-size: 11.5px; color: #3f3f46; font-weight: 550;">{{ rel.title }}</span>
+                <span style="font-family: 'IBM Plex Mono'; font-size: 9.5px; color: #a1a1aa;">{{ rel.num }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+
         <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 11.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px;"><span style="color: #7c3aed;">[v2]</span> Файл или ссылка · {{ doc.attCount }}</div>
         <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px;">
           <sc-for list="{{ doc.attachments }}" as="a" hint-placeholder-count="2">
@@ -999,6 +1028,36 @@
           <button type="button" style="flex: 1; background: #fff; border: 1px dashed #d4d4d8; border-radius: 8px; padding: 8px; font-size: 11.5px; color: #52525b; cursor: pointer;">🔗 Ссылка</button>
         </div>
 
+        <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 8px;">
+          <span style="color: #7c3aed; font-size: 10px; font-weight: 750;">[v2]</span>
+          <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 11.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px;">История версий · {{ doc.versionCount }}</div>
+          <div style="flex: 1;"></div>
+          <button type="button" onclick="{{ doc.onReplaceFile }}" style="background: #7c3aed; color: #fff; border: none; border-radius: 7px; padding: 5px 9px; font-size: 10.5px; font-weight: 650; cursor: pointer;">Заменить файл → новая версия</button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px;">
+          <sc-for list="{{ doc.versions }}" as="ver" hint-placeholder-count="3">
+            <div style="{{ ver.style }}">
+              <span style="{{ ver.badgeStyle }}">{{ ver.number }}</span>
+              <div><div style="font-size: 11px; font-weight: 550; color: #3f3f46;">{{ ver.name }}</div><div style="font-size: 9.5px; color: #a1a1aa; margin-top: 2px;">{{ ver.date }} · {{ ver.author }}</div></div>
+              <span style="{{ ver.currentStyle }}">{{ ver.currentLabel }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ doc.versionNotice }}" hint-placeholder-val="{{ false }}"><div style="margin-bottom: 16px; padding: 7px 9px; border-radius: 7px; background: #e7f5ec; color: #15803d; font-size: 10.5px;">{{ doc.versionNotice }}</div></sc-if>
+
+        <div style="display: flex; align-items: center; gap: 7px; margin: 16px 0 8px;">
+          <span style="color: #7c3aed; font-size: 10px; font-weight: 750;">[v2]</span>
+          <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 11.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px;">Физические копии Bitrix Disk · {{ doc.physicalCopyCount }}</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 18px;">
+          <sc-for list="{{ doc.physicalCopies }}" as="copy" hint-placeholder-count="2">
+            <div style="padding: 8px 9px; border: 1px solid #ededed; border-radius: 8px; background: #fafafa;">
+              <div style="display: flex; align-items: center; gap: 7px;"><span style="font-size: 10px; font-weight: 700; color: #4f46e5;">Сделка {{ copy.deal }}</span><span style="font-family: 'IBM Plex Mono'; font-size: 9.5px; color: #7c3aed;">{{ copy.version }}</span><span style="margin-left: auto; font-size: 9.5px; color: #15803d;">✓ {{ copy.state }}</span></div>
+              <div style="font-family: 'IBM Plex Mono'; font-size: 9.5px; color: #71717a; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ copy.path }}</div>
+            </div>
+          </sc-for>
+        </div>
+
         <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 11.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px;">Привязки · {{ doc.linkCount }}</div>
         <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;">
           <sc-for list="{{ doc.links }}" as="l" hint-placeholder-count="2">
@@ -1010,6 +1069,22 @@
         </div>
         <button type="button" style="background: none; border: none; color: #4f46e5; font-size: 11.5px; font-weight: 500; cursor: pointer; padding: 0;">＋ Привязать к сущности Bitrix24</button>
 
+        <div style="margin: 18px 0 0; padding: 11px 12px; border: 1px solid #ddd6fe; border-radius: 9px; background: #faf5ff;">
+          <div style="display: flex; align-items: center; gap: 7px;"><span style="color: #7c3aed; font-size: 10px; font-weight: 750;">[v2]</span><div style="font-family: 'Space Grotesk'; font-weight: 650; font-size: 11.5px; color: #6b21a8;">Доступ после закрытия сделок</div></div>
+          <div style="display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 7px;"><sc-for list="{{ doc.dealAccessRows }}" as="deal" hint-placeholder-count="2"><span style="{{ deal.style }}">{{ deal.deal }} · {{ deal.state }}</span></sc-for></div>
+          <div style="font-size: 10.5px; color: #52525b; margin-bottom: 7px;">{{ doc.allDealsLabel }}</div>
+          <div style="display: flex; flex-direction: column; gap: 4px;"><sc-for list="{{ doc.accessRows }}" as="access" hint-placeholder-count="3"><div style="{{ access.style }}"><span style="font-weight: 650;">{{ access.role }}</span><span style="margin-left: auto;">{{ access.access }}</span></div></sc-for></div>
+          <button type="button" onclick="{{ doc.onToggleClosedDeals }}" style="margin-top: 8px; width: 100%; background: #fff; color: #7c3aed; border: 1px solid #c4b5fd; border-radius: 7px; padding: 6px 9px; font-size: 10.5px; font-weight: 650; cursor: pointer;">{{ doc.closeDealsLabel }}</button>
+        </div>
+
+        <div style="margin: 12px 0 0; padding: 11px 12px; border: 1px solid #fecaca; border-radius: 9px; background: #fffafa;">
+          <div style="display: flex; align-items: center; gap: 7px;"><span style="color: #7c3aed; font-size: 10px; font-weight: 750;">[v2]</span><div style="font-family: 'Space Grotesk'; font-weight: 650; font-size: 11.5px; color: #7f1d1d;">Архивирование без удаления</div></div>
+          <div style="font-size: 10.5px; color: #71717a; margin: 6px 0;">{{ doc.archiveStateLabel }}</div>
+          <div style="font-size: 10px; color: #52525b;">Получатели уведомления: <sc-for list="{{ doc.archiveRecipients }}" as="recipient" hint-placeholder-count="2"><span style="display: inline-block; margin: 3px 3px 0 0; padding: 2px 6px; border-radius: 999px; background: #f4f4f5;">{{ recipient.name }}</span></sc-for></div>
+          <button type="button" onclick="{{ doc.onToggleArchive }}" style="margin-top: 8px; background: #fff; color: #b91c1c; border: 1px solid #fecaca; border-radius: 7px; padding: 6px 10px; font-size: 10.5px; font-weight: 650; cursor: pointer;">{{ doc.archiveActionLabel }}</button>
+          <sc-if value="{{ doc.archiveNotice }}" hint-placeholder-val="{{ false }}"><div style="margin-top: 7px; padding: 6px 8px; border-radius: 7px; background: #e7f5ec; color: #15803d; font-size: 10px;">{{ doc.archiveNotice }}</div></sc-if>
+        </div>
+
         <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 11.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px; margin: 18px 0 8px;">История</div>
         <div style="display: flex; flex-direction: column; gap: 8px;">
           <sc-for list="{{ doc.history }}" as="h" hint-placeholder-count="3">
@@ -1020,6 +1095,18 @@
           </sc-for>
         </div>
       </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ drawerDenied }}" hint-placeholder-val="{{ false }}">
+  <div style="position: fixed; inset: 0; z-index: 58; display: flex; align-items: center; justify-content: center; padding: 20px;">
+    <div style="position: absolute; inset: 0; background: rgba(24,24,27,.5);"></div>
+    <div style="position: relative; width: min(450px, 94vw); background: #fff; border-radius: 14px; box-shadow: 0 22px 70px rgba(0,0,0,.3); padding: 22px;">
+      <div style="display: flex; align-items: flex-start; gap: 12px;"><div style="width: 38px; height: 38px; border-radius: 10px; background: #fdeaea; color: #dc2626; display: flex; align-items: center; justify-content: center; font-size: 19px;">⊘</div><div style="flex: 1;"><div style="display: flex; align-items: center; gap: 7px;"><span style="color: #7c3aed; font-size: 10px; font-weight: 750;">[v2]</span><div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 17px;">Доступ прекращён</div></div><div style="font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa; margin-top: 3px;">{{ deniedDocumentNumber }}</div></div><button type="button" onclick="{{ closeDenied }}" style="background: none; border: none; color: #a1a1aa; font-size: 18px; cursor: pointer;">✕</button></div>
+      <div style="margin-top: 14px; padding: 12px 13px; border-radius: 9px; background: #fff7ed; color: #7c2d12; font-size: 12px; line-height: 1.55;">Все связанные сделки документа закрыты. Для роли «Менеджер продаж» недоступны карточка, просмотр файла и скачивание. Ссылка также не обходит это правило.</div>
+      <div style="margin-top: 10px; font-size: 11px; color: #71717a;">Бухгалтер и администратор сохраняют действия, разрешённые политикой типа документа.</div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;"><button type="button" onclick="{{ closeDenied }}" style="background: #fff; border: 1px solid #e4e4e7; border-radius: 8px; padding: 8px 12px; color: #52525b; font-size: 11.5px; cursor: pointer;">Закрыть</button><button type="button" onclick="{{ continueAsAccounting }}" style="background: #4f46e5; border: none; border-radius: 8px; padding: 8px 12px; color: #fff; font-size: 11.5px; font-weight: 650; cursor: pointer;">Проверить как бухгалтер</button></div>
     </div>
   </div>
   </sc-if>
@@ -1713,6 +1800,10 @@ class Component extends DCLogic {
     typeModalOpen: false,
     helpOpen: false,
     copiedDocumentId: null,
+    expandedRelationships: {},
+    closedDeals: { '1234': true, '1290': false },
+    archiveNotice: '',
+    versionNotice: '',
     newType: { section: 'client', label: '', lifecycle: 'simple', contentRequirement: 'required', fields: [] },
     bulkOpen: false,
     bulkContext: 'registry',
@@ -1963,9 +2054,60 @@ class Component extends DCLogic {
       d('19', 'СД-2026/61', 'Договор сервисного обслуживания', 'client', 'Договор', 'on_review', 'ООО «Ромашка»', 'ООО «Альфа-Трейд»', 2400000, 'RUB', '24.04.2026', 'Е. Смирнова', ['file'], ['Сделка #1290', 'ООО «Ромашка»'], true),
       d('20', 'С-77', 'Счёт на абонентское обслуживание Q2', 'client', 'Счёт', 'awaiting', 'ООО «Ромашка»', 'ООО «Альфа-Трейд»', 600000, 'RUB', '25.04.2026', 'Е. Смирнова', ['invoice'], ['Сделка #1290'], true),
       d('21', 'POW-12', 'Доверенность сервисного инженера', 'legal', 'Доверенность', 'signed', 'ООО «Ромашка»', 'ООО «Альфа-Трейд»', 0, 'RUB', '20.04.2026', 'Д. Юрьев', ['file'], ['Сделка #1290'], true),
+      d('22', 'ДС-2026/45-1', 'Доп. соглашение №1 · изменение графика оплаты', 'client', 'Доп. соглашение', 'signed', 'ООО «Ромашка»', 'ООО «Альфа-Трейд»', 0, 'RUB', '10.04.2026', 'А. Петров', ['file'], ['Сделка #1234', 'Сделка #1290', 'ООО «Ромашка»'], true),
+      d('23', 'ПР-2026/45-2', 'Приложение №2 · спецификация оборудования', 'client', 'Приложение', 'active', 'ООО «Ромашка»', 'ООО «Альфа-Трейд»', 0, 'RUB', '12.04.2026', 'А. Петров', ['file'], ['Сделка #1234', 'Сделка #1290', 'ООО «Ромашка»'], true),
     ];
     this.docs.forEach(x => { x.dealRef = x.deal ? '1234' : null; });
     ['19', '20', '21'].forEach(id => { const x = this.docs.find(d => d.id === id); if (x) x.dealRef = '1290'; });
+    const contract = this.docs.find(x => x.id === '1');
+    const addendum = this.docs.find(x => x.id === '22');
+    const appendix = this.docs.find(x => x.id === '23');
+    contract.childIds = ['22', '23'];
+    contract.dealIds = ['1234', '1290'];
+    contract.createdBy = 'Е. Смирнова';
+    contract.uploadedBy = 'А. Петров';
+    contract.versions = [
+      { number: 3, name: 'contract_v3.pdf', date: '22.04.2026 14:28', author: 'А. Петров', current: true },
+      { number: 2, name: 'contract_v2.pdf', date: '15.04.2026 11:06', author: 'Е. Смирнова', current: false },
+      { number: 1, name: 'contract_v1.pdf', date: '01.04.2026 09:14', author: 'Е. Смирнова', current: false },
+    ];
+    contract.physicalCopies = [
+      { dealId: '1234', path: 'Диск / Сделки / 1234 / Реестр / contract_v3.pdf', version: 3 },
+      { dealId: '1290', path: 'Диск / Сделки / 1290 / Реестр / contract_v3.pdf', version: 3 },
+    ];
+    addendum.parentId = '1';
+    appendix.parentId = '1';
+    [addendum, appendix].forEach(item => {
+      item.dealIds = ['1234', '1290'];
+      item.createdBy = 'Е. Смирнова';
+      item.uploadedBy = 'А. Петров';
+      item.versions = [{ number: 1, name: item.num + '.pdf', date: item.docDate + ' 10:00', author: 'А. Петров', current: true }];
+      item.physicalCopies = [
+        { dealId: '1234', path: `Диск / Сделки / 1234 / Реестр / ${item.num}.pdf`, version: 1 },
+        { dealId: '1290', path: `Диск / Сделки / 1290 / Реестр / ${item.num}.pdf`, version: 1 },
+      ];
+    });
+    this.docs.forEach(item => {
+      if (!item.dealIds) item.dealIds = item.dealRef ? [item.dealRef] : [];
+      if (!item.createdBy) item.createdBy = 'Е. Смирнова';
+      if (!item.uploadedBy) item.uploadedBy = item.responsible;
+      if (!item.versions) item.versions = item.atts.length
+        ? [{ number: 1, name: item.num + '.pdf', date: item.docDate + ' 10:00', author: item.uploadedBy, current: true }]
+        : [];
+      if (!item.physicalCopies) item.physicalCopies = item.dealIds.map(dealId => ({
+        dealId,
+        path: `Диск / Сделки / ${dealId} / Реестр / ${item.num}.pdf`,
+        version: item.versions[0] ? item.versions[0].number : 0,
+      }));
+    });
+  }
+
+  allLinkedDealsClosed(doc) {
+    return doc.dealIds.length > 0 && doc.dealIds.every(dealId => this.state.closedDeals[dealId] === true);
+  }
+
+  closedDealAccessDenied(doc) {
+    return this.state.role === 'sales' && this.allLinkedDealsClosed(doc);
   }
 
   fmtAmount(doc) {
@@ -1985,7 +2127,7 @@ class Component extends DCLogic {
   scopedDocs() {
     this.ensureDocs();
     const vis = this.visibleSections();
-    return this.docs.filter(d => vis.includes(d.section));
+    return this.docs.filter(d => vis.includes(d.section) && !this.closedDealAccessDenied(d));
   }
 
   gridColsStr() {
@@ -2051,7 +2193,15 @@ class Component extends DCLogic {
     if (this.state.view === 'awaiting') list = list.filter(d => d.status === 'awaiting' || d.status === 'on_review');
     if (this.state.view === 'draft') list = list.filter(d => d.status === 'draft');
     const q = this.state.search.trim().toLowerCase();
-    if (q) list = list.filter(d => (d.title + ' ' + d.num + ' ' + d.counterparty + ' ' + d.type).toLowerCase().includes(q));
+    if (q) {
+      const direct = list.filter(d => (d.title + ' ' + d.num + ' ' + d.counterparty + ' ' + d.type).toLowerCase().includes(q));
+      const includeIds = new Set(direct.map(d => d.id));
+      direct.forEach(d => {
+        (d.childIds || []).forEach(id => includeIds.add(id));
+        if (d.parentId) includeIds.add(d.parentId);
+      });
+      list = list.filter(d => includeIds.has(d.id));
+    }
     const F = this.state.filters;
     const selStatuses = Object.keys(F.statuses).filter(k => F.statuses[k]);
     if (selStatuses.length) list = list.filter(d => selStatuses.includes(d.status));
@@ -2070,6 +2220,8 @@ class Component extends DCLogic {
     const sec = this.SECTIONS.find(s => s.code === d.section);
     const st = this.STATUS[d.status];
     const sel = !!this.state.sel[d.id];
+    const dependentDocs = (d.childIds || []).map(id => this.docs.find(item => item.id === id)).filter(Boolean);
+    const relationExpanded = !!this.state.expandedRelationships[d.id] || (!!this.state.search.trim() && dependentDocs.length > 0);
     return {
       id: d.id, num: d.num, title: d.title, counterparty: d.counterparty || '—',
       dealRefLabel: d.dealRef ? '#' + d.dealRef : '—',
@@ -2079,6 +2231,21 @@ class Component extends DCLogic {
       amountStr: this.fmtAmount(d),
       attachIcon: d.atts.length ? (d.atts.includes('file') || d.atts.includes('invoice') ? '📎' : '🔗') : '○',
       onOpen: () => this.setState({ drawerId: d.id }),
+      hasDependents: dependentDocs.length > 0,
+      relationshipCount: dependentDocs.length,
+      relationshipCaret: relationExpanded ? '▾' : '▸',
+      showRelationshipSearch: relationExpanded && dependentDocs.length > 0,
+      onToggleRelationships: (event) => {
+        if (event && event.stopPropagation) event.stopPropagation();
+        this.setState({ expandedRelationships: { ...this.state.expandedRelationships, [d.id]: !relationExpanded } });
+      },
+      dependents: dependentDocs.map(item => ({
+        id: item.id,
+        num: item.num,
+        title: item.title,
+        type: item.type,
+        onOpen: () => this.setState({ drawerId: item.id }),
+      })),
       onToggleSel: (e) => { if (e && e.stopPropagation) e.stopPropagation(); const s = { ...this.state.sel }; if (s[d.id]) delete s[d.id]; else s[d.id] = true; this.setState({ sel: s }); },
       checkMark: sel ? '✓' : '',
       checkStyle: `display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;border:1.5px solid ${sel ? '#4f46e5' : '#d4d4d8'};background:${sel ? '#4f46e5' : '#fff'};color:#fff;font-size:11px;cursor:pointer;`,
@@ -2208,16 +2375,67 @@ class Component extends DCLogic {
         : 'Полный реестр; компания и сделки выбираются по строкам';
 
     let doc = null;
+    let drawerDenied = false;
+    let deniedDocumentNumber = '';
     if (S.drawerId) {
       const dd = this.docs.find(x => x.id === S.drawerId);
       if (dd) {
+        if (this.closedDealAccessDenied(dd)) {
+          drawerDenied = true;
+          deniedDocumentNumber = dd.num;
+        } else {
         const sec = this.SECTIONS.find(s => s.code === dd.section);
         const statusOptions = ['draft', 'on_review', 'signed'].map(code => {
           const meta = this.STATUS[code]; const active = dd.status === code;
           return { code, label: meta.label, onSet: () => { dd.status = code; this.forceUpdate(); },
             style: `border:1px solid ${active ? meta.c : '#e4e4e7'};background:${active ? meta.bg : '#fff'};color:${active ? meta.c : '#71717a'};border-radius:7px;padding:4px 10px;font-size:11px;font-weight:500;cursor:pointer;` };
         });
+        const parent = dd.parentId ? this.docs.find(item => item.id === dd.parentId) : null;
+        const related = (dd.childIds || []).map(id => this.docs.find(item => item.id === id)).filter(Boolean);
+        const relationshipItems = (parent ? [parent] : related).map(item => ({
+          id: item.id,
+          num: item.num,
+          title: item.title,
+          type: item.type,
+          relation: parent ? 'Основной договор' : item.type,
+          onOpen: () => this.setState({ drawerId: item.id, archiveNotice: '', versionNotice: '' }),
+        }));
+        const versions = (dd.versions || []).map(version => ({
+          number: 'v' + version.number,
+          name: version.name,
+          date: version.date,
+          author: version.author,
+          currentLabel: version.current ? 'Актуальная' : 'Сохранена',
+          style: `display:grid;grid-template-columns:42px 1fr auto;gap:8px;align-items:center;padding:8px 9px;border:1px solid ${version.current ? '#c4b5fd' : '#ededed'};border-radius:8px;background:${version.current ? '#faf5ff' : '#fafafa'};`,
+          badgeStyle: `font-family:'IBM Plex Mono';font-size:10px;font-weight:700;color:${version.current ? '#7c3aed' : '#71717a'};`,
+          currentStyle: `font-size:9.5px;color:${version.current ? '#7c3aed' : '#a1a1aa'};`,
+        }));
+        const physicalCopies = (dd.physicalCopies || []).map(copy => ({
+          deal: '#' + copy.dealId,
+          path: copy.path,
+          version: 'v' + copy.version,
+          state: 'Синхронизирована',
+        }));
+        const allDealsClosed = this.allLinkedDealsClosed(dd);
+        const dealAccessRows = (dd.dealIds || []).map(dealId => {
+          const closed = S.closedDeals[dealId] === true;
+          return {
+            deal: 'Сделка #' + dealId,
+            state: closed ? 'Закрыта' : 'Открыта',
+            style: `display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;background:${closed ? '#f4f4f5' : '#e7f5ec'};color:${closed ? '#71717a' : '#15803d'};font-size:10px;font-weight:600;`,
+          };
+        });
+        const accessRows = [
+          { role: 'Менеджер продаж', access: allDealsClosed ? 'Нет доступа к карточке и файлу' : 'Просмотр и скачивание', c: allDealsClosed ? '#dc2626' : '#15803d', bg: allDealsClosed ? '#fdeaea' : '#e7f5ec' },
+          { role: 'Бухгалтер', access: 'Доступ по политике типа', c: '#15803d', bg: '#e7f5ec' },
+          { role: 'Администратор', access: 'Полный доступ', c: '#15803d', bg: '#e7f5ec' },
+        ].map(item => ({
+          ...item,
+          style: `display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;background:${item.bg};font-size:10.5px;color:${item.c};`,
+        }));
+        const archiveRecipients = [...new Set([dd.createdBy, dd.uploadedBy])];
         doc = {
+          id: dd.id,
           num: dd.num, title: dd.title, typeLabel: dd.type, number: dd.num,
           sectionLabel: sec.label, sectionC: sec.c, sectionBg: sec.bg,
           docDate: dd.docDate, amountStr: this.fmtAmount(dd),
@@ -2229,7 +2447,58 @@ class Component extends DCLogic {
           copyLabel: S.copiedDocumentId === dd.id ? 'Скопировано ✓' : 'Копировать ссылку',
           history: this.HISTORY,
           statusOptions,
+          relationshipHeading: parent ? 'Основной договор' : 'Связанные документы',
+          relationshipHint: parent ? 'Из дополнительного документа доступен переход к договору.' : 'Договор объединяет приложения и дополнительные соглашения.',
+          relationshipItems,
+          hasRelationships: relationshipItems.length > 0,
+          versions,
+          versionCount: versions.length,
+          versionNotice: S.versionNotice,
+          physicalCopies,
+          physicalCopyCount: physicalCopies.length,
+          dealAccessRows,
+          accessRows,
+          allDealsClosed,
+          allDealsLabel: allDealsClosed ? 'Все связанные сделки закрыты' : 'Ограничение ещё не применяется: есть открытая сделка',
+          closeDealsLabel: allDealsClosed ? 'Открыть сделку #1290' : 'Закрыть все связанные сделки',
+          onToggleClosedDeals: () => {
+            this.setState({
+              closedDeals: { ...S.closedDeals, '1234': true, '1290': !allDealsClosed },
+              archiveNotice: '',
+            });
+          },
+          onReplaceFile: () => {
+            const currentNumber = dd.versions.length ? Math.max(...dd.versions.map(item => item.number)) : 0;
+            dd.versions.forEach(item => { item.current = false; });
+            const nextNumber = currentNumber + 1;
+            dd.versions.unshift({
+              number: nextNumber,
+              name: `contract_v${nextNumber}.pdf`,
+              date: '29.07.2026 15:20',
+              author: 'А. Петров',
+              current: true,
+            });
+            dd.physicalCopies.forEach(copy => {
+              copy.version = nextNumber;
+              copy.path = copy.path.replace(/[^/]+$/, `contract_v${nextNumber}.pdf`);
+            });
+            this.setState({ versionNotice: `Создана v${nextNumber}; обновлены ${dd.physicalCopies.length} физические копии.`, archiveNotice: '' });
+          },
+          archiveActionLabel: dd.status === 'archived' ? '↺ Восстановить документ' : 'В архив',
+          archiveStateLabel: dd.status === 'archived' ? 'Документ находится в архиве и может быть восстановлен. Жёсткое удаление отсутствует.' : 'Жёсткое удаление отсутствует: документ и все версии сохраняются.',
+          archiveRecipients: archiveRecipients.map(name => ({ name })),
+          archiveNotice: S.archiveNotice,
+          onToggleArchive: () => {
+            const restoring = dd.status === 'archived';
+            dd.status = restoring ? 'signed' : 'archived';
+            const action = restoring ? 'Восстановление' : 'Архивирование';
+            this.setState({
+              archiveNotice: `${action}: уведомлены ${archiveRecipients.join(' и ')}.`,
+              versionNotice: '',
+            });
+          },
         };
+        }
       }
     }
 
@@ -2354,7 +2623,7 @@ class Component extends DCLogic {
       ntLifecycleOptions: this.LIFECYCLES.map(l => ({ code: l.code, label: l.label })),
       ntCreateStyle: `background:${nt.label.trim() ? '#4f46e5' : '#c7c5ef'};color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:12.5px;font-weight:600;cursor:${nt.label.trim() ? 'pointer' : 'not-allowed'};`,
       role: S.role, roleLabel: role.label, roleHint: role.hint,
-      setRole: (e) => this.setState({ role: e.target.value, filters: { ...S.filters, sections: {} }, sel: {}, drawerId: null }),
+      setRole: (e) => this.setState({ role: e.target.value, filters: { ...S.filters, sections: {} }, sel: {} }),
       sidebarSections, totalCount: scoped.length, dealCount: scoped.filter(d => d.deal).length,
       pickAll: () => this.setState({ filters: { ...S.filters, sections: {} }, sel: {} }),
       secAllStyle: `display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:${noSecSel ? '#eef2ff' : 'transparent'};color:${noSecSel ? '#4f46e5' : '#52525b'};font-weight:${noSecSel ? '600' : '400'};border:none;border-radius:7px;padding:7px 9px;font-size:12.5px;cursor:pointer;`,
@@ -2370,7 +2639,11 @@ class Component extends DCLogic {
       embeddedGroups, dealSigned: dealDocs.filter(d => d.status === 'signed' || d.status === 'active').length,
       dealReview: dealDocs.filter(d => d.status === 'on_review' || d.status === 'awaiting').length,
       dealDraft: dealDocs.filter(d => d.status === 'draft').length,
-      drawerOpen: !!doc, doc, closeDoc: () => this.setState({ drawerId: null }),
+      drawerOpen: !!doc, doc, closeDoc: () => this.setState({ drawerId: null, archiveNotice: '', versionNotice: '' }),
+      drawerDenied,
+      deniedDocumentNumber,
+      closeDenied: () => this.setState({ drawerId: null }),
+      continueAsAccounting: () => this.setState({ role: 'accounting' }),
       copyInternalLink: () => doc && this.copyInternalLink(doc.internalUrl, S.drawerId),
       statusOptions: doc ? doc.statusOptions : [],
       bulkOpen: S.bulkOpen,
