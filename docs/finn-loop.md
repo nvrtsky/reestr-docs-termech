@@ -51,12 +51,47 @@ $finn-review
 
 For unattended loops, create two Scheduled tasks in the Codex desktop app:
 
-- every 5 minutes, run `$finn-build` in an isolated worktree;
-- every 5 minutes, run `$finn-review` in a separate chat.
+- run `$finn-build` in an isolated worktree;
+- run `$finn-review` in a separate chat.
 
 Test both skills manually first and watch the first scheduled runs. Codex CLI
 and the IDE extension can run the skills, but Scheduled task management lives
 in the desktop app or ChatGPT web.
+
+### Scheduled builder
+
+- Name: `Термех — Finn Build`
+- Project: this repository
+- Execution: isolated worktree
+- Initial cadence: every 30 minutes
+- Prompt:
+
+```text
+Invoke $finn-build exactly once. Work only in Linear project Термех and
+repository nvrtsky/reestr-docs-termech. If there is no safe queue item or
+another build owns the work, report a no-op. End after one issue, one repair
+pass, or one blocker. Never merge.
+```
+
+Start at 30 minutes because build runs may outlive a five-minute interval.
+Reduce the interval only after observed runs prove they cannot overlap. The
+Linear assignee is not an atomic lock between simultaneous runs authenticated
+as the same user.
+
+### Scheduled reviewer
+
+- Name: `Термех — Finn Review`
+- Project: this repository
+- Execution: separate chat; a worktree is optional because the skill is
+  read-only
+- Cadence: every 5 minutes
+- Prompt:
+
+```text
+Invoke $finn-review exactly once with fresh context. Review only PRs linked to
+Linear project Термех and repository nvrtsky/reestr-docs-termech. End after one
+PR or a no-op. Never push, merge, or enable auto-merge.
+```
 
 Merge only when the PR is conflict-free, the exact head SHA has
 `loop-approved`, and required CI is green. Resolve every
