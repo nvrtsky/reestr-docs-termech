@@ -162,7 +162,8 @@ await setTextarea('.tz-comment-compose .tz-comment-textarea', 'Уточнить,
 await clickButton('Добавить комментарий');
 await waitFor(
   `document.body.innerText.includes('Уточнить, кто согласует итоговую редакцию перед запуском.') &&
-   JSON.parse(localStorage.getItem('termech-tz-comments-v2') || '[]').length === 1`,
+   JSON.parse(localStorage.getItem('termech-tz-comments-v2') || '[]')
+     .some(comment => comment.body === 'Уточнить, кто согласует итоговую редакцию перед запуском.')`,
   'saved comment thread',
 );
 await waitFor(`document.body.innerText.includes('Общий журнал')`, 'shared comment saved');
@@ -275,6 +276,16 @@ const openedFromChange = await evaluate(`(() => {
 if (!openedFromChange) throw new Error('Change 05 prototype button not found');
 await waitFor(`!!document.querySelector('.prototype-back-to-tz')`, 'prototype back button');
 evidence.prototypeBackButtonVisible = true;
+evidence.prototypeBackButtonInSidebar = await evaluate(`(() => {
+  const button = document.querySelector('.prototype-back-to-tz');
+  const sidebar = button && button.closest('.side-rail');
+  if (!button || !sidebar) return false;
+  const buttonRect = button.getBoundingClientRect();
+  const sidebarRect = sidebar.getBoundingClientRect();
+  return buttonRect.left >= sidebarRect.left &&
+    buttonRect.right <= sidebarRect.right &&
+    buttonRect.bottom <= sidebarRect.bottom;
+})()`);
 await clickButton('Вернуться к карточке ТЗ');
 await waitFor(`!!document.querySelector('#tz-change-05') && !document.querySelector('.prototype-back-to-tz')`, 'return to specification');
 evidence.returnToSameChange = await evaluate(`(() => {

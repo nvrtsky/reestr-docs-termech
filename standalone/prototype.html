@@ -453,7 +453,7 @@
   .tz-comment-guide-note { margin-top: 4px; color: #92400e; font-size: 10px; line-height: 1.45; }
   .tz-comment-guide-button { border: 1px solid #f59e0b; border-radius: 8px; padding: 8px 10px; background: #fff; color: #92400e; font-size: 10.8px; font-weight: 700; cursor: pointer; }
   .tz-comment-guide-button:hover, .tz-comment-guide-button:focus-visible { background: #fef3c7; outline: 2px solid #fcd34d; outline-offset: 1px; }
-  .prototype-back-to-tz { position: fixed; top: 58px; right: 16px; z-index: 45; display: inline-flex; align-items: center; gap: 7px; border: 1px solid #c4b5fd; border-radius: 9px; padding: 9px 12px; background: #fff; color: #5b21b6; box-shadow: 0 8px 24px rgba(76,29,149,.16); font-size: 11.5px; font-weight: 700; cursor: pointer; }
+  .prototype-back-to-tz { flex: none; width: calc(100% - 24px); margin: 0 12px 10px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #c4b5fd; border-radius: 9px; padding: 9px 10px; background: #fff; color: #5b21b6; box-shadow: 0 6px 18px rgba(76,29,149,.12); font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; }
   .prototype-back-to-tz:hover, .prototype-back-to-tz:focus-visible { background: #f5f3ff; outline: 2px solid #a78bfa; outline-offset: 1px; }
   ::highlight(tz-comment-highlight) { background-color: #fef08a; text-decoration: underline #eab308 2px; }
   ::highlight(tz-comment-highlight-active) { background-color: #fde68a; text-decoration: underline #ca8a04 3px; }
@@ -541,7 +541,6 @@
   <!-- ════════ PROTOTYPE MODE ════════ -->
   <sc-if value="{{ isProto }}" hint-placeholder-val="{{ true }}">
   <div class="prototype-shell" style="height: 100%; display: flex; min-width: 0; background: #fff;">
-  <button type="button" class="prototype-back-to-tz" onclick="{{ returnToTz }}" aria-label="Вернуться к карточке технического задания"><span>←</span><span>Вернуться к карточке ТЗ</span></button>
 
   <!-- ░░ LEFT RAIL ░░ -->
   <aside class="side-rail" style="width: 224px; flex: none; background: #fafafa; border-right: 1px solid #ededed; display: flex; flex-direction: column;">
@@ -582,6 +581,8 @@
       </button>
     </nav>
     <div style="flex: 1;"></div>
+
+    <button type="button" class="prototype-back-to-tz" onclick="{{ returnToTz }}" aria-label="Вернуться к карточке технического задания"><span>←</span><span>Вернуться к карточке ТЗ</span></button>
 
     <div style="padding: 11px 12px; border-top: 1px solid #ededed;">
       <div style="font-size: 10px; letter-spacing: 0.7px; text-transform: uppercase; color: #a1a1aa; margin-bottom: 6px;">Ваша роль</div>
@@ -2255,7 +2256,9 @@ class Component extends DCLogic {
   }
 
   tzCommentsEndpoint() {
-    return '/api/comments';
+    return window.location.pathname.startsWith('/prototip')
+      ? '/prototip/api/comments'
+      : '/api/comments';
   }
 
   loadTzCommentAuthor() {
