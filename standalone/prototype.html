@@ -371,8 +371,91 @@
   ::-webkit-scrollbar-thumb { background: #e4e4e7; border-radius: 6px; border: 2px solid #fff; }
   input, select, button, textarea { font-family: inherit; }
   .mobile-registry, .mobile-only { display: none; }
+  .tz-page { max-width: 1160px; margin: 0 auto; padding: 28px 22px 72px; display: flex; flex-direction: column; gap: 18px; }
+  .tz-surface { background: #fff; border: 1px solid #e4e4e7; border-radius: 14px; }
+  .tz-cover { padding: 40px 46px; position: relative; overflow: hidden; }
+  .tz-jump-nav { position: sticky; top: 8px; z-index: 20; display: flex; align-items: center; gap: 6px; padding: 8px; overflow-x: auto; background: rgba(24,24,27,.94); border: 1px solid #3f3f46; border-radius: 11px; box-shadow: 0 8px 24px rgba(24,24,27,.16); backdrop-filter: blur(10px); }
+  .tz-jump-nav button { flex: none; border: 0; border-radius: 7px; padding: 7px 10px; background: transparent; color: #d4d4d8; font-size: 11px; cursor: pointer; transition: background .15s, color .15s; }
+  .tz-jump-nav button:hover, .tz-jump-nav button:focus-visible { background: #3f3f46; color: #fff; outline: none; }
+  .tz-jump-nav .tz-jump-primary { background: #f5f3ff; color: #6d28d9; font-weight: 700; }
+  .tz-section { padding: 34px 38px; scroll-margin-top: 72px; }
+  .tz-eyebrow { font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #7c3aed; letter-spacing: .8px; text-transform: uppercase; }
+  .tz-section-title { font-family: 'Space Grotesk'; font-weight: 700; font-size: 25px; line-height: 1.15; letter-spacing: -.55px; margin: 7px 0 8px; }
+  .tz-section-lead { max-width: 790px; margin: 0; color: #52525b; font-size: 13px; line-height: 1.6; }
+  .tz-legend { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 15px; }
+  .tz-chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 7px; font-size: 10.5px; font-weight: 650; }
+  .tz-chip-v2 { background: #f5f3ff; color: #7c3aed; }
+  .tz-chip-ready { background: #ecfdf3; color: #15803d; }
+  .tz-chip-spec { background: #eff6ff; color: #1d4ed8; }
+  .tz-chip-deferred { background: #f4f4f5; color: #71717a; font-style: italic; }
+  .tz-chip-estimate { background: #fff7ed; color: #c2410c; font-style: italic; }
+  .tz-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-top: 20px; }
+  .tz-summary-card { min-height: 92px; padding: 14px 15px; border: 1px solid #e4e4e7; border-radius: 10px; background: #fafafa; }
+  .tz-summary-value { font-family: 'Space Grotesk'; font-size: 25px; font-weight: 700; line-height: 1; color: #4f46e5; }
+  .tz-summary-label { margin-top: 7px; color: #52525b; font-size: 11px; line-height: 1.4; }
+  .tz-source-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 12px; }
+  .tz-source-card { padding: 11px 12px; border: 1px solid #ede9fe; border-radius: 9px; background: #faf5ff; }
+  .tz-source-count { font-family: 'IBM Plex Mono'; color: #7c3aed; font-size: 9.5px; }
+  .tz-source-title { margin-top: 4px; font-weight: 650; font-size: 11.5px; line-height: 1.35; }
+  .tz-source-note { margin-top: 3px; color: #71717a; font-size: 10.5px; line-height: 1.4; }
+  .tz-group + .tz-group { margin-top: 26px; }
+  .tz-group-heading { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+  .tz-group-number { width: 25px; height: 25px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; background: #4f46e5; color: #fff; font-family: 'IBM Plex Mono'; font-size: 9.5px; }
+  .tz-group-title { font-family: 'Space Grotesk'; font-size: 16px; font-weight: 650; }
+  .tz-change-list { display: flex; flex-direction: column; gap: 10px; }
+  .tz-change-card { border: 1px solid #e4e4e7; border-radius: 11px; overflow: hidden; background: #fff; }
+  .tz-change-head { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px 14px; background: #fafafa; border-bottom: 1px solid #ededed; }
+  .tz-change-index { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: #ede9fe; color: #6d28d9; font-family: 'IBM Plex Mono'; font-size: 10px; font-weight: 700; }
+  .tz-change-title { font-family: 'Space Grotesk'; font-weight: 650; font-size: 14px; line-height: 1.3; }
+  .tz-change-source { margin-top: 2px; color: #71717a; font-size: 10px; }
+  .tz-change-body { display: grid; grid-template-columns: minmax(210px, .8fr) minmax(320px, 1.4fr); }
+  .tz-change-before, .tz-change-after { padding: 13px 15px; }
+  .tz-change-before { background: #fffafa; border-right: 1px solid #f4e8e8; }
+  .tz-field-label { font-family: 'IBM Plex Mono'; font-size: 9px; letter-spacing: .55px; text-transform: uppercase; }
+  .tz-change-before .tz-field-label { color: #b91c1c; }
+  .tz-change-after .tz-field-label { color: #6d28d9; }
+  .tz-field-text { margin-top: 5px; color: #3f3f46; font-size: 11.5px; line-height: 1.5; }
+  .tz-detail-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  .tz-detail-row { display: flex; gap: 7px; color: #52525b; font-size: 10.8px; line-height: 1.45; }
+  .tz-detail-dot { flex: none; color: #7c3aed; }
+  .tz-change-check { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid #ededed; background: #fcfcfd; }
+  .tz-check-copy { min-width: 0; flex: 1; color: #52525b; font-size: 10.5px; line-height: 1.4; }
+  .tz-open-screen { flex: none; border: 1px solid #c7d2fe; border-radius: 7px; padding: 6px 9px; background: #eef2ff; color: #4338ca; font-size: 10.5px; font-weight: 650; cursor: pointer; }
+  .tz-open-screen:hover, .tz-open-screen:focus-visible { background: #e0e7ff; outline: 2px solid #a5b4fc; outline-offset: 1px; }
+  .tz-compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 16px; }
+  .tz-compare-card { border: 1px solid #e4e4e7; border-radius: 10px; overflow: hidden; }
+  .tz-compare-title { padding: 10px 12px; background: #fafafa; font-family: 'Space Grotesk'; font-weight: 650; font-size: 12px; }
+  .tz-compare-row { display: grid; grid-template-columns: 72px 1fr; gap: 8px; padding: 9px 12px; border-top: 1px solid #f4f4f5; font-size: 10.8px; line-height: 1.45; }
+  .tz-compare-row-old { background: #fffafa; }
+  .tz-compare-key { font-family: 'IBM Plex Mono'; font-size: 9px; color: #a1a1aa; text-transform: uppercase; }
+  .tz-compare-row-new .tz-compare-key { color: #7c3aed; }
+  .tz-decision-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .tz-decision-panel { border: 1px solid #e4e4e7; border-radius: 11px; padding: 14px; }
+  .tz-decision-heading { font-family: 'Space Grotesk'; font-size: 14px; font-weight: 650; }
+  .tz-decision-list { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
+  .tz-decision-row { display: grid; grid-template-columns: 24px 1fr; gap: 8px; align-items: start; color: #3f3f46; font-size: 10.8px; line-height: 1.45; }
+  .tz-decision-mark { width: 21px; height: 21px; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: #ecfdf3; color: #15803d; font-size: 10px; font-weight: 750; }
+  .tz-decision-mark-deferred { background: #f4f4f5; color: #71717a; }
+  .tz-trace-table { border: 1px solid #e4e4e7; border-radius: 10px; overflow: auto; margin-top: 15px; }
+  .tz-trace-row { min-width: 760px; display: grid; grid-template-columns: minmax(280px, 1.45fr) 190px minmax(230px, 1fr); border-top: 1px solid #f4f4f5; align-items: center; font-size: 10.5px; line-height: 1.4; }
+  .tz-trace-row:first-child { border-top: 0; }
+  .tz-trace-head { background: #f5f3ff; color: #6d28d9; font-family: 'IBM Plex Mono'; font-size: 9px; letter-spacing: .35px; text-transform: uppercase; }
+  .tz-trace-cell { padding: 8px 10px; }
+  .tz-evidence-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+  .tz-evidence-card { display: block; text-align: left; border: 1px solid #ddd6fe; border-radius: 9px; padding: 12px; background: #fff; cursor: pointer; }
+  .tz-evidence-card:hover, .tz-evidence-card:focus-visible { border-color: #a78bfa; background: #faf5ff; outline: none; }
   @keyframes dcSlideIn { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
   @keyframes dcFade { from { opacity: 0; } to { opacity: 1; } }
+  @media (max-width: 900px) {
+    .tz-page { padding: 20px 14px 56px; }
+    .tz-cover, .tz-section { padding: 28px 24px; }
+    .tz-summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .tz-source-grid { grid-template-columns: repeat(2, 1fr); }
+    .tz-source-card:last-child { grid-column: 1 / -1; }
+    .tz-change-body { grid-template-columns: 1fr; }
+    .tz-change-before { border-right: 0; border-bottom: 1px solid #f4e8e8; }
+    .tz-evidence-grid { grid-template-columns: repeat(2, 1fr); }
+  }
   @media (max-width: 600px) {
     .app-shell { height: 100dvh !important; }
     .top-switcher { height: 46px !important; padding: 0 10px !important; gap: 7px !important; }
@@ -388,6 +471,15 @@
     .mobile-registry { display: block !important; overflow-y: auto !important; flex: 1 !important; padding: 10px 11px 22px !important; background: #f8fafc !important; }
     .mobile-only { display: block !important; }
     .mobile-doc-card { display: block !important; }
+    .tz-page { padding: 12px 9px 40px; gap: 12px; }
+    .tz-cover, .tz-section { padding: 22px 16px; border-radius: 10px; }
+    .tz-jump-nav { top: 5px; }
+    .tz-summary-grid, .tz-source-grid, .tz-compare-grid, .tz-decision-grid, .tz-evidence-grid { grid-template-columns: 1fr; }
+    .tz-source-card:last-child { grid-column: auto; }
+    .tz-change-head { grid-template-columns: 34px minmax(0, 1fr); }
+    .tz-change-head .tz-chip { grid-column: 2; justify-self: start; }
+    .tz-change-check { align-items: flex-start; flex-direction: column; }
+    .tz-open-screen { width: 100%; }
   }
 </style>
 </helmet>
@@ -1543,10 +1635,10 @@
   <!-- ════════ TZ MODE ════════ -->
   <sc-if value="{{ isTz }}" hint-placeholder-val="{{ false }}">
   <div style="height: 100%; overflow-y: auto; background: #f4f4f5;">
-    <div style="max-width: 880px; margin: 0 auto; padding: 28px 20px 60px; display: flex; flex-direction: column; gap: 18px;">
+    <div class="tz-page">
 
       <!-- cover -->
-      <div style="background: #fff; border: 1px solid #ededed; border-radius: 12px; padding: 32px 44px; padding: 40px 44px; position: relative; overflow: hidden;">
+      <div id="tz-top" class="tz-surface tz-cover" style="scroll-margin-top: 72px;">
         <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background: #4f46e5;"></div>
         <div style="font-family: 'IBM Plex Mono'; font-size: 12px; color: #4f46e5; letter-spacing: 1px;">ПРИЛОЖЕНИЕ №1 К ДОГОВОРУ №19082 ОТ 27.04.2026</div>
         <h1 style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 33px; line-height: 1.12; letter-spacing: -1px; margin: 10px 0 0;">Техническое задание<br>«Реестр документов» в Bitrix24</h1>
@@ -1558,35 +1650,147 @@
         <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px; font-size: 11.5px; color: #71717a; font-family: 'IBM Plex Mono';"><span>Документ: ТЗ · v2.0</span><span>Основание: Договор №19082 от 27.04.2026</span><span>Дата редакции: 29.07.2026</span></div>
         <div style="margin-top: 18px; padding: 14px 16px; background: #faf5ff; border: 1px solid #ddd6fe; border-radius: 10px; font-size: 13px; line-height: 1.6; color: #3f3f46;"><span style="color: #7c3aed; font-weight: 750;">[v2]</span> Синхронизированная редакция после сверки исходного ТЗ v1.1, цветных замечаний Google Docs, полной транскрипции встречи 17.07.2026 и согласованных уточнений Заказчика. При конфликте с прежним текстом решения блока «v2.0» имеют приоритет.</div>
       </div>
-      <!-- v2 synchronization -->
-      <div id="tz-v2-sync" style="background: #fff; border: 1px solid #ddd6fe; border-radius: 12px; padding: 30px 34px;">
-        <div style="font-family: 'IBM Plex Mono'; font-size: 11.5px; color: #7c3aed; letter-spacing: 1px;">V2.0 · 29.07.2026</div>
-        <h2 style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 24px; margin: 6px 0 10px; letter-spacing: -.5px;">Журнал изменений и трассируемость</h2>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
-          <span style="padding: 5px 9px; border-radius: 7px; background: #f5f3ff; color: #7c3aed; font-size: 11px; font-weight: 700;">[v2] новое / изменённое</span>
-          <span style="padding: 5px 9px; border-radius: 7px; background: #f4f4f5; color: #71717a; font-size: 11px; font-style: italic;">[отложено] следующая фаза</span>
-          <span style="padding: 5px 9px; border-radius: 7px; background: #f4f4f5; color: #71717a; font-size: 11px; font-style: italic;">[оценка] требует оценки до разработки</span>
+
+      <nav class="tz-jump-nav" aria-label="Навигация по изменениям ТЗ v2.0">
+        <button type="button" class="tz-jump-primary" onclick="{{ scrollTzOverview }}">Обзор v2.0</button>
+        <button type="button" onclick="{{ scrollTzChanges }}">Все изменения</button>
+        <button type="button" onclick="{{ scrollTzConflicts }}">Было → стало</button>
+        <button type="button" onclick="{{ scrollTzMeeting }}">Решения созвона</button>
+        <button type="button" onclick="{{ scrollTzTrace }}">Матрица и экраны</button>
+        <button type="button" onclick="{{ scrollTzFull }}">Полный текст ТЗ</button>
+      </nav>
+
+      <!-- v2 overview -->
+      <section id="tz-v2-overview" class="tz-surface tz-section">
+        <div class="tz-eyebrow">Редакция v2.0 · 29.07.2026</div>
+        <h2 class="tz-section-title">Что вошло в обновлённое ТЗ</h2>
+        <p class="tz-section-lead">Эта HTML-версия собирает решения в одном месте. Ниже можно увидеть исходную формулировку, принятое правило, подробности реализации и экран, на котором проверяется результат.</p>
+        <div class="tz-legend">
+          <span class="tz-chip tz-chip-v2">[v2] новое или изменённое</span>
+          <span class="tz-chip tz-chip-ready">показано в прототипе</span>
+          <span class="tz-chip tz-chip-spec">зафиксировано в ТЗ</span>
+          <span class="tz-chip tz-chip-deferred">[отложено] следующая фаза</span>
+          <span class="tz-chip tz-chip-estimate">[оценка] до разработки</span>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px;">
-          <sc-for list="{{ v2Changes }}" as="change" hint-placeholder-count="6">
-            <div style="border: 1px solid #ede9fe; border-radius: 9px; padding: 10px 11px; background: #faf5ff;"><div style="font-family: 'IBM Plex Mono'; font-size: 9.5px; color: #7c3aed;">{{ change.code }}</div><div style="font-size: 11.5px; color: #3f3f46; line-height: 1.45; margin-top: 3px;">{{ change.text }}</div></div>
+        <div class="tz-summary-grid">
+          <sc-for list="{{ v2Summary }}" as="item" hint-placeholder-count="4">
+            <div class="tz-summary-card"><div class="tz-summary-value">{{ item.value }}</div><div class="tz-summary-label">{{ item.label }}</div></div>
           </sc-for>
         </div>
-        <h3 style="font-family: 'Space Grotesk'; font-weight: 650; font-size: 15px; margin: 0 0 9px;">Матрица «требование → раздел ТЗ → экран»</h3>
-        <div style="border: 1px solid #e4e4e7; border-radius: 9px; overflow: auto;">
-          <div style="display: grid; grid-template-columns: minmax(220px,1.5fr) 165px 180px; background: #f5f3ff; color: #6d28d9; font-size: 9.5px; text-transform: uppercase; letter-spacing: .35px;"><div style="padding: 8px 10px;">Требование</div><div style="padding: 8px;">Раздел Google Doc v2</div><div style="padding: 8px 10px;">Экран прототипа</div></div>
+        <h3 style="font-family:'Space Grotesk';font-size:14px;font-weight:650;margin:22px 0 0;">Что было проверено</h3>
+        <div class="tz-source-grid">
+          <sc-for list="{{ v2Sources }}" as="source" hint-placeholder-count="5">
+            <div class="tz-source-card"><div class="tz-source-count">{{ source.count }}</div><div class="tz-source-title">{{ source.title }}</div><div class="tz-source-note">{{ source.note }}</div></div>
+          </sc-for>
+        </div>
+      </section>
+
+      <!-- all v2 changes -->
+      <section id="tz-v2-changes" class="tz-surface tz-section">
+        <div class="tz-eyebrow">Полный журнал изменений</div>
+        <h2 class="tz-section-title">18 изменений, которые нужно проверить</h2>
+        <p class="tz-section-lead">Первые 14 пунктов повторяют прямые замечания Заказчика. Ещё четыре блока собирают решения созвона, которые влияют на контексты работы, справочники, историю и границы первого запуска.</p>
+        <div style="margin-top:22px;">
+          <sc-for list="{{ v2ChangeGroups }}" as="group" hint-placeholder-count="4">
+            <div class="tz-group">
+              <div class="tz-group-heading"><span class="tz-group-number">{{ group.number }}</span><span class="tz-group-title">{{ group.title }}</span></div>
+              <div class="tz-change-list">
+                <sc-for list="{{ group.changes }}" as="change" hint-placeholder-count="5">
+                  <article class="tz-change-card">
+                    <div class="tz-change-head">
+                      <div class="tz-change-index">{{ change.number }}</div>
+                      <div><div class="tz-change-title">{{ change.title }}</div><div class="tz-change-source">{{ change.source }}</div></div>
+                      <span class="tz-chip" style="{{ change.badgeStyle }}">{{ change.badge }}</span>
+                    </div>
+                    <div class="tz-change-body">
+                      <div class="tz-change-before"><div class="tz-field-label">Было / проблема</div><div class="tz-field-text">{{ change.before }}</div></div>
+                      <div class="tz-change-after">
+                        <div class="tz-field-label">Принято в v2.0</div>
+                        <div class="tz-field-text">{{ change.after }}</div>
+                        <div class="tz-detail-list">
+                          <sc-for list="{{ change.details }}" as="detail" hint-placeholder-count="3">
+                            <div class="tz-detail-row"><span class="tz-detail-dot">•</span><span>{{ detail.text }}</span></div>
+                          </sc-for>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="tz-change-check">
+                      <div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>{{ change.verify }}</div>
+                      <button type="button" class="tz-open-screen" onclick="{{ change.onOpen }}">{{ change.actionLabel }} →</button>
+                    </div>
+                  </article>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+
+      <!-- resolved conflicts -->
+      <section id="tz-v2-conflicts" class="tz-surface tz-section">
+        <div class="tz-eyebrow">Сравнение с v1.1 и замечаниями</div>
+        <h2 class="tz-section-title">Семь противоречий сняты</h2>
+        <p class="tz-section-lead">В исходном тексте и обсуждении встречались несовместимые варианты. В колонке «Стало» указано правило, которое действует в редакции v2.0.</p>
+        <div class="tz-compare-grid">
+          <sc-for list="{{ v2Conflicts }}" as="conflict" hint-placeholder-count="7">
+            <div class="tz-compare-card">
+              <div class="tz-compare-title">{{ conflict.title }}</div>
+              <div class="tz-compare-row tz-compare-row-old"><span class="tz-compare-key">Было</span><span>{{ conflict.before }}</span></div>
+              <div class="tz-compare-row tz-compare-row-new"><span class="tz-compare-key">Стало</span><span>{{ conflict.after }}</span></div>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+
+      <!-- meeting decisions -->
+      <section id="tz-v2-meeting" class="tz-surface tz-section">
+        <div class="tz-eyebrow">Созвон 17.07.2026 · 1 час 37 минут</div>
+        <h2 class="tz-section-title">Решения и границы, которые нельзя потерять</h2>
+        <p class="tz-section-lead">Согласованные правила входят в v2.0. Темы без окончательного решения отмечены как следующая фаза или отдельная оценка.</p>
+        <div class="tz-decision-grid">
+          <div class="tz-decision-panel">
+            <div class="tz-decision-heading">Зафиксировано в первой фазе</div>
+            <div class="tz-decision-list">
+              <sc-for list="{{ v2MeetingDecisions }}" as="decision" hint-placeholder-count="10">
+                <div class="tz-decision-row"><span class="tz-decision-mark">✓</span><span>{{ decision.text }}</span></div>
+              </sc-for>
+            </div>
+          </div>
+          <div class="tz-decision-panel">
+            <div class="tz-decision-heading">Следующая фаза или отдельная оценка</div>
+            <div class="tz-decision-list">
+              <sc-for list="{{ v2Deferred }}" as="decision" hint-placeholder-count="8">
+                <div class="tz-decision-row"><span class="tz-decision-mark tz-decision-mark-deferred">…</span><span><span style="color:#71717a;font-style:italic;">{{ decision.marker }}</span> {{ decision.text }}</span></div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- traceability and evidence -->
+      <section id="tz-v2-trace" class="tz-surface tz-section">
+        <div class="tz-eyebrow">Трассируемость</div>
+        <h2 class="tz-section-title">Требование → раздел ТЗ → экран</h2>
+        <p class="tz-section-lead">Каждая строка связывает принятое правило с текстом спецификации и проверяемым состоянием прототипа. Кнопка в третьей колонке открывает соответствующий сценарий.</p>
+        <div class="tz-trace-table">
+          <div class="tz-trace-row tz-trace-head"><div class="tz-trace-cell">Требование</div><div class="tz-trace-cell">Раздел ТЗ v2.0</div><div class="tz-trace-cell">Проверяемый экран</div></div>
           <sc-for list="{{ traceabilityRows }}" as="trace" hint-placeholder-count="16">
-            <div style="display: grid; grid-template-columns: minmax(220px,1.5fr) 165px 180px; border-top: 1px solid #f4f4f5; align-items: start; font-size: 10.5px; line-height: 1.4;"><div style="padding: 8px 10px;"><span style="color: #7c3aed; font-weight: 700;">[v2]</span> {{ trace.requirement }}</div><div style="padding: 8px; color: #52525b;">{{ trace.section }}</div><div style="padding: 8px 10px; color: #4f46e5;">{{ trace.screen }}</div></div>
+            <div class="tz-trace-row"><div class="tz-trace-cell"><span style="color:#7c3aed;font-weight:700;">[v2]</span> {{ trace.requirement }}</div><div class="tz-trace-cell" style="color:#52525b;">{{ trace.section }}</div><div class="tz-trace-cell"><button type="button" class="tz-open-screen" onclick="{{ trace.onOpen }}">{{ trace.screen }} →</button></div></div>
           </sc-for>
         </div>
-        <h3 style="font-family: 'Space Grotesk'; font-weight: 650; font-size: 15px; margin: 20px 0 9px;">Актуальные экраны v2</h3>
-        <div style="font-size: 11px; color: #71717a; line-height: 1.5; margin-bottom: 9px;">В Google Doc v2.0 размещены актуальные снимки четырёх изменённых сценариев. Здесь доступны те же интерактивные состояния прототипа.</div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <h3 style="font-family:'Space Grotesk';font-size:15px;font-weight:650;margin:24px 0 0;">Четыре ключевых сценария</h3>
+        <div class="tz-evidence-grid">
           <sc-for list="{{ evidenceScreens }}" as="screen" hint-placeholder-count="4">
-            <button type="button" onclick="{{ screen.onOpen }}" style="display: block; text-align: left; border: 1px solid #ddd6fe; border-radius: 9px; padding: 11px 12px; background: #fff; cursor: pointer;"><div style="display: flex; align-items: center; gap: 7px;"><span style="font-size: 10px; color: #7c3aed; font-weight: 750;">[v2]</span><span style="font-family: 'Space Grotesk'; font-weight: 650; font-size: 12px;">{{ screen.title }}</span></div><div style="font-size: 10.5px; color: #71717a; line-height: 1.45; margin-top: 4px;">{{ screen.desc }}</div><div style="font-size: 10.5px; color: #4f46e5; font-weight: 650; margin-top: 7px;">Открыть актуальный экран →</div></button>
+            <button type="button" class="tz-evidence-card" onclick="{{ screen.onOpen }}"><div style="display:flex;align-items:center;gap:7px;"><span style="font-size:10px;color:#7c3aed;font-weight:750;">[v2]</span><span style="font-family:'Space Grotesk';font-weight:650;font-size:12px;">{{ screen.title }}</span></div><div style="font-size:10.5px;color:#71717a;line-height:1.45;margin-top:5px;">{{ screen.desc }}</div><div style="font-size:10.5px;color:#4f46e5;font-weight:650;margin-top:8px;">Открыть экран →</div></button>
           </sc-for>
         </div>
-      </div>
+      </section>
+
+      <section id="tz-full-text" class="tz-surface tz-section">
+        <div class="tz-eyebrow">Полная редакция</div>
+        <h2 class="tz-section-title">Текст ТЗ по разделам</h2>
+        <p class="tz-section-lead">Далее сохранён полный бизнес- и технический уровень спецификации. Журнал выше объясняет, что именно изменилось и где это проверять.</p>
+      </section>
       <!-- 1 general -->
       <div style="background: #fff; border: 1px solid #ededed; border-radius: 12px; padding: 32px 44px;">
         <div style="font-family: 'IBM Plex Mono'; font-size: 11.5px; color: #4f46e5; letter-spacing: 1px;">1 · БИЗНЕС-УРОВЕНЬ</div>
@@ -2125,32 +2329,406 @@ class Component extends DCLogic {
     ['HLP-01', '[v2] Помощь содержит будущие инструкции пользователя и администратора', 'P1'],
   ];
 
-  V2_CHANGES = [
-    ['V2-01 · создание', 'Массовая загрузка, единый блок «Файл или ссылка», задача Bitrix24 и единая Компания-контрагент.'],
-    ['V2-02 · связи и хранение', 'Зависимые документы, все версии, soft-delete и отдельная физическая копия для каждой сделки.'],
-    ['V2-03 · доступ', 'Права по типу; после закрытия всех связанных сделок менеджер полностью теряет доступ.'],
-    ['V2-04 · финансы и импорт', 'Итог в выбранной валюте, курс ЦБ на дату и импорт всех счетов/КП без дублей.'],
-    ['V2-05 · список и мобильный', 'Динамические колонки, точный состав XLSX, карточки 360–430 px и два пути входа.'],
-    ['V2-06 · эксплуатация', 'Уведомления создателя/загрузившего, инструкции пользователя и администратора.'],
+  V2_SUMMARY = [
+    ['14', 'прямых замечаний Заказчика разобраны по пунктам'],
+    ['7', 'противоречий v1.1 получили одно итоговое правило'],
+    ['18', 'изменений описаны с проверкой в HTML-прототипе'],
+    ['1:37', 'полная транскрипция созвона вошла в сверку'],
+  ];
+
+  V2_SOURCES = [
+    ['v1.1', 'Исходное ТЗ', 'Базовые разделы и техническая модель'],
+    ['44', 'Красные замечания', 'Вопросы и правки в Google Docs'],
+    ['14', 'Оранжевый список', 'Дополнительные требования Заказчика'],
+    ['1 ч 37 мин', 'Созвон 17.07.2026', 'Полная транскрипция без сокращения'],
+    ['после встречи', 'Прямые уточнения', 'Последние решения имеют приоритет'],
+  ];
+
+  V2_CHANGE_GROUPS = [
+    {
+      number: '01',
+      title: 'Создание документа и заполнение карточки',
+      changes: [
+        {
+          number: '01',
+          title: 'Массовая загрузка нескольких документов',
+          source: 'Прямое требование 1; подтверждено на созвоне',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Мастер создавал документы только по одному. Для пачки файлов пользователь повторял одинаковые действия.',
+          after: 'Пользователь перетаскивает два или больше файлов и заполняет их в одной таблице.',
+          details: [
+            'Сценарий доступен в полном реестре, карточке сделки и карточке компании.',
+            'Общие значения применяются ко всем строкам; затем каждую строку можно изменить.',
+            'В строке есть тип, название, номер, дата, сумма, валюта, компания, сделки, задача, ответственный, статус и поля типа.',
+          ],
+          verify: 'Добавить два файла, применить общую компанию и назначить строкам разные типы или сделки.',
+          screenKey: 'bulk',
+          actionLabel: 'Массовая загрузка',
+        },
+        {
+          number: '02',
+          title: 'Непубличная ссылка на карточку документа',
+          source: 'Прямое требование 2',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Отдельного адреса документа для ручной передачи не было.',
+          after: 'У каждой карточки есть внутренняя ссылка, которую можно скопировать и отправить вручную.',
+          details: [
+            'Получатель должен войти в Bitrix24.',
+            'При открытии система повторно проверяет права на документ, карточку и файл.',
+            'Публичные ссылки и отправка письма из реестра не создаются.',
+          ],
+          verify: 'Открыть карточку, скопировать ссылку и проверить пояснение об авторизации Bitrix24.',
+          screenKey: 'document',
+          actionLabel: 'Карточка документа',
+        },
+        {
+          number: '03',
+          title: 'Правило «Файл или ссылка»',
+          source: 'Прямое требование 3; снято противоречие v1.1',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'В разных местах ТЗ карточка либо всегда допускалась без файла, либо требовала файл для любого типа.',
+          after: 'Поля «Файл» и «Ссылка» по отдельности необязательны. Администратор настраивает обязательность всей группы для каждого типа.',
+          details: [
+            'Рабочий режим по умолчанию: нужно заполнить файл либо HTTPS-ссылку.',
+            'Для отдельных типов администратор может разрешить добавить содержимое позже.',
+            'Если группа обязательна, карточка без файла и без ссылки не сохраняется.',
+          ],
+          verify: 'Сравнить мастер создания и конструктор типа; переключить режим обязательности.',
+          screenKey: 'typeAdmin',
+          actionLabel: 'Конструктор типа',
+        },
+        {
+          number: '04',
+          title: 'Единая Компания-контрагент Bitrix24',
+          source: 'Прямое требование 4',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Карточка содержала два пересекающихся поля: «Юридическое лицо» и «Контрагент».',
+          after: 'Используется одно базовое поле «Компания-контрагент» со ссылкой на штатную Компанию CRM Bitrix24.',
+          details: [
+            'По нажатию открывается карточка компании Bitrix24.',
+            'Отдельная обязательная сущность юридического лица в реестре не создаётся.',
+            'Связи компаний внутри группы ведутся средствами CRM Bitrix24.',
+          ],
+          verify: 'Открыть мастер или карточку; убедиться, что второго обязательного поля юридического лица нет.',
+          screenKey: 'document',
+          actionLabel: 'Карточка документа',
+        },
+        {
+          number: '05',
+          title: 'Привязка к существующей задаче Bitrix24',
+          source: 'Прямое требование 5; уточнено на созвоне',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Связь документа с задачами относилась к будущему развитию.',
+          after: 'Ручной выбор существующей задачи входит в первую фазу.',
+          details: [
+            'Задачу можно указать в одиночном мастере.',
+            'В массовой загрузке задача задаётся общей шапкой или отдельно для строки.',
+            'Автоматическое создание задач и бизнес-процессы остаются следующей фазой.',
+          ],
+          verify: 'Выбрать задачу в одиночном мастере и назначить другую задачу одной строке массовой загрузки.',
+          screenKey: 'bulk',
+          actionLabel: 'Создание документа',
+        },
+      ],
+    },
+    {
+      number: '02',
+      title: 'Связи, версии, хранение и права',
+      changes: [
+        {
+          number: '06',
+          title: 'Архив вместо физического удаления',
+          source: 'Прямое требование 6',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Термин «удаление» не определял, сохраняются ли карточка, файл и прошлые редакции.',
+          after: 'Пользователь перемещает документ в архив и может восстановить его. Жёсткого удаления из рабочего интерфейса нет.',
+          details: [
+            'Все версии файла, реквизиты и история остаются в системе.',
+            'Каждая замена файла создаёт следующую версию; прежняя версия остаётся доступной.',
+            'Срок хранения и законное уничтожение рассматриваются после накопления статистики.',
+          ],
+          verify: 'Открыть версии документа, архивировать карточку и восстановить её.',
+          screenKey: 'versions',
+          actionLabel: 'Версии и архив',
+        },
+        {
+          number: '07',
+          title: 'Полное снятие доступа менеджера после закрытия сделок',
+          source: 'Прямое требование 7; последнее уточнение Заказчика',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Один вариант разрешал менеджеру продолжать просмотр после закрытия сделки.',
+          after: 'После закрытия всех связанных сделок менеджер не видит карточку, внутреннюю ссылку и файл.',
+          details: [
+            'Бухгалтер и администратор сохраняют действия, разрешённые политикой типа.',
+            'Если у документа несколько сделок и хотя бы одна открыта, ограничение ещё не применяется.',
+            'Проверка выполняется на сервере, а интерфейс объясняет отказ.',
+          ],
+          verify: 'Закрыть все сделки документа и сравнить карточку для менеджера, бухгалтера и администратора.',
+          screenKey: 'accessDenied',
+          actionLabel: 'Проверка доступа',
+        },
+        {
+          number: '08',
+          title: 'Договор и зависимые документы',
+          source: 'Прямое требование 8',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Договор, допсоглашения и приложения находились как независимые карточки.',
+          after: 'В договоре видны зависимые документы, а из допсоглашения можно вернуться к основному договору.',
+          details: [
+            'Поиск договора раскрывает дополнительные соглашения и приложения.',
+            'Связь двусторонняя и не зависит от имени файла.',
+            'Отношение хранится отдельно от связей со сделками и компанией.',
+          ],
+          verify: 'Найти договор К-2026/45, раскрыть связанные документы и открыть дополнительное соглашение.',
+          screenKey: 'relations',
+          actionLabel: 'Связанные документы',
+        },
+        {
+          number: '09',
+          title: 'Физическая копия в каждой связанной сделке',
+          source: 'Уточнение Заказчика после созвона',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Обсуждалась одна физическая копия файла при нескольких ссылках из сделок.',
+          after: 'Для каждой связанной сделки создаётся свой путь и отдельная физическая копия на Bitrix Disk.',
+          details: [
+            'Пользователь видит путь хранения для каждой сделки.',
+            'Новая версия обновляет копии во всех связанных сделках.',
+            'Карточка и история версий остаются едиными.',
+          ],
+          verify: 'Открыть блок хранения документа с двумя сделками и проверить два пути Bitrix Disk.',
+          screenKey: 'versions',
+          actionLabel: 'Физические копии',
+        },
+        {
+          number: '10',
+          title: 'Уведомления создателю и загрузившему файл',
+          source: 'Прямое требование 12',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Не было ясно, кто получает уведомление и кто может удалить карточку, если автор карточки и файла различаются.',
+          after: 'Система хранит двух участников раздельно. Оба получают уведомление об архивировании и восстановлении.',
+          details: [
+            'Право архивировать задаёт политика типа документа, а не факт создания карточки или загрузки файла.',
+            'В истории фиксируются инициатор действия и получатели уведомления.',
+            'Жёсткое удаление пользователям недоступно.',
+          ],
+          verify: 'Открыть архивирование карточки и проверить двух получателей уведомления.',
+          screenKey: 'versions',
+          actionLabel: 'Архив и уведомления',
+        },
+        {
+          number: '11',
+          title: 'Конструктор прав по каждому типу документа',
+          source: 'Прямое требование 10',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Права описывались в общей ролевой таблице без отдельной политики типа.',
+          after: 'Администратор настраивает действия отдельно для каждого типа документа.',
+          details: [
+            'Настраиваются просмотр, создание, реквизиты, статус, содержимое, архив, восстановление, суммы и экспорт.',
+            'Роль определяется через сопоставление отдела Bitrix24.',
+            'Права Bitrix24 на компанию и сделку проверяются раньше политики реестра.',
+          ],
+          verify: 'Открыть Администрирование и сравнить политики типов для менеджера и бухгалтера.',
+          screenKey: 'admin',
+          actionLabel: 'Настройка прав',
+        },
+      ],
+    },
+    {
+      number: '03',
+      title: 'Финансы, список, импорт и мобильный доступ',
+      changes: [
+        {
+          number: '12',
+          title: 'Итог документов в рамках сделки',
+          source: 'Прямое требование 11',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Суммы были отдельными полями документов; общего итога сделки и пересчёта валют не было.',
+          after: 'Карточка сделки показывает общий итог в выбранной валюте.',
+          details: [
+            'Каждая сумма пересчитывается по курсу ЦБ РФ на дату документа.',
+            'Расшифровка показывает исходную сумму, валюту, курс, дату курса и результат.',
+            'Пустая сумма считается нулём; пользователь без финансовых прав не видит итог, детали и экспорт.',
+          ],
+          verify: 'Выбрать RUB или USD и проверить расчёт для документов в RUB, USD, EUR и без суммы.',
+          screenKey: 'deal',
+          actionLabel: 'Финансовый итог',
+        },
+        {
+          number: '13',
+          title: 'Автоимпорт всех счетов и КП Bitrix24',
+          source: 'Уточнение Заказчика после созвона',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Счета и коммерческие предложения предполагалось добавлять вручную.',
+          after: 'Все счета и КП текущей сделки импортируются автоматически как отдельные карточки.',
+          details: [
+            'Карточка хранит источник и внешний идентификатор Bitrix24.',
+            'Повторная синхронизация обновляет существующую карточку по идентификатору.',
+            'Второй запуск не создаёт дублей.',
+          ],
+          verify: 'Запустить синхронизацию дважды; второй запуск должен показать создано 0 и дублей 0.',
+          screenKey: 'deal',
+          actionLabel: 'Импорт Bitrix24',
+        },
+        {
+          number: '14',
+          title: 'Пользовательские поля в колонках и XLSX',
+          source: 'Прямое требование 13',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Колонки ограничивались базовым набором, а новые поля типа не попадали в общий список.',
+          after: 'Пользовательское поле можно включить в «Колонки», а XLSX повторяет текущий видимый набор.',
+          details: [
+            'Новое поле появляется у ранее созданных документов этого типа.',
+            'Если поле стало обязательным, значение требуется при следующем сохранении старой карточки.',
+            'Выключенное поле исчезает из формы и колонок, но прежние значения сохраняются в истории.',
+          ],
+          verify: 'Включить колонку «Предмет договора» и сравнить её с предпросмотром XLSX.',
+          screenKey: 'columns',
+          actionLabel: 'Колонки и XLSX',
+        },
+        {
+          number: '15',
+          title: 'Мобильный Chrome и два пути входа',
+          source: 'Прямое требование 9; отдельная оценка',
+          badge: 'ТЗ + оценка',
+          badgeTone: 'estimate',
+          before: 'Интерфейс и авторизация рассматривались только внутри Bitrix24 на компьютере.',
+          after: 'На ширине 360–430 px доступны список, поиск, карточка, открытие и скачивание файла.',
+          details: [
+            'Первый вход использует действующую сессию Bitrix24 в мобильном браузере.',
+            'Отдельный вход показан как сценарий прототипа; production-механизм выбирается после оценки безопасности.',
+            'Оценка: 8–16 часов для сессии Bitrix24; 32–56 часов для OTP или корпоративного SSO.',
+            'Создание, массовая загрузка и администрирование могут рекомендовать перейти на компьютер.',
+          ],
+          verify: 'Открыть ширину 390 px, выполнить поиск, открыть карточку, скачать файл и переключить способ входа.',
+          screenKey: 'mobile',
+          actionLabel: 'Мобильный сценарий',
+        },
+        {
+          number: '16',
+          title: 'Две отдельные инструкции',
+          source: 'Прямое требование 14',
+          badge: 'ТЗ; выпуск позже',
+          badgeTone: 'spec',
+          before: 'Были предусмотрены встроенные подсказки и общий раздел обучения.',
+          after: 'После стабилизации рабочего интерфейса выпускаются две самостоятельные инструкции.',
+          details: [
+            'Пользовательская: как добавить документ из реестра, сделки и компании; одиночная и массовая загрузка.',
+            'Административная: как менять разделы, типы, поля, обязательность, колонки, статусы и права.',
+            'Материалы используют реальные скриншоты внедрённого Bitrix24; подсказки в интерфейсе их не заменяют.',
+          ],
+          verify: 'Открыть Администрирование → Обучение и проверить две карточки будущих материалов.',
+          screenKey: 'training',
+          actionLabel: 'Обучение',
+        },
+      ],
+    },
+    {
+      number: '04',
+      title: 'Дополнительные решения созвона',
+      changes: [
+        {
+          number: '17',
+          title: 'Три контекста и несколько сделок одного документа',
+          source: 'Решения созвона 17.07.2026',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Контексты реестра, сделки и компании описывались раздельно; поведение нескольких сделок оставалось неочевидным.',
+          after: 'Один документ работает в полном реестре, вкладке сделки и вкладке компании и может относиться к нескольким сделкам одной компании.',
+          details: [
+            'В сделке текущая сделка и компания подставляются автоматически.',
+            'В компании пользователь выбирает одну или несколько сделок; сделки можно сворачивать.',
+            'В полном реестре доступ ограничен правами пользователя на сущности Bitrix24.',
+          ],
+          verify: 'Сравнить один документ в полном реестре, карточке сделки и карточке компании.',
+          screenKey: 'company',
+          actionLabel: 'Контексты работы',
+        },
+        {
+          number: '18',
+          title: 'Настраиваемый каталог, поля, статусы и история',
+          source: 'Цветные замечания и решения созвона',
+          badge: 'ТЗ + прототип',
+          badgeTone: 'ready',
+          before: 'Каталог и набор полей выглядели как фиксированный список, который меняет разработчик.',
+          after: 'Администратор управляет разделами, типами, библиотекой полей, обязательностью и жизненными циклами без изменения кода.',
+          details: [
+            'Счёт, акт и УПД можно подключить к нескольким разделам без дублей справочника.',
+            'Каталог дополнен агентскими, финансовыми, валютными, таможенными и техническими типами.',
+            'История фиксирует реквизиты, статусы, версии, связи, архив, восстановление, синхронизацию и системные события.',
+          ],
+          verify: 'Открыть Администрирование и проверить разделы, типы, конструктор полей и жизненные циклы.',
+          screenKey: 'admin',
+          actionLabel: 'Администрирование',
+        },
+      ],
+    },
+  ];
+
+  V2_CONFLICTS = [
+    ['Содержимое карточки', 'Карточка всегда может существовать без вложения или всегда требует файл.', 'Администратор задаёт по типу: требовать файл либо ссылку или разрешить добавить содержимое позже.'],
+    ['Закрытая сделка', 'Менеджер сохраняет просмотр после закрытия.', 'После закрытия всех связанных сделок менеджер полностью теряет доступ.'],
+    ['Связь с задачей', 'Любая связь с задачами относится к будущему.', 'Ручная привязка к существующей задаче входит в фазу 1; автоматическое создание отложено.'],
+    ['Мобильный вход', 'Доступ возможен только через текущую авторизацию Bitrix24.', 'Показаны сессия Bitrix24 и отдельный вход; production-вариант требует оценки.'],
+    ['Счета и КП', 'Пользователь добавляет их только вручную.', 'Карточки импортируются из Bitrix24 и обновляются по внешнему идентификатору без дублей.'],
+    ['Хранение файла', 'Несколько сделок ссылаются на одну физическую копию.', 'Каждая сделка получает собственную копию; новая версия обновляет все копии.'],
+    ['Юридическое лицо', 'Два обязательных поля: юридическое лицо и контрагент.', 'Одно поле «Компания-контрагент» связано с Компанией Bitrix24.'],
+  ];
+
+  V2_MEETING_DECISIONS = [
+    'Права Bitrix24 на компанию и сделку проверяются до внутренних политик реестра.',
+    'Роль пользователя определяется через настраиваемое сопоставление отдела Bitrix24.',
+    'Один документ может быть связан с несколькими сделками одной компании.',
+    'Новое обязательное поле у старой карточки проверяется при следующем сохранении.',
+    'Выключенное поле исчезает из формы и колонок, но его прежнее значение остаётся в истории.',
+    'Создатель карточки и пользователь, который загрузил файл, хранятся как разные участники.',
+    'Новая версия синхронно обновляет физические копии во всех связанных сделках.',
+    'Скрытые финансовые поля не попадают в карточку, список, итог сделки и XLSX.',
+    'Внешний юрист без учётной записи получает скачанный файл вручную; публичная ссылка не создаётся.',
+    'Архивирование сохраняет карточку, файлы, версии, связи и журнал действий.',
+  ];
+
+  V2_DEFERRED = [
+    ['[отложено]', 'AI/OCR, распознавание реквизитов и определение типа по имени файла.'],
+    ['[отложено]', 'Автоматическое создание задач и бизнес-процессы согласования.'],
+    ['[отложено]', 'Индивидуальные наблюдатели и точечное открытие документа вне политики типа.'],
+    ['[отложено]', 'Срок хранения и процесс законного уничтожения архивных файлов.'],
+    ['[оценка]', 'Production-механизм отдельной мобильной авторизации, восстановление доступа и аудит безопасности.'],
+    ['[отложено]', 'Публичные ссылки и отправка документов через почту самого реестра.'],
+    ['[отложено]', 'Отдельное мобильное приложение.'],
+    ['[отложено]', 'Юридически значимый ЭДО, КЭП и бухгалтерские проводки.'],
   ];
 
   TRACEABILITY = [
-    ['Массовая загрузка с полями каждой строки', '§8 Массовая загрузка', 'Массовая загрузка'],
-    ['Непубличная внутренняя ссылка', '§9 Содержимое и ссылки', 'Карточка документа'],
-    ['Файл ИЛИ ссылка; обязательность по типу', '§7 Создание документа', 'Мастер / конструктор типа'],
-    ['Единая Компания-контрагент Bitrix24', '§6 Карточка и поля', 'Мастер / карточка'],
-    ['Связь документа с задачей', '§7 Создание документа', 'Мастер / массовая загрузка'],
-    ['Все версии и мягкое удаление', '§10 Версии и удаление', 'Карточка документа'],
-    ['Снятие доступа после закрытия сделок', '§4 Роли и права', 'Карточка / отказ'],
-    ['Договор и зависимые документы', '§11 Зависимые документы', 'Поиск / карточка'],
-    ['Два мобильных входа и оценка', '§16 Мобильный сценарий', 'Мобильный реестр'],
-    ['Права отдельно по типам', '§4 Роли и права', 'Администрирование'],
-    ['Итог сделки и курс ЦБ', '§12 Суммы и валюты', 'Карточка сделки'],
-    ['Уведомление создателя и загрузившего', '§15 Уведомления', 'Карточка / история'],
-    ['Поля пользователя в колонках', '§14 Колонки и XLSX', 'Реестр / XLSX'],
-    ['Инструкции двух ролей', '§17 Инструкции', 'Помощь / Обучение'],
-    ['Все счета и КП из Bitrix24', '§13 Автоимпорт', 'Карточка сделки'],
-    ['Копия в папке каждой сделки', '§10 Версии и хранение', 'Физические копии'],
+    ['Массовая загрузка с полями каждой строки', '§8 Массовая загрузка', 'Массовая загрузка', 'bulk'],
+    ['Непубличная внутренняя ссылка', '§9 Содержимое и ссылки', 'Карточка документа', 'document'],
+    ['Файл ИЛИ ссылка; обязательность по типу', '§7 Создание документа', 'Конструктор типа', 'typeAdmin'],
+    ['Единая Компания-контрагент Bitrix24', '§6 Карточка и поля', 'Мастер / карточка', 'document'],
+    ['Связь документа с задачей', '§7 Создание документа', 'Мастер / массовая загрузка', 'bulk'],
+    ['Все версии и мягкое удаление', '§10 Версии и удаление', 'Версии и архив', 'versions'],
+    ['Снятие доступа после закрытия сделок', '§4 Роли и права', 'Экран отказа', 'accessDenied'],
+    ['Договор и зависимые документы', '§11 Зависимые документы', 'Поиск / карточка', 'relations'],
+    ['Два мобильных входа и оценка', '§16 Мобильный сценарий', 'Мобильный реестр', 'mobile'],
+    ['Права отдельно по типам', '§4 Роли и права', 'Администрирование', 'admin'],
+    ['Итог сделки и курс ЦБ', '§12 Суммы и валюты', 'Карточка сделки', 'deal'],
+    ['Уведомление создателя и загрузившего', '§15 Уведомления', 'Архив / история', 'versions'],
+    ['Поля пользователя в колонках', '§14 Колонки и XLSX', 'Реестр / XLSX', 'columns'],
+    ['Инструкции двух ролей', '§17 Инструкции', 'Обучение', 'training'],
+    ['Все счета и КП из Bitrix24', '§13 Автоимпорт', 'Карточка сделки', 'deal'],
+    ['Копия в папке каждой сделки', '§10 Версии и хранение', 'Физические копии', 'versions'],
   ];
 
   DATA_MODEL = [
@@ -2774,13 +3352,9 @@ class Component extends DCLogic {
     const dataModel = this.DATA_MODEL.map(([t, d]) => ({ t, d }));
     const historySpec = this.HISTORY_SPEC.map(([event, detail]) => ({ event, detail }));
     const trainingItems = this.TRAINING.map(([title, desc, kind, icon]) => ({ title, desc, kind, icon }));
-    const v2Changes = this.V2_CHANGES.map(([code, text]) => ({ code, text }));
-    const traceabilityRows = this.TRACEABILITY.map(([requirement, section, screen]) => ({ requirement, section, screen }));
-    const evidenceScreens = [
-      {
-        title: 'Массовая загрузка',
-        desc: '2+ файлов, общие значения и поля каждой строки.',
-        onOpen: () => this.setState({
+    const openTzScreen = (screenKey) => {
+      const actions = {
+        bulk: () => this.setState({
           mode: 'proto',
           screen: 'registry',
           bulkOpen: true,
@@ -2788,23 +3362,142 @@ class Component extends DCLogic {
           bulkRows: [],
           bulkValidationShown: false,
         }),
+        document: () => this.setState({
+          mode: 'proto',
+          screen: 'registry',
+          role: 'manager',
+          drawerId: '1',
+          search: '',
+        }),
+        typeAdmin: () => this.setState({
+          mode: 'proto',
+          screen: 'admin',
+          role: 'admin',
+          adminTab: 'types',
+          typeModalOpen: true,
+          newType: {
+            section: 'client',
+            label: 'Договор',
+            lifecycle: 'signed',
+            contentRequirement: 'required',
+            fields: [
+              { name: 'Предмет договора', dtype: 'Текст', required: true },
+              { name: 'Срок оплаты', dtype: 'Дата', required: false },
+            ],
+          },
+        }),
+        versions: () => this.setState({
+          mode: 'proto',
+          screen: 'registry',
+          role: 'manager',
+          drawerId: '1',
+          search: '',
+        }),
+        accessDenied: () => this.setState({
+          mode: 'proto',
+          screen: 'registry',
+          role: 'sales',
+          drawerId: '1',
+          search: '',
+          closedDeals: { ...S.closedDeals, '1234': true, '1290': true },
+        }),
+        relations: () => this.setState({
+          mode: 'proto',
+          screen: 'registry',
+          role: 'manager',
+          drawerId: null,
+          search: 'К-2026/45',
+        }),
+        admin: () => this.setState({
+          mode: 'proto',
+          screen: 'admin',
+          role: 'admin',
+          adminTab: 'roles',
+        }),
+        deal: () => this.setState({
+          mode: 'proto',
+          screen: 'deal',
+          role: 'manager',
+        }),
+        columns: () => this.setState({
+          mode: 'proto',
+          screen: 'registry',
+          role: 'manager',
+          colsOpen: true,
+          cols: { ...S.cols, dynamic: true },
+        }),
+        mobile: () => this.setState({
+          mode: 'proto',
+          screen: 'registry',
+          role: 'manager',
+          mobileAuthMode: 'separate',
+        }),
+        training: () => this.setState({
+          mode: 'proto',
+          screen: 'admin',
+          role: 'admin',
+          adminTab: 'training',
+        }),
+        company: () => this.setState({
+          mode: 'proto',
+          screen: 'company',
+          role: 'manager',
+        }),
+      };
+      return actions[screenKey] || (() => this.setState({ mode: 'proto', screen: 'registry' }));
+    };
+    const badgeStyles = {
+      ready: 'background:#ecfdf3;color:#15803d;',
+      spec: 'background:#eff6ff;color:#1d4ed8;',
+      estimate: 'background:#fff7ed;color:#c2410c;font-style:italic;',
+    };
+    const v2Summary = this.V2_SUMMARY.map(([value, label]) => ({ value, label }));
+    const v2Sources = this.V2_SOURCES.map(([count, title, note]) => ({ count, title, note }));
+    const v2ChangeGroups = this.V2_CHANGE_GROUPS.map(group => ({
+      number: group.number,
+      title: group.title,
+      changes: group.changes.map(change => ({
+        ...change,
+        badgeStyle: badgeStyles[change.badgeTone] || badgeStyles.spec,
+        details: change.details.map(text => ({ text })),
+        onOpen: openTzScreen(change.screenKey),
+      })),
+    }));
+    const v2Conflicts = this.V2_CONFLICTS.map(([title, before, after]) => ({ title, before, after }));
+    const v2MeetingDecisions = this.V2_MEETING_DECISIONS.map(text => ({ text }));
+    const v2Deferred = this.V2_DEFERRED.map(([marker, text]) => ({ marker, text }));
+    const traceabilityRows = this.TRACEABILITY.map(([requirement, section, screen, screenKey]) => ({
+      requirement,
+      section,
+      screen,
+      onOpen: openTzScreen(screenKey),
+    }));
+    const evidenceScreens = [
+      {
+        title: 'Массовая загрузка',
+        desc: '2+ файлов, общие значения и поля каждой строки.',
+        onOpen: openTzScreen('bulk'),
       },
       {
         title: 'Связанные документы и версии',
         desc: 'Договор, допсоглашения, копии и двусторонние переходы.',
-        onOpen: () => this.setState({ mode: 'proto', screen: 'registry', search: 'К-2026/45' }),
+        onOpen: openTzScreen('relations'),
       },
       {
         title: 'Финансовый итог сделки',
         desc: 'Выбор валюты, курс на дату и импорт Bitrix24 без дублей.',
-        onOpen: () => this.setState({ mode: 'proto', screen: 'deal', role: 'manager' }),
+        onOpen: openTzScreen('deal'),
       },
       {
         title: 'Мобильный просмотр 390 px',
         desc: 'Два пути входа, поиск, карточка и скачивание файла.',
-        onOpen: () => this.setState({ mode: 'proto', screen: 'registry', mobileAuthMode: 'separate' }),
+        onOpen: openTzScreen('mobile'),
       },
     ];
+    const scrollToTz = id => () => {
+      const section = document.getElementById(id);
+      if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
     const xlsxColumnDefs = [
       ['document', 'Документ', item => `${item.title} · ${item.num}`],
       ['section', 'Раздел', item => this.SECTIONS.find(section => section.code === item.section).label],
@@ -2848,7 +3541,15 @@ class Component extends DCLogic {
       tabProtoStyle: segStyle(S.mode === 'proto'),
       tabTzStyle: segStyle(S.mode === 'tz'),
       // tz content
-      frRows, dataModel, historySpec, v2Changes, traceabilityRows, evidenceScreens,
+      frRows, dataModel, historySpec,
+      v2Summary, v2Sources, v2ChangeGroups, v2Conflicts, v2MeetingDecisions, v2Deferred,
+      traceabilityRows, evidenceScreens,
+      scrollTzOverview: scrollToTz('tz-v2-overview'),
+      scrollTzChanges: scrollToTz('tz-v2-changes'),
+      scrollTzConflicts: scrollToTz('tz-v2-conflicts'),
+      scrollTzMeeting: scrollToTz('tz-v2-meeting'),
+      scrollTzTrace: scrollToTz('tz-v2-trace'),
+      scrollTzFull: scrollToTz('tz-full-text'),
       // nav
       isRegistry: S.screen === 'registry', isDeal: S.screen === 'deal', isCompany: S.screen === 'company',
       goRegistry: () => this.setState({ screen: 'registry' }),

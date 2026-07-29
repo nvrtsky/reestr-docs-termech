@@ -89,7 +89,8 @@ await evaluate(`document.getElementById('__bundler_err')?.remove()`);
 
 await clickButton('Техническое задание');
 await waitFor(
-  `document.body.innerText.includes('Журнал изменений и трассируемость') &&
+  `document.body.innerText.includes('Что вошло в обновлённое ТЗ') &&
+   document.body.innerText.includes('18 изменений, которые нужно проверить') &&
    document.body.innerText.includes('ТЗ · v2.0')`,
   'embedded specification v2',
 );
@@ -102,15 +103,31 @@ evidence.versionAndDate = await evaluate(`(() => {
     text.includes('17.07.2026') &&
     text.includes('Договор №19082 от 27.04.2026');
 })()`);
-evidence.sourceCompleteness = await evaluate(`document.body.innerText.includes('полной транскрипции встречи 17.07.2026')`);
-evidence.legend = await evaluate(`(() => {
-  const text = document.querySelector('#tz-v2-sync')?.innerText || '';
-  return text.includes('[v2] новое / изменённое') &&
-    text.includes('[отложено] следующая фаза') &&
-    text.includes('[оценка] требует оценки до разработки');
+evidence.sourceCompleteness = await evaluate(`(() => {
+  const text = document.body.innerText;
+  return text.includes('полной транскрипции встречи 17.07.2026') &&
+    text.includes('Красные замечания') &&
+    text.includes('Оранжевый список') &&
+    text.includes('Прямые уточнения');
 })()`);
+evidence.legend = await evaluate(`(() => {
+  const text = document.querySelector('#tz-v2-overview')?.innerText || '';
+  return text.includes('[v2] новое или изменённое') &&
+    text.includes('[отложено] следующая фаза') &&
+    text.includes('[оценка] до разработки');
+})()`);
+evidence.summaryComplete = await evaluate(`document.querySelectorAll('#tz-v2-overview .tz-summary-card').length === 4`);
+evidence.sourcesComplete = await evaluate(`document.querySelectorAll('#tz-v2-overview .tz-source-card').length === 5`);
+evidence.changesComplete = await evaluate(`document.querySelectorAll('#tz-v2-changes .tz-change-card').length === 18`);
+evidence.conflictsComplete = await evaluate(`document.querySelectorAll('#tz-v2-conflicts .tz-compare-card').length === 7`);
+evidence.meetingComplete = await evaluate(`
+  document.querySelectorAll('#tz-v2-meeting .tz-decision-panel:first-child .tz-decision-row').length === 10 &&
+  document.querySelectorAll('#tz-v2-meeting .tz-decision-panel:last-child .tz-decision-row').length === 8
+`);
+evidence.traceRowsComplete = await evaluate(`document.querySelectorAll('#tz-v2-trace .tz-trace-row:not(.tz-trace-head)').length === 16`);
+evidence.evidenceScreensComplete = await evaluate(`document.querySelectorAll('#tz-v2-trace .tz-evidence-card').length === 4`);
 evidence.traceability = await evaluate(`(() => {
-  const text = document.querySelector('#tz-v2-sync')?.innerText || '';
+  const text = document.querySelector('#tz-v2-trace')?.innerText || '';
   const required = [
     'Массовая загрузка с полями каждой строки',
     'Непубличная внутренняя ссылка',
@@ -126,10 +143,12 @@ evidence.traceability = await evaluate(`(() => {
   ];
   return required.every(item => text.includes(item));
 })()`);
-evidence.evidenceLinks = await evaluate(`(() => {
-  const block = document.querySelector('#tz-v2-sync');
-  return block && [...block.querySelectorAll('button')]
-    .filter(button => button.innerText.includes('Открыть актуальный экран')).length === 4;
+evidence.changeDetail = await evaluate(`(() => {
+  const text = (document.querySelector('#tz-v2-changes')?.innerText || '').toLocaleUpperCase('ru');
+  return text.includes('БЫЛО / ПРОБЛЕМА') &&
+    text.includes('ПРИНЯТО В V2.0') &&
+    text.includes('ПРОВЕРКА') &&
+    text.includes('МАССОВАЯ ЗАГРУЗКА');
 })()`);
 evidence.noContradictions = await evaluate(`(() => {
   const text = document.body.innerText;
@@ -140,9 +159,45 @@ evidence.noContradictions = await evaluate(`(() => {
     !text.includes('Отдельное обязательное поле «Юридическое лицо»');
 })()`);
 
-await evaluate(`document.querySelector('#tz-v2-sync')?.scrollIntoView({ block: 'start' })`);
+await evaluate(`document.querySelector('#tz-top')?.scrollIntoView({ block: 'start' })`);
 await new Promise(resolve => setTimeout(resolve, 250));
-await screenshot('/private/tmp/nvr270-embedded-tz-v2.png');
+await screenshot('/private/tmp/nvr270-html-tz-overview.png');
+
+await clickButton('Все изменения');
+await new Promise(resolve => setTimeout(resolve, 550));
+evidence.jumpNavigationWorks = await evaluate(`Math.abs(document.querySelector('#tz-v2-changes').getBoundingClientRect().top - document.querySelector('.tz-jump-nav').getBoundingClientRect().bottom) < 90`);
+await screenshot('/private/tmp/nvr270-html-tz-changes.png');
+
+await clickButton('Было → стало');
+await new Promise(resolve => setTimeout(resolve, 550));
+await screenshot('/private/tmp/nvr270-html-tz-conflicts.png');
+
+await command('Emulation.setDeviceMetricsOverride', {
+  width: 390,
+  height: 844,
+  deviceScaleFactor: 1,
+  mobile: true,
+});
+await evaluate(`document.querySelector('#tz-v2-changes')?.scrollIntoView({ block: 'start' })`);
+await new Promise(resolve => setTimeout(resolve, 300));
+evidence.mobileLayout = await evaluate(`(() => {
+  const body = document.querySelector('#tz-v2-changes .tz-change-body');
+  const card = document.querySelector('#tz-v2-changes .tz-change-card');
+  const columns = body ? getComputedStyle(body).gridTemplateColumns.split(' ').filter(Boolean).length : 0;
+  return columns === 1 &&
+    card.getBoundingClientRect().width <= 366 &&
+    document.documentElement.scrollWidth <= 390;
+})()`);
+await screenshot('/private/tmp/nvr270-html-tz-mobile.png');
+
+await command('Emulation.setDeviceMetricsOverride', {
+  width: 1440,
+  height: 1000,
+  deviceScaleFactor: 1,
+  mobile: false,
+});
+await evaluate(`document.querySelector('#tz-v2-trace')?.scrollIntoView({ block: 'start' })`);
+await new Promise(resolve => setTimeout(resolve, 300));
 
 await clickButton('Финансовый итог сделки');
 await waitFor(
@@ -152,7 +207,7 @@ await waitFor(
 );
 evidence.traceabilityLinkWorks = true;
 evidence.noRuntimeError = await evaluate(`!document.getElementById('__bundler_err')`);
-evidence.allPassed = Object.values(evidence).every(Boolean);
+evidence.allPassed = Object.values(evidence).every(value => value === true);
 
 console.log(JSON.stringify(evidence, null, 2));
 await command('Emulation.clearDeviceMetricsOverride');
