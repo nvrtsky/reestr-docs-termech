@@ -10,6 +10,7 @@
     "app:build": "node scripts/build-app.mjs",
     "dev": "npm run app:build && concurrently -k -n api,web -c yellow,cyan \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "build": "npm run app:build && npm run build -w backend && npm run build -w frontend",
+    "finn:validate": "node scripts/validate-finn-loop.mjs",
     "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
     "start": "npm run start -w backend"
   },

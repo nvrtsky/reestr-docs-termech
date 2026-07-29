@@ -1,0 +1,15 @@
+interface:
+  display_name: "Finn Build"
+  short_description: "Build one approved Термех issue and open a PR"
+  default_prompt: "Run one safe Finn-loop builder pass for the Термех project."
+
+policy:
+  allow_implicit_invocation: false
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "linear"
+      description: "Claim and update project-scoped Linear issues"
+      transport: "streamable_http"
+      url: "https://mcp.linear.app/mcp"
