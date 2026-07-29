@@ -370,15 +370,32 @@
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-thumb { background: #e4e4e7; border-radius: 6px; border: 2px solid #fff; }
   input, select, button, textarea { font-family: inherit; }
+  .mobile-registry, .mobile-only { display: none; }
   @keyframes dcSlideIn { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
   @keyframes dcFade { from { opacity: 0; } to { opacity: 1; } }
+  @media (max-width: 600px) {
+    .app-shell { height: 100dvh !important; }
+    .top-switcher { height: 46px !important; padding: 0 10px !important; gap: 7px !important; }
+    .top-switcher .mode-switcher, .top-switcher .desktop-top-meta { display: none !important; }
+    .prototype-shell { display: block !important; }
+    .side-rail { display: none !important; }
+    .main-panel { width: 100% !important; height: 100% !important; }
+    .registry-header { display: grid !important; grid-template-columns: 1fr !important; padding: 10px 12px !important; gap: 8px !important; }
+    .registry-header .registry-heading { display: none !important; }
+    .registry-header .registry-search { width: 100% !important; margin: 0 !important; }
+    .registry-header .registry-search input { width: 100% !important; }
+    .desktop-complex-action, .registry-controls, .desktop-registry-table, .registry-footer { display: none !important; }
+    .mobile-registry { display: block !important; overflow-y: auto !important; flex: 1 !important; padding: 10px 11px 22px !important; background: #f8fafc !important; }
+    .mobile-only { display: block !important; }
+    .mobile-doc-card { display: block !important; }
+  }
 </style>
 </helmet>
 
-<div style="height: 100vh; display: flex; flex-direction: column; font-family: 'Geist', system-ui, sans-serif; color: #18181b; font-size: 13px; overflow: hidden; background: #fff;">
+<div class="app-shell" style="height: 100vh; display: flex; flex-direction: column; font-family: 'Geist', system-ui, sans-serif; color: #18181b; font-size: 13px; overflow: hidden; background: #fff;">
 
   <!-- ░░ TOP SWITCHER ░░ -->
-  <div style="flex: none; height: 46px; background: #18181b; display: flex; align-items: center; padding: 0 16px; gap: 14px;">
+  <div class="top-switcher" style="flex: none; height: 46px; background: #18181b; display: flex; align-items: center; padding: 0 16px; gap: 14px;">
     <div style="display: flex; align-items: center; gap: 8px;">
       <div style="width: 23px; height: 23px; border-radius: 6px; background: #6366f1; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: #fff;">Р</div>
       <span style="color: #fff; font-weight: 600; font-size: 13px;">Реестр документов</span>
@@ -387,12 +404,12 @@
       <span title="Новое или изменённое требование" style="color: #a78bfa; font-size: 10.5px; font-weight: 700;">[v2]</span>
     </div>
     <div style="flex: 1;"></div>
-    <div style="display: flex; background: #27272a; border-radius: 8px; padding: 3px; gap: 2px;">
+    <div class="mode-switcher" style="display: flex; background: #27272a; border-radius: 8px; padding: 3px; gap: 2px;">
       <button type="button" onclick="{{ showProto }}" style="{{ tabProtoStyle }}">Прототип</button>
       <button type="button" onclick="{{ showTz }}" style="{{ tabTzStyle }}">Техническое задание</button>
     </div>
     <div style="flex: 1;"></div>
-    <span style="font-family: 'IBM Plex Mono'; font-size: 11px; color: #a1a1aa;">встроено в карточку сделки Bitrix24</span>
+    <span class="desktop-top-meta" style="font-family: 'IBM Plex Mono'; font-size: 11px; color: #a1a1aa;">встроено в карточку сделки Bitrix24</span>
   </div>
 
   <!-- ░░ CONTENT ░░ -->
@@ -400,10 +417,10 @@
 
   <!-- ════════ PROTOTYPE MODE ════════ -->
   <sc-if value="{{ isProto }}" hint-placeholder-val="{{ true }}">
-  <div style="height: 100%; display: flex; min-width: 0; background: #fff;">
+  <div class="prototype-shell" style="height: 100%; display: flex; min-width: 0; background: #fff;">
 
   <!-- ░░ LEFT RAIL ░░ -->
-  <aside style="width: 224px; flex: none; background: #fafafa; border-right: 1px solid #ededed; display: flex; flex-direction: column;">
+  <aside class="side-rail" style="width: 224px; flex: none; background: #fafafa; border-right: 1px solid #ededed; display: flex; flex-direction: column;">
     <div style="padding: 13px 12px 6px; font-size: 10px; letter-spacing: 0.7px; text-transform: uppercase; color: #a1a1aa;">Контексты</div>
     <nav style="display: flex; flex-direction: column; gap: 1px; padding: 0 8px; overflow-y: auto;">
       <button type="button" onclick="{{ goRegistry }}" style="{{ navRegistryStyle }}">
@@ -457,26 +474,46 @@
   </aside>
 
   <!-- ░░ MAIN ░░ -->
-  <main style="flex: 1; display: flex; flex-direction: column; min-width: 0; background: #fff;">
+  <main class="main-panel" style="flex: 1; display: flex; flex-direction: column; min-width: 0; background: #fff;">
 
     <!-- ── REGISTRY SCREEN ── -->
     <sc-if value="{{ isRegistry }}" hint-placeholder-val="{{ true }}">
     <div style="display: flex; flex-direction: column; height: 100%;">
-      <header style="border-bottom: 1px solid #ededed; padding: 12px 20px; display: flex; align-items: center; gap: 14px;">
-        <div>
+      <header class="registry-header" style="border-bottom: 1px solid #ededed; padding: 12px 20px; display: flex; align-items: center; gap: 14px;">
+        <div class="registry-heading">
           <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 17px; letter-spacing: -0.4px;">{{ headerTitle }}</div>
           <div style="font-size: 11.5px; color: #a1a1aa; margin-top: 1px;">{{ headerSub }}</div>
         </div>
         <div style="flex: 1;"></div>
-        <div style="position: relative;">
+        <div class="registry-search" style="position: relative;">
           <input value="{{ search }}" oninput="{{ setSearch }}" placeholder="Поиск по №, контрагенту, типу…" style="width: 270px; padding: 7px 12px 7px 30px; border: 1px solid #e4e4e7; border-radius: 8px; font-size: 12.5px; background: #fafafa;">
           <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #a1a1aa; font-size: 13px;">⌕</span>
         </div>
-        <button type="button" onclick="{{ openBulk }}" style="background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; border-radius: 8px; padding: 8px 13px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;"><span style="font-size: 10px;">[v2]</span> ⇧ Массовая загрузка</button>
-        <button type="button" onclick="{{ openWizard }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 8px; padding: 8px 15px; font-size: 12.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">＋ Создать документ</button>
+        <button class="desktop-complex-action" type="button" onclick="{{ openBulk }}" style="background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; border-radius: 8px; padding: 8px 13px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;"><span style="font-size: 10px;">[v2]</span> ⇧ Массовая загрузка</button>
+        <button class="desktop-complex-action" type="button" onclick="{{ openWizard }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 8px; padding: 8px 15px; font-size: 12.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">＋ Создать документ</button>
       </header>
 
-      <div style="border-bottom: 1px solid #ededed; padding: 0 20px; display: flex; align-items: center; gap: 4px;">
+      <div class="mobile-registry">
+        <div style="padding: 11px; border: 1px solid #ddd6fe; border-radius: 11px; background: #faf5ff; margin-bottom: 9px;">
+          <div style="display: flex; align-items: center; gap: 6px;"><span style="color: #7c3aed; font-size: 10px; font-weight: 750;">[v2]</span><div style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 13px; color: #6b21a8;">Мобильный вход</div></div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px;"><button type="button" onclick="{{ useMobileSession }}" style="{{ mobileSessionStyle }}">Сессия Bitrix24</button><button type="button" onclick="{{ useSeparateMobileAuth }}" style="{{ mobileSeparateStyle }}">Отдельный вход</button></div>
+          <div style="font-size: 10.5px; color: #52525b; line-height: 1.45; margin-top: 7px;">{{ mobileAuthHint }}</div>
+        </div>
+        <div style="padding: 8px 10px; border-radius: 9px; background: #fff7ed; color: #9a3412; font-size: 10.5px; line-height: 1.45; margin-bottom: 9px;">Создание, массовая загрузка и администрирование: рекомендуется продолжить на компьютере.</div>
+        <sc-if value="{{ mobileToast }}" hint-placeholder-val="{{ false }}"><div style="padding: 7px 9px; border-radius: 8px; background: #e7f5ec; color: #15803d; font-size: 10.5px; margin-bottom: 8px;">{{ mobileToast }}</div></sc-if>
+        <div style="font-size: 10.5px; color: #71717a; margin: 4px 2px 7px;">Документы · {{ rowCount }}</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <sc-for list="{{ rows }}" as="m" hint-placeholder-count="6">
+            <div class="mobile-doc-card" style="padding: 11px; border: 1px solid #e4e4e7; border-radius: 11px; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.04);">
+              <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="font-size: 15px;">{{ m.attachIcon }}</span><div style="min-width: 0; flex: 1;"><div style="font-weight: 650; font-size: 12.5px; line-height: 1.35;">{{ m.title }}</div><div style="font-family: 'IBM Plex Mono'; font-size: 9.5px; color: #a1a1aa; margin-top: 2px;">{{ m.num }}</div></div><span style="font-size: 10px; color: {{ m.statusC }}; white-space: nowrap;">{{ m.statusLabel }}</span></div>
+              <div style="display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 10px; color: #71717a;"><span>{{ m.counterparty }}</span><span style="margin-left: auto;">{{ m.sourceLabel }}</span></div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 9px;"><button type="button" onclick="{{ m.onOpen }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 8px; padding: 7px 8px; font-size: 10.5px; font-weight: 650; cursor: pointer;">Открыть карточку</button><button type="button" onclick="{{ m.onDownload }}" style="background: #fff; color: #4f46e5; border: 1px solid #c7cdf7; border-radius: 8px; padding: 7px 8px; font-size: 10.5px; font-weight: 650; cursor: pointer;">Скачать файл</button></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div class="registry-controls" style="border-bottom: 1px solid #ededed; padding: 0 20px; display: flex; align-items: center; gap: 4px;">
         <sc-for list="{{ savedViews }}" as="v" hint-placeholder-count="4">
           <button type="button" onclick="{{ v.onPick }}" style="{{ v.style }}">{{ v.label }} <span style="font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ v.count }}</span></button>
         </sc-for>
@@ -508,16 +545,16 @@
           <button type="button" onclick="{{ toggleCols }}" style="{{ colsBtnStyle }}">Колонки</button>
           <sc-if value="{{ colsOpen }}" hint-placeholder-val="{{ false }}">
             <div onclick="{{ closePopovers }}" style="position: fixed; inset: 0; z-index: 25;"></div>
-            <div style="position: absolute; top: 36px; right: 0; z-index: 26; width: 222px; background: #fff; border: 1px solid #e4e4e7; border-radius: 11px; box-shadow: 0 12px 34px rgba(0,0,0,.14); padding: 8px;">
+            <div style="position: absolute; top: 36px; right: 0; z-index: 26; width: 280px; background: #fff; border: 1px solid #e4e4e7; border-radius: 11px; box-shadow: 0 12px 34px rgba(0,0,0,.14); padding: 8px;">
               <div style="font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: #a1a1aa; padding: 5px 8px;">Колонки</div>
               <sc-for list="{{ columnToggles }}" as="c" hint-placeholder-count="6"><div onclick="{{ c.onToggle }}" style="display:flex; align-items:center; gap:9px; padding:7px 8px; border-radius:7px; cursor:pointer; font-size:12.5px; color:#3f3f46;"><span style="{{ c.boxStyle }}">{{ c.mark }}</span>{{ c.label }}</div></sc-for>
             </div>
           </sc-if>
         </div>
-        <button type="button" style="background: none; border: 1px solid #e4e4e7; border-radius: 7px; padding: 5px 11px; font-size: 11.5px; color: #52525b; cursor: pointer; margin: 6px 0;">⭳ XLSX</button>
+        <button type="button" onclick="{{ openXlsx }}" style="background: none; border: 1px solid #e4e4e7; border-radius: 7px; padding: 5px 11px; font-size: 11.5px; color: #52525b; cursor: pointer; margin: 6px 0;">⭳ XLSX</button>
       </div>
 
-      <div style="flex: 1; overflow: auto;">
+      <div class="desktop-registry-table" style="flex: 1; overflow: auto;">
         <div style="min-width: 936px;">
           <div style="{{ headerGridStyle }}">
             <div style="padding: 7px 8px 7px 20px;"></div>
@@ -528,6 +565,7 @@
             <sc-if value="{{ colAmount }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; text-align: right;">Сумма</div></sc-if>
             <sc-if value="{{ colDocDate }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px;">Дата</div></sc-if>
             <sc-if value="{{ colResponsible }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px;">Ответственный</div></sc-if>
+            <sc-if value="{{ colDynamic }}" hint-placeholder-val="{{ false }}"><div style="padding: 7px 8px;"><span style="color: #7c3aed;">[v2]</span> Предмет договора</div></sc-if>
             <div style="padding: 7px 20px 7px 8px;"></div>
           </div>
           <sc-for list="{{ rows }}" as="r" hint-placeholder-count="12">
@@ -550,6 +588,7 @@
                 <sc-if value="{{ colAmount }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; justify-content: flex-end; font-family: 'IBM Plex Mono'; font-size: 12px; color: #18181b; white-space: nowrap;">{{ r.amountStr }}</div></sc-if>
                 <sc-if value="{{ colDocDate }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; font-family: 'IBM Plex Mono'; font-size: 11px; color: #71717a; white-space: nowrap;">{{ r.docDate }}</div></sc-if>
                 <sc-if value="{{ colResponsible }}" hint-placeholder-val="{{ true }}"><div style="padding: 7px 8px; display: flex; align-items: center; color: #52525b; white-space: nowrap; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.responsible }}</span></div></sc-if>
+                <sc-if value="{{ colDynamic }}" hint-placeholder-val="{{ false }}"><div style="padding: 7px 8px; display: flex; align-items: center; color: #6d28d9; min-width: 0;"><span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.dynamicValue }}</span></div></sc-if>
                 <div style="padding: 7px 20px 7px 8px; display: flex; align-items: center; justify-content: center; color: #c4c4c8;">⋯</div>
               </div>
               <sc-if value="{{ r.showRelationshipSearch }}" hint-placeholder-val="{{ false }}">
@@ -573,7 +612,7 @@
         </sc-if>
       </div>
 
-      <div style="border-top: 1px solid #ededed; padding: 8px 20px; display: flex; align-items: center; gap: 14px; font-size: 11.5px; color: #71717a;">
+      <div class="registry-footer" style="border-top: 1px solid #ededed; padding: 8px 20px; display: flex; align-items: center; gap: 14px; font-size: 11.5px; color: #71717a;">
         <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ false }}">
           <div style="display: flex; align-items: center; gap: 10px; animation: dcFade .15s;">
             <span style="font-weight: 600; color: #4f46e5;">Выбрано: {{ selectedCount }}</span>
@@ -631,6 +670,40 @@
           </div>
         </div>
 
+        <sc-if value="{{ dealFinancialVisible }}" hint-placeholder-val="{{ true }}">
+        <div style="border: 1px solid #ddd6fe; border-radius: 11px; padding: 15px 17px; margin-bottom: 14px; background: #faf5ff;">
+          <div style="display: flex; align-items: flex-start; gap: 14px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 7px;"><span style="font-size: 10px; color: #7c3aed; font-weight: 750;">[v2]</span><div style="font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; color: #6d28d9;">Сумма документов сделки</div></div>
+              <div style="font-family: 'Space Grotesk'; font-weight: 750; font-size: 26px; margin-top: 4px; color: #4c1d95;">{{ dealTotalLabel }}</div>
+            </div>
+            <div style="flex: 1;"></div>
+            <label style="display: block; min-width: 176px;"><span style="display: block; font-size: 10.5px; color: #71717a; margin-bottom: 4px;">Валюта итога</span><select value="{{ dealTotalCurrency }}" onchange="{{ setDealTotalCurrency }}" style="width: 100%; padding: 7px 9px; border: 1px solid #c4b5fd; border-radius: 8px; background: #fff; color: #4c1d95; font-size: 12px; font-weight: 650;"><option value="RUB">RUB · Российский рубль</option><option value="USD">USD · Доллар США</option><option value="EUR">EUR · Евро</option><option value="CNY">CNY · Китайский юань</option></select></label>
+          </div>
+          <div style="font-size: 10.5px; color: #71717a; line-height: 1.45; margin-top: 7px;">Пересчёт по курсу ЦБ РФ на дату каждого документа. Для прототипа используются зафиксированные демонстрационные курсы.</div>
+          <div style="margin-top: 12px; border: 1px solid #ede9fe; border-radius: 9px; overflow: hidden; background: #fff;">
+            <div style="display: grid; grid-template-columns: minmax(220px,1.5fr) 130px 80px 100px 130px; gap: 0; background: #f5f3ff; color: #7c3aed; font-size: 9.5px; text-transform: uppercase; letter-spacing: .35px;"><div style="padding: 7px 10px;">Документ</div><div style="padding: 7px 8px;">Исходная сумма</div><div style="padding: 7px 8px;">Курс ЦБ</div><div style="padding: 7px 8px;">Дата курса</div><div style="padding: 7px 10px; text-align: right;">Результат</div></div>
+            <sc-for list="{{ dealCalcRows }}" as="calc" hint-placeholder-count="6">
+              <div style="display: grid; grid-template-columns: minmax(220px,1.5fr) 130px 80px 100px 130px; gap: 0; border-top: 1px solid #f4f4f5; align-items: center; font-size: 11px;"><div style="padding: 8px 10px; min-width: 0;"><div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 550;">{{ calc.title }}</div><sc-if value="{{ calc.zeroLabel }}" hint-placeholder-val="{{ false }}"><div style="font-size: 9.5px; color: #b45309; margin-top: 2px;">{{ calc.zeroLabel }}</div></sc-if></div><div style="padding: 8px; font-family: 'IBM Plex Mono';">{{ calc.original }}</div><div style="padding: 8px; font-family: 'IBM Plex Mono'; color: #71717a;">{{ calc.rate }}</div><div style="padding: 8px; font-family: 'IBM Plex Mono'; color: #71717a;">{{ calc.rateDate }}</div><div style="padding: 8px 10px; text-align: right; font-family: 'IBM Plex Mono'; font-weight: 650; color: #4c1d95;">{{ calc.result }}</div></div>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+        <sc-if value="{{ dealFinancialHidden }}" hint-placeholder-val="{{ false }}">
+        <div style="border: 1px solid #fed7aa; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; background: #fff7ed; color: #9a3412; font-size: 11.5px;"><span style="font-weight: 700;">[v2] Финансы скрыты.</span> Итог сделки, исходные суммы, курсы и результаты пересчёта недоступны согласно политике текущей роли.</div>
+        </sc-if>
+
+        <div style="border: 1px solid #dbeafe; border-radius: 11px; padding: 15px 17px; margin-bottom: 14px; background: #f8fbff;">
+          <div style="display: flex; align-items: center; gap: 8px;"><span style="font-size: 10px; color: #2563eb; font-weight: 750;">[v2]</span><div style="font-family: 'Space Grotesk'; font-weight: 650; font-size: 13.5px;">Автоимпорт счетов и коммерческих предложений из Bitrix24</div><span style="font-family: 'IBM Plex Mono'; font-size: 10px; color: #64748b;">{{ importedCount }} карточки</span><div style="flex: 1;"></div><button type="button" onclick="{{ syncB24 }}" style="background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 7px 12px; font-size: 11px; font-weight: 650; cursor: pointer;">↻ Синхронизировать</button></div>
+          <div style="font-size: 10.5px; color: #64748b; line-height: 1.45; margin-top: 5px;">Каждая связанная сущность импортируется отдельной карточкой. Повторная синхронизация сопоставляет записи по ID Bitrix24 и не создаёт дубли.</div>
+          <sc-if value="{{ syncMessage }}" hint-placeholder-val="{{ false }}"><div style="margin-top: 8px; padding: 7px 9px; border-radius: 7px; background: #dbeafe; color: #1d4ed8; font-size: 10.5px;">{{ syncMessage }}</div></sc-if>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px;">
+            <sc-for list="{{ dealImportedDocs }}" as="imp" hint-placeholder-count="2">
+              <button type="button" onclick="{{ imp.onOpen }}" style="display: block; text-align: left; padding: 10px 11px; border: 1px solid #dbeafe; border-radius: 9px; background: #fff; cursor: pointer;"><div style="display: flex; align-items: center; gap: 7px;"><span style="color: #2563eb; font-size: 11px;">B24</span><span style="font-weight: 650; font-size: 11.5px;">{{ imp.title }}</span><span style="margin-left: auto; font-family: 'IBM Plex Mono'; font-size: 10px; color: #0f172a;">{{ imp.amount }}</span></div><div style="display: flex; gap: 8px; margin-top: 5px; font-family: 'IBM Plex Mono'; font-size: 9.5px; color: #64748b;"><span>{{ imp.type }}</span><span>{{ imp.id }}</span><span style="margin-left: auto;">обновлено {{ imp.sync }}</span></div><div style="font-size: 9.5px; color: #2563eb; margin-top: 4px;">{{ imp.source }}</div></button>
+            </sc-for>
+          </div>
+        </div>
+
         <div style="border: 1px solid #ededed; border-radius: 11px; padding: 15px 17px; margin-bottom: 14px;">
           <div style="font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; color: #a1a1aa; margin-bottom: 4px;">Матрица «Раздел × Статус»</div><div style="font-size: 11px; color: #a1a1aa; margin-bottom: 12px; line-height: 1.4;">Иконки рассчитываются автоматически из статусов документов. Кликните раздел слева — откроются его документы ниже.</div>
           <div style="display: grid; grid-template-columns: 200px repeat(6, 1fr); align-items: center; gap: 6px;">
@@ -654,8 +727,8 @@
           <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 14px;">Документы по разделам</div>
           <span style="font-size: 11.5px; color: #a1a1aa;">привязаны к сделке #1234 и к ООО «Ромашка» (через компанию Bitrix24)</span>
           <div style="flex: 1;"></div>
-          <button type="button" onclick="{{ openBulk }}" style="background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; border-radius: 8px; padding: 7px 12px; font-size: 11.5px; font-weight: 600; cursor: pointer;"><span style="font-size: 10px;">[v2]</span> ⇧ Массовая загрузка</button>
-          <button type="button" onclick="{{ openWizard }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 8px; padding: 7px 13px; font-size: 12px; font-weight: 600; cursor: pointer;">＋ Добавить документ</button>
+          <button class="desktop-complex-action" type="button" onclick="{{ openBulk }}" style="background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; border-radius: 8px; padding: 7px 12px; font-size: 11.5px; font-weight: 600; cursor: pointer;"><span style="font-size: 10px;">[v2]</span> ⇧ Массовая загрузка</button>
+          <button class="desktop-complex-action" type="button" onclick="{{ openWizard }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 8px; padding: 7px 13px; font-size: 12px; font-weight: 600; cursor: pointer;">＋ Добавить документ</button>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 7px;">
@@ -1440,6 +1513,30 @@
   </div>
   </sc-if>
 
+  <!-- ░░ XLSX PREVIEW V2 ░░ -->
+  <sc-if value="{{ xlsxOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position: fixed; inset: 0; z-index: 58; display: flex; align-items: center; justify-content: center; padding: 18px;">
+    <div onclick="{{ closeXlsx }}" style="position: absolute; inset: 0; background: rgba(24,24,27,.4); animation: dcFade .12s;"></div>
+    <div style="position: relative; width: min(920px, 96vw); max-height: 86vh; background: #fff; border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.25); display: flex; flex-direction: column; animation: dcFade .18s; overflow: hidden;">
+      <div style="padding: 16px 20px; border-bottom: 1px solid #ededed; display: flex; align-items: center; gap: 10px;"><span style="color: #7c3aed; font-size: 10px; font-weight: 750;">[v2]</span><div><div style="font-family: 'Space Grotesk'; font-weight: 650; font-size: 16px;">Предпросмотр XLSX</div><div style="font-size: 10.5px; color: #71717a; margin-top: 2px;">Только текущие видимые колонки · {{ xlsxColumnCount }} колонок · первые 4 строки текущего среза</div></div><div style="flex: 1;"></div><button type="button" onclick="{{ closeXlsx }}" style="background: none; border: none; font-size: 18px; color: #a1a1aa; cursor: pointer;">✕</button></div>
+      <div style="flex: 1; overflow: auto; padding: 16px 20px;">
+        <div style="border: 1px solid #e4e4e7; border-radius: 9px; overflow: auto;">
+          <div style="{{ xlsxGridStyle }} background:#eef2ff;color:#4338ca;font-size:10px;text-transform:uppercase;letter-spacing:.35px;font-weight:650;">
+            <sc-for list="{{ xlsxColumns }}" as="col" hint-placeholder-count="8"><div style="padding: 8px 9px; border-right: 1px solid #dfe3fb;">{{ col.label }}</div></sc-for>
+          </div>
+          <sc-for list="{{ xlsxPreviewRows }}" as="row" hint-placeholder-count="4">
+            <div style="{{ xlsxGridStyle }} border-top:1px solid #f4f4f5;font-size:10.5px;color:#3f3f46;">
+              <sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="8"><div style="padding: 8px 9px; border-right: 1px solid #f4f4f5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ cell.value }}</div></sc-for>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size: 10.5px; color: #71717a; line-height: 1.45; margin-top: 10px;">В рабочей системе экспорт применит активный поиск, фильтры, сохранённый вид и серверную политику доступа текущей роли.</div>
+      </div>
+      <div style="padding: 12px 20px; border-top: 1px solid #ededed; display: flex; align-items: center; gap: 10px;"><span style="font-size: 10.5px; color: #a1a1aa;">Прототип: файл не создаётся.</span><div style="flex: 1;"></div><button type="button" onclick="{{ closeXlsx }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 11.5px; font-weight: 650; cursor: pointer;">Понятно</button></div>
+    </div>
+  </div>
+  </sc-if>
+
   </div>
   </sc-if>
 
@@ -1790,7 +1887,7 @@ class Component extends DCLogic {
     view: 'all',
     sel: {},
     drawerId: null,
-    cols: { section: true, counterparty: true, status: true, amount: true, docDate: true, responsible: true },
+    cols: { section: true, counterparty: true, status: true, amount: true, docDate: true, responsible: true, dynamic: false },
     filterOpen: false, colsOpen: false,
     filters: { sections: {}, statuses: {}, type: 'all', responsible: 'all', cp: '', from: '', to: '' },
     adminTab: 'sections',
@@ -1804,6 +1901,12 @@ class Component extends DCLogic {
     closedDeals: { '1234': true, '1290': false },
     archiveNotice: '',
     versionNotice: '',
+    xlsxOpen: false,
+    dealTotalCurrency: 'RUB',
+    syncCount: 0,
+    syncMessage: '',
+    mobileAuthMode: 'session',
+    mobileToast: '',
     newType: { section: 'client', label: '', lifecycle: 'simple', contentRequirement: 'required', fields: [] },
     bulkOpen: false,
     bulkContext: 'registry',
@@ -1843,6 +1946,8 @@ class Component extends DCLogic {
   ];
 
   RESPONSIBLES = ['А. Петров', 'Е. Смирнова', 'М. Сидоров', 'И. Логинов'];
+
+  CBR_RATES = { RUB: 1, USD: 92.5, EUR: 100.2, CNY: 12.7 };
 
   STATUS = {
     draft: { label: 'Черновик', c: '#71717a', bg: '#f4f4f5' },
@@ -1916,6 +2021,8 @@ class Component extends DCLogic {
   };
 
   TRAINING = [
+    ['Инструкция пользователя', 'Как добавить документ, найти его, открыть карточку, скачать файл и работать со ссылкой.', 'Будущий материал · после готовности интерфейса', '📘'],
+    ['Инструкция администратора', 'Как менять типы, поля, колонки и политики доступа в разделе администрирования.', 'Будущий материал · после готовности интерфейса', '🛠'],
     ['Быстрый старт', 'Создание документа мастером: раздел и тип, реквизиты и поля типа, файл или ссылка, привязки.', 'Статья · 4 мин', '📄'],
     ['Роли и доступ', 'Что видит каждая роль, где скрываются суммы, как назначается ответственный.', 'Видео · 6 мин', '▶'],
     ['Жизненный цикл и статусы', 'Переходы статусов по типам документов и кто имеет право их выполнять.', 'Статья · 5 мин', '📄'],
@@ -2056,12 +2163,16 @@ class Component extends DCLogic {
       d('21', 'POW-12', 'Доверенность сервисного инженера', 'legal', 'Доверенность', 'signed', 'ООО «Ромашка»', 'ООО «Альфа-Трейд»', 0, 'RUB', '20.04.2026', 'Д. Юрьев', ['file'], ['Сделка #1290'], true),
       d('22', 'ДС-2026/45-1', 'Доп. соглашение №1 · изменение графика оплаты', 'client', 'Доп. соглашение', 'signed', 'ООО «Ромашка»', 'ООО «Альфа-Трейд»', 0, 'RUB', '10.04.2026', 'А. Петров', ['file'], ['Сделка #1234', 'Сделка #1290', 'ООО «Ромашка»'], true),
       d('23', 'ПР-2026/45-2', 'Приложение №2 · спецификация оборудования', 'client', 'Приложение', 'active', 'ООО «Ромашка»', 'ООО «Альфа-Трейд»', 0, 'RUB', '12.04.2026', 'А. Петров', ['file'], ['Сделка #1234', 'Сделка #1290', 'ООО «Ромашка»'], true),
+      d('24', 'B24-СЧ-8842', 'Счёт Bitrix24 · партия оборудования', 'client', 'Счёт', 'awaiting', 'ООО «Ромашка»', 'ООО «Альфа-Трейд»', 125000, 'EUR', '18.04.2026', 'Е. Смирнова', ['invoice'], ['Сделка #1234', 'ООО «Ромашка»'], true),
+      d('25', 'B24-КП-2207', 'Коммерческое предложение Bitrix24', 'client', 'КП', 'active', 'ООО «Ромашка»', 'ООО «Альфа-Трейд»', 48000, 'USD', '20.04.2026', 'А. Петров', ['file'], ['Сделка #1234', 'ООО «Ромашка»'], true),
     ];
     this.docs.forEach(x => { x.dealRef = x.deal ? '1234' : null; });
     ['19', '20', '21'].forEach(id => { const x = this.docs.find(d => d.id === id); if (x) x.dealRef = '1290'; });
     const contract = this.docs.find(x => x.id === '1');
     const addendum = this.docs.find(x => x.id === '22');
     const appendix = this.docs.find(x => x.id === '23');
+    const importedInvoice = this.docs.find(x => x.id === '24');
+    const importedQuote = this.docs.find(x => x.id === '25');
     contract.childIds = ['22', '23'];
     contract.dealIds = ['1234', '1290'];
     contract.createdBy = 'Е. Смирнова';
@@ -2087,6 +2198,12 @@ class Component extends DCLogic {
         { dealId: '1290', path: `Диск / Сделки / 1290 / Реестр / ${item.num}.pdf`, version: 1 },
       ];
     });
+    importedInvoice.source = 'Bitrix24';
+    importedInvoice.b24Id = 'crm.invoice:8842';
+    importedInvoice.lastSync = '29.07.2026 15:30';
+    importedQuote.source = 'Bitrix24';
+    importedQuote.b24Id = 'crm.quote:2207';
+    importedQuote.lastSync = '29.07.2026 15:30';
     this.docs.forEach(item => {
       if (!item.dealIds) item.dealIds = item.dealRef ? [item.dealRef] : [];
       if (!item.createdBy) item.createdBy = 'Е. Смирнова';
@@ -2099,6 +2216,13 @@ class Component extends DCLogic {
         path: `Диск / Сделки / ${dealId} / Реестр / ${item.num}.pdf`,
         version: item.versions[0] ? item.versions[0].number : 0,
       }));
+      if (!item.dynamicValue) {
+        item.dynamicValue = item.type.includes('Договор')
+          ? 'Поставка и обслуживание оборудования'
+          : item.type === 'Счёт'
+            ? 'Оплата в течение 10 дней'
+            : '—';
+      }
     });
   }
 
@@ -2139,6 +2263,7 @@ class Component extends DCLogic {
     if (c.amount) s += ' 100px';
     if (c.docDate) s += ' 90px';
     if (c.responsible) s += ' 120px';
+    if (c.dynamic) s += ' 170px';
     s += ' 36px';
     return s;
   }
@@ -2163,7 +2288,7 @@ class Component extends DCLogic {
     const respSet = [...new Set(scoped.map(d => d.responsible).filter(r => r && r !== '—'))];
     const filterRespOptions = [{ v: 'all', l: 'Все' }].concat(respSet.map(r => ({ v: r, l: r })));
     const activeCount = Object.keys(F.sections).filter(k => F.sections[k]).length + Object.keys(F.statuses).filter(k => F.statuses[k]).length + (F.type !== 'all' ? 1 : 0) + (F.responsible !== 'all' ? 1 : 0) + (F.cp.trim() ? 1 : 0) + (F.from.trim() || F.to.trim() ? 1 : 0);
-    const colDefs = [['section', 'Раздел'], ['counterparty', 'Контрагент'], ['status', 'Статус'], ['amount', 'Сумма'], ['docDate', 'Дата'], ['responsible', 'Ответственный']];
+    const colDefs = [['section', 'Раздел'], ['counterparty', 'Контрагент'], ['status', 'Статус'], ['amount', 'Сумма'], ['docDate', 'Дата'], ['responsible', 'Ответственный'], ['dynamic', '[v2] Предмет договора · пользовательское']];
     const columnToggles = colDefs.map(([k, label]) => { const on = !!C[k];
       return { label, mark: on ? '✓' : '', onToggle: () => this.setState({ cols: { ...this.state.cols, [k]: !this.state.cols[k] } }),
         boxStyle: `display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;border:1.5px solid ${on ? '#4f46e5' : '#d4d4d8'};background:${on ? '#4f46e5' : '#fff'};color:#fff;font-size:11px;` }; });
@@ -2181,7 +2306,7 @@ class Component extends DCLogic {
       setFilterCp: (e) => setF({ cp: e.target.value }), setFilterFrom: (e) => setF({ from: e.target.value }), setFilterTo: (e) => setF({ to: e.target.value }),
       resetFilters: () => setF({ sections: {}, statuses: {}, type: 'all', responsible: 'all', cp: '', from: '', to: '' }),
       columnToggles,
-      colSection: C.section, colCounterparty: C.counterparty, colStatus: C.status, colAmount: C.amount, colDocDate: C.docDate, colResponsible: C.responsible,
+      colSection: C.section, colCounterparty: C.counterparty, colStatus: C.status, colAmount: C.amount, colDocDate: C.docDate, colResponsible: C.responsible, colDynamic: C.dynamic,
       headerGridStyle: `position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: ${this.gridColsStr()}; background: #fff; box-shadow: inset 0 -1px 0 #ededed; color: #a1a1aa; font-size: 10.5px;`,
     };
   }
@@ -2226,11 +2351,17 @@ class Component extends DCLogic {
       id: d.id, num: d.num, title: d.title, counterparty: d.counterparty || '—',
       dealRefLabel: d.dealRef ? '#' + d.dealRef : '—',
       responsible: d.responsible, docDate: d.docDate,
+      dynamicValue: d.dynamicValue || '—',
+      sourceLabel: d.source ? 'Источник: ' + d.source : '',
       sectionLabel: sec.label, sectionC: sec.c, sectionBg: sec.bg,
       statusLabel: st.label, statusC: st.c, statusBg: st.bg,
       amountStr: this.fmtAmount(d),
       attachIcon: d.atts.length ? (d.atts.includes('file') || d.atts.includes('invoice') ? '📎' : '🔗') : '○',
       onOpen: () => this.setState({ drawerId: d.id }),
+      onDownload: (event) => {
+        if (event && event.stopPropagation) event.stopPropagation();
+        this.setState({ mobileToast: `Скачивание: ${d.atts.length ? d.num + '.pdf' : 'файл ещё не прикреплён'}` });
+      },
       hasDependents: dependentDocs.length > 0,
       relationshipCount: dependentDocs.length,
       relationshipCaret: relationExpanded ? '▾' : '▸',
@@ -2287,6 +2418,33 @@ class Component extends DCLogic {
     ];
 
     const dealDocs = scoped.filter(d => d.deal);
+    const totalCurrency = S.dealTotalCurrency;
+    const targetRate = this.CBR_RATES[totalCurrency] || 1;
+    const dealCalcRows = dealDocs.map(item => {
+      const sourceRate = this.CBR_RATES[item.currency] || 1;
+      const originalAmount = Number(item.amount) || 0;
+      const resultValue = originalAmount * sourceRate / targetRate;
+      return {
+        title: item.title,
+        original: `${originalAmount.toLocaleString('ru-RU')} ${item.currency}`,
+        rate: item.currency === 'RUB' ? '1' : sourceRate.toLocaleString('ru-RU'),
+        rateDate: item.docDate === '—' ? '29.07.2026' : item.docDate,
+        resultValue,
+        result: `${Math.round(resultValue).toLocaleString('ru-RU')} ${totalCurrency}`,
+        zeroLabel: originalAmount === 0 ? 'Нет суммы → 0' : '',
+      };
+    });
+    const dealTotalValue = Math.round(dealCalcRows.reduce((sum, row) => sum + row.resultValue, 0));
+    const dealFinancialVisible = !role.hideMoney;
+    const dealImportedDocs = dealDocs.filter(item => item.source === 'Bitrix24').map(item => ({
+      id: item.b24Id,
+      title: item.title,
+      type: item.type,
+      amount: this.fmtAmount(item),
+      sync: item.lastSync,
+      source: 'Источник: Bitrix24',
+      onOpen: () => this.setState({ drawerId: item.id }),
+    }));
     const embeddedGroups = this.SECTIONS.filter(s => this.visibleSections().includes(s.code)).map(s => {
       const ds = dealDocs.filter(d => d.section === s.code);
       const gkey = 'deal_' + s.code;
@@ -2557,6 +2715,25 @@ class Component extends DCLogic {
     const dataModel = this.DATA_MODEL.map(([t, d]) => ({ t, d }));
     const historySpec = this.HISTORY_SPEC.map(([event, detail]) => ({ event, detail }));
     const trainingItems = this.TRAINING.map(([title, desc, kind, icon]) => ({ title, desc, kind, icon }));
+    const xlsxColumnDefs = [
+      ['document', 'Документ', item => `${item.title} · ${item.num}`],
+      ['section', 'Раздел', item => this.SECTIONS.find(section => section.code === item.section).label],
+      ['counterparty', 'Контрагент', item => item.counterparty || '—'],
+      ['status', 'Статус', item => this.STATUS[item.status].label],
+      ['amount', 'Сумма', item => this.fmtAmount(item)],
+      ['docDate', 'Дата', item => item.docDate],
+      ['responsible', 'Ответственный', item => item.responsible],
+      ['dynamic', 'Предмет договора', item => item.dynamicValue || '—'],
+    ];
+    const activeXlsxDefs = xlsxColumnDefs.filter(([key]) => key === 'document' || S.cols[key]);
+    const xlsxColumns = activeXlsxDefs.map(([, label]) => ({ label }));
+    const xlsxPreviewRows = this.filteredRows().slice(0, 4).map(item => ({
+      cells: activeXlsxDefs.map(([, , getter]) => ({ value: getter(item) })),
+    }));
+    const xlsxGridStyle = `display:grid;grid-template-columns:repeat(${activeXlsxDefs.length},minmax(112px,1fr));min-width:${Math.max(560, activeXlsxDefs.length * 122)}px;`;
+    const mobileAuthHint = S.mobileAuthMode === 'session'
+      ? 'Сессия Bitrix24 найдена: дополнительный ввод данных не требуется.'
+      : 'Отдельный вход: прототип интерфейса, учётные данные не сохраняются. Оценка реализации OTP/SSO: 32–56 часов.';
 
     const nt = S.newType;
     const dataTypes = ['Текст', 'Число', 'Дата', 'Сумма', 'Список', 'Да/Нет', 'Файл'];
@@ -2605,6 +2782,19 @@ class Component extends DCLogic {
       admSections: S.adminTab === 'sections', admTypes: S.adminTab === 'types',
       admLifecycles: S.adminTab === 'lifecycles', admRoles: S.adminTab === 'roles', admTraining: S.adminTab === 'training',
       trainingItems,
+      xlsxOpen: S.xlsxOpen,
+      openXlsx: () => this.setState({ xlsxOpen: true }),
+      closeXlsx: () => this.setState({ xlsxOpen: false }),
+      xlsxColumns,
+      xlsxPreviewRows,
+      xlsxGridStyle,
+      xlsxColumnCount: xlsxColumns.length,
+      mobileAuthHint,
+      mobileSessionStyle: `background:${S.mobileAuthMode === 'session' ? '#4f46e5' : '#fff'};color:${S.mobileAuthMode === 'session' ? '#fff' : '#4f46e5'};border:1px solid #c7cdf7;border-radius:8px;padding:7px 9px;font-size:10.5px;font-weight:650;cursor:pointer;`,
+      mobileSeparateStyle: `background:${S.mobileAuthMode === 'separate' ? '#4f46e5' : '#fff'};color:${S.mobileAuthMode === 'separate' ? '#fff' : '#4f46e5'};border:1px solid #c7cdf7;border-radius:8px;padding:7px 9px;font-size:10.5px;font-weight:650;cursor:pointer;`,
+      useMobileSession: () => this.setState({ mobileAuthMode: 'session' }),
+      useSeparateMobileAuth: () => this.setState({ mobileAuthMode: 'separate' }),
+      mobileToast: S.mobileToast,
       helpOpen: S.helpOpen,
       openHelp: () => this.setState({ helpOpen: true }),
       closeHelp: () => this.setState({ helpOpen: false }),
@@ -2639,6 +2829,16 @@ class Component extends DCLogic {
       embeddedGroups, dealSigned: dealDocs.filter(d => d.status === 'signed' || d.status === 'active').length,
       dealReview: dealDocs.filter(d => d.status === 'on_review' || d.status === 'awaiting').length,
       dealDraft: dealDocs.filter(d => d.status === 'draft').length,
+      dealFinancialVisible,
+      dealFinancialHidden: !dealFinancialVisible,
+      dealTotalCurrency: totalCurrency,
+      setDealTotalCurrency: (event) => this.setState({ dealTotalCurrency: event.target.value }),
+      dealTotalLabel: `${dealTotalValue.toLocaleString('ru-RU')} ${totalCurrency}`,
+      dealCalcRows,
+      dealImportedDocs,
+      importedCount: dealImportedDocs.length,
+      syncMessage: S.syncMessage,
+      syncB24: () => this.syncB24(),
       drawerOpen: !!doc, doc, closeDoc: () => this.setState({ drawerId: null, archiveNotice: '', versionNotice: '' }),
       drawerDenied,
       deniedDocumentNumber,
@@ -2881,6 +3081,20 @@ class Component extends DCLogic {
       bulkRows: [],
       bulkValidationShown: false,
       drawerId: created[0].id,
+    });
+  }
+
+  syncB24() {
+    this.ensureDocs();
+    const imported = this.docs.filter(item => item.source === 'Bitrix24');
+    const nextRevision = this.state.syncCount + 1;
+    imported.forEach(item => {
+      item.lastSync = '29.07.2026 15:' + String(30 + nextRevision).padStart(2, '0');
+      item.syncRevision = nextRevision;
+    });
+    this.setState({
+      syncCount: nextRevision,
+      syncMessage: `Синхронизация №${nextRevision}: обновлено ${imported.length}, создано 0, дублей 0. Сопоставление по ID Bitrix24.`,
     });
   }
 
