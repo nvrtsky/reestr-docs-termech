@@ -1660,12 +1660,13 @@
           <div style="border: 1px solid #ededed; border-radius: 10px; padding: 13px 16px;"><div style="font-size: 10.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px;">Заказчик</div><div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 15px; margin-top: 3px;">ООО «ТЕРМОМЕХАНИКС»</div></div>
           <div style="border: 1px solid #ededed; border-radius: 10px; padding: 13px 16px;"><div style="font-size: 10.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px;">Исполнитель</div><div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 15px; margin-top: 3px;">ИП Навроцкий А.О.</div></div>
         </div>
-        <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px; font-size: 11.5px; color: #71717a; font-family: 'IBM Plex Mono';"><span>Документ: ТЗ · v2.0</span><span>Основание: Договор №19082 от 27.04.2026</span><span>Дата редакции: 29.07.2026</span></div>
-        <div style="margin-top: 18px; padding: 14px 16px; background: #faf5ff; border: 1px solid #ddd6fe; border-radius: 10px; font-size: 13px; line-height: 1.6; color: #3f3f46;"><span style="color: #7c3aed; font-weight: 750;">[v2]</span> Синхронизированная редакция после сверки исходного ТЗ v1.1, цветных замечаний Google Docs, полной транскрипции встречи 17.07.2026 и согласованных уточнений Заказчика. При конфликте с прежним текстом решения блока «v2.0» имеют приоритет.</div>
+        <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px; font-size: 11.5px; color: #71717a; font-family: 'IBM Plex Mono';"><span>Документ: ТЗ · v2.1</span><span>Основание: Договор №19082 от 27.04.2026</span><span>Дата редакции: 31.07.2026</span></div>
+        <div style="margin-top: 18px; padding: 14px 16px; background: #faf5ff; border: 1px solid #ddd6fe; border-radius: 10px; font-size: 13px; line-height: 1.6; color: #3f3f46;"><span style="color: #7c3aed; font-weight: 750;">[v2.1]</span> Редакция дополняет синхронизированное ТЗ v2.0 десятью корректировками по результатам проверки интерфейса Заказчиком. В этой редакции изменён только текст ТЗ: прототип и программная реализация не изменялись. При конфликте с прежним текстом критерии AC-1—AC-10 блока «v2.1» имеют приоритет.</div>
       </div>
 
-      <nav class="tz-jump-nav" aria-label="Навигация по изменениям ТЗ v2.0">
-        <button type="button" class="tz-jump-primary" onclick="{{ scrollTzOverview }}">Обзор v2.0</button>
+      <nav class="tz-jump-nav" aria-label="Навигация по изменениям ТЗ v2.1">
+        <button type="button" class="tz-jump-primary" onclick="{{ scrollTzV21 }}">Правки v2.1</button>
+        <button type="button" onclick="{{ scrollTzOverview }}">Обзор v2.0</button>
         <button type="button" onclick="{{ scrollTzChanges }}">Все изменения</button>
         <button type="button" onclick="{{ scrollTzConflicts }}">Было → стало</button>
         <button type="button" onclick="{{ scrollTzMeeting }}">Решения созвона</button>
@@ -1773,10 +1774,89 @@
         </aside>
       </sc-if>
 
+      <!-- v2.1 review corrections -->
+      <section id="tz-v21-changes" class="tz-surface tz-section" style="scroll-margin-top:72px;">
+        <div class="tz-eyebrow">Редакция v2.1 · 31.07.2026</div>
+        <h2 class="tz-section-title">Корректировки по результатам проверки Заказчиком</h2>
+        <p class="tz-section-lead">Ниже зафиксированы десять обязательных, наблюдаемых критериев. Они уточняют массовую загрузку, связь с Bitrix24, компактность карточки документа и настройку прав. Нумерация AC-1—AC-10 стабильна и должна сохраняться в последующих редакциях.</p>
+        <div style="margin-top:15px;padding:13px 14px;border:1px solid #bfdbfe;border-left:4px solid #2563eb;border-radius:9px;background:#eff6ff;color:#1e3a5f;font-size:11.5px;line-height:1.55;"><b>Граница редакции:</b> v2.1 является изменением только технического задания. Скриншоты и интерактивные состояния прототипа ниже отражают предыдущую реализацию и не считаются доказательством выполнения AC-1—AC-10.</div>
+
+        <h3 style="font-family:'Space Grotesk';font-size:15px;font-weight:650;margin:24px 0 10px;">История редакций</h3>
+        <div style="border:1px solid #ededed;border-radius:10px;overflow:hidden;font-size:12px;">
+          <div style="display:grid;grid-template-columns:92px 112px 1fr;background:#fafafa;color:#71717a;font-weight:600;">
+            <div style="padding:8px 11px;">Версия</div><div style="padding:8px 11px;">Дата</div><div style="padding:8px 11px;">Содержание изменения</div>
+          </div>
+          <div style="display:grid;grid-template-columns:92px 112px 1fr;border-top:1px solid #f4f4f5;">
+            <div style="padding:9px 11px;font-family:'IBM Plex Mono';">ТЗ · v1.1</div><div style="padding:9px 11px;color:#71717a;">исходная</div><div style="padding:9px 11px;color:#3f3f46;">Базовая бизнес- и техническая спецификация.</div>
+          </div>
+          <div style="display:grid;grid-template-columns:92px 112px 1fr;border-top:1px solid #f4f4f5;">
+            <div style="padding:9px 11px;font-family:'IBM Plex Mono';">ТЗ · v2.0</div><div style="padding:9px 11px;color:#71717a;">29.07.2026</div><div style="padding:9px 11px;color:#3f3f46;">Сверка v1.1, замечаний Google Docs, полной транскрипции встречи 17.07.2026 и последующих уточнений Заказчика.</div>
+          </div>
+          <div style="display:grid;grid-template-columns:92px 112px 1fr;border-top:1px solid #f4f4f5;background:#faf5ff;">
+            <div style="padding:9px 11px;font-family:'IBM Plex Mono';color:#6d28d9;font-weight:700;">ТЗ · v2.1</div><div style="padding:9px 11px;color:#6d28d9;">31.07.2026</div><div style="padding:9px 11px;color:#3f3f46;">Десять корректировок по проверке массовой загрузки, карточки документа и политики ролей. Код и прототип не изменялись.</div>
+          </div>
+        </div>
+
+        <h3 style="font-family:'Space Grotesk';font-size:15px;font-weight:650;margin:24px 0 10px;">Критерии приёмки редакции v2.1</h3>
+        <div class="tz-change-list">
+          <article id="tz-v21-ac-1" class="tz-change-card">
+            <div class="tz-change-head"><div class="tz-change-index">AC-1</div><div><div class="tz-change-title">Перетаскивание нескольких файлов в нужный раздел</div><div class="tz-change-source">Замечание Заказчика 1</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">В полном реестре, карточке сделки и карточке компании пользователь может одновременно перетащить два или более файла непосредственно в область доступного ему раздела, например «Поставщик». После отпускания мыши открывается массовая загрузка со списком этих файлов, а целевой раздел уже заполнен. Использование кнопки «Массовая загрузка» для этого сценария не требуется.</div></div>
+            <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Перетащить два файла в раздел «Поставщик» и убедиться, что оба файла появились в форме, а раздел заполнен значением «Поставщик».</div></div>
+          </article>
+          <article id="tz-v21-ac-2" class="tz-change-card">
+            <div class="tz-change-head"><div class="tz-change-index">AC-2</div><div><div class="tz-change-title">Поля массовой загрузки не перекрываются</div><div class="tz-change-source">Замечание Заказчика 2</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">При поддерживаемой ширине десктопа от 1280 px и масштабе браузера 100% подписи, поля, списки, имена файлов, кнопки и сообщения в форме массовой загрузки не перекрывают и не обрезают друг друга. Длинные значения переносятся или сокращаются с доступом к полному тексту; при недостаточной высоте прокручивается содержимое формы, а не элементы поверх друг друга.</div></div>
+            <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Открыть форму на ширине 1280 px с длинными именами файлов и ошибками валидации; все элементы остаются читаемыми и доступными.</div></div>
+          </article>
+          <article id="tz-v21-ac-3" class="tz-change-card">
+            <div class="tz-change-head"><div class="tz-change-index">AC-3</div><div><div class="tz-change-title">Удаление одного файла из набора</div><div class="tz-change-source">Замечание Заказчика 3</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">У каждой строки файла есть явно подписанное действие удаления. Оно удаляет только выбранный файл и сохраняет остальные файлы, общие значения и заполненные поля других строк. Полная отмена формы остаётся отдельным действием; после удаления последнего файла показывается пустое состояние с возможностью добавить файлы заново.</div></div>
+            <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Добавить три файла, заполнить общие и построчные поля, удалить второй файл; первая и третья строки и их значения не меняются.</div></div>
+          </article>
+          <article id="tz-v21-ac-4" class="tz-change-card">
+            <div class="tz-change-head"><div class="tz-change-index">AC-4</div><div><div class="tz-change-title">Компания-контрагент выбирается из Bitrix24</div><div class="tz-change-source">Замечание Заказчика 4</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">Поле «Компания-контрагент» в массовой загрузке является поисковым выпадающим списком компаний CRM Bitrix24. Контекстное значение подставляется как связанная сущность и может быть заменено выбором из результатов поиска. Сохраняются идентификатор и отображаемое название компании; произвольный текст без идентификатора Bitrix24 не считается выбранной компанией и не позволяет отправить строку.</div></div>
+            <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Заменить автоматически выбранную компанию через поиск; после выбора строка хранит новую компанию, а введённый без выбора текст вызывает понятную валидацию.</div></div>
+          </article>
+          <article id="tz-v21-ac-5" class="tz-change-card">
+            <div class="tz-change-head"><div class="tz-change-index">AC-5</div><div><div class="tz-change-title">Явное состояние готовности принять файлы</div><div class="tz-change-source">Замечание Заказчика 5</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">Пока курсор с файлами находится над доступной областью раздела, область заметно меняет фон и границу и показывает текст «Отпустите файлы для загрузки». Подсветка появляется до отпускания мыши, сохраняется при перемещении внутри области и исчезает после ухода курсора или завершения drop. Недоступная по правам область не показывает состояние приёма.</div></div>
+            <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Навести пачку файлов на доступный и недоступный разделы; состояние готовности появляется только у доступной цели и сбрасывается после ухода.</div></div>
+          </article>
+          <article id="tz-v21-ac-6" class="tz-change-card">
+            <div class="tz-change-head"><div class="tz-change-index">AC-6</div><div><div class="tz-change-title">Понятная и доступная подсказка</div><div class="tz-change-source">Замечание Заказчика 6</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">Если рядом с полем нужна подсказка, используется стандартная кнопка с символом «?» и доступным названием. Одинаковый текст подсказки открывается при наведении мыши, фокусе с клавиатуры и активации кнопки. Неподписанный декоративный кружок запрещён; если полезного текста подсказки нет, элемент не отображается.</div></div>
+            <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Открыть форму мышью и клавиатурой; «?» однозначно распознаётся как подсказка и сообщает один и тот же текст.</div></div>
+          </article>
+          <article id="tz-v21-ac-7" class="tz-change-card">
+            <div class="tz-change-head"><div class="tz-change-index">AC-7</div><div><div class="tz-change-title">Раздел и тип обязательны для каждого файла</div><div class="tz-change-source">Замечание Заказчика 7</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">В массовой загрузке каждый файл до отправки имеет обязательные значения «Раздел» и «Тип документа». Общая шапка позволяет применить раздел и тип ко всем строкам, после чего строку можно изменить отдельно; список типов зависит от выбранного раздела. При запуске из раздела он заполняется автоматически. Отправка блокируется, пока хотя бы одна строка не классифицирована. Ошибка загрузки показывается у конкретной строки с причиной и повтором без повторной отправки успешно созданных документов.</div></div>
+            <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Назначить пачке общий раздел, изменить тип одной строки, вызвать ошибку другой строки и повторить только ошибочную загрузку.</div></div>
+          </article>
+          <article id="tz-v21-ac-8" class="tz-change-card">
+            <div class="tz-change-head"><div class="tz-change-index">AC-8</div><div><div class="tz-change-title">Ссылка на компанию в созданном документе</div><div class="tz-change-source">Замечание Заказчика 8</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">В сохранённой карточке значение «Компания-контрагент» отображается как ссылка на ту же сущность «Компания» в CRM Bitrix24, идентификатор которой сохранён у документа. Ссылка открывает карточку компании в текущем портале; при отсутствии или недоступности сущности система показывает понятный статус и не формирует ссылку на другой объект.</div></div>
+            <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Создать документ с выбранной компанией и перейти по значению поля; открывается соответствующая карточка компании Bitrix24.</div></div>
+          </article>
+          <article id="tz-v21-ac-9" class="tz-change-card">
+            <div class="tz-change-head"><div class="tz-change-index">AC-9</div><div><div class="tz-change-title">Компактная и разделённая по смыслу карточка документа</div><div class="tz-change-source">Замечание Заказчика 9</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">При открытии карточка сразу показывает заголовок, основные реквизиты и содержимое. Вторичные блоки имеют контрастные заголовки и разделители и по умолчанию свёрнуты, если в них нет действия, требующего внимания. «История версий» не выводится длинным раскрытым списком: отдельная кнопка с числом версий открывает её в самостоятельной панели или диалоге. Пользователь может открыть и закрыть каждый вторичный блок мышью и клавиатурой без потери позиции в карточке.</div></div>
+            <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Открыть документ с несколькими версиями и длинной историей; основные данные видны сразу, версии открываются отдельной кнопкой, смысловые блоки визуально разделены.</div></div>
+          </article>
+          <article id="tz-v21-ac-10" class="tz-change-card">
+            <div class="tz-change-head"><div class="tz-change-index">AC-10</div><div><div class="tz-change-title">Редактируемые права для каждой роли и типа документа</div><div class="tz-change-source">Замечание Заказчика 10</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">Администратор может открыть политику роли, выбрать конкретный тип документа и изменить как минимум права просмотра, создания, редактирования, смены статуса, архивирования, экспорта и видимость финансовых полей. Настройки сохраняются без участия разработчика, повторно отображаются после перезагрузки и авторитетно применяются сервером к списку, карточке, поиску, экспорту и действиям. Отдельно сохраняется маппинг отделов Bitrix24 на роли.</div></div>
+            <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Запретить одной роли просмотр выбранного типа, сохранить и войти под этой ролью; тип и его документы отсутствуют во всех контекстах и API, остальные типы остаются доступны.</div></div>
+          </article>
+        </div>
+        <div style="margin-top:16px;padding:13px 14px;border:1px solid #e4e4e7;border-radius:9px;background:#fafafa;color:#52525b;font-size:11.5px;line-height:1.55;"><b>Не меняется этой редакцией:</b> отдельная мобильная версия по-прежнему не входит в объём; OCR/автоопределение типа файла не добавляется; правила хранения, версионирования и soft-delete сохраняются, меняется только способ показа истории версий в интерфейсе.</div>
+      </section>
+
       <!-- v2 overview -->
       <section id="tz-v2-overview" class="tz-surface tz-section">
         <div class="tz-eyebrow">Редакция v2.0 · 29.07.2026</div>
-        <h2 class="tz-section-title">Что вошло в обновлённое ТЗ</h2>
+        <h2 class="tz-section-title">Что вошло в обновлённое ТЗ v2.0</h2>
         <p class="tz-section-lead">Эта HTML-версия собирает решения в одном месте. Ниже можно увидеть исходную формулировку, принятое правило, подробности реализации и экран, на котором проверяется результат.</p>
         <div class="tz-legend">
           <span class="tz-chip tz-chip-v2">[v2] новое или изменённое</span>
@@ -1903,7 +1983,7 @@
       <section id="tz-full-text" class="tz-surface tz-section">
         <div class="tz-eyebrow">Полная редакция</div>
         <h2 class="tz-section-title">Текст ТЗ по разделам</h2>
-        <p class="tz-section-lead">Далее сохранён полный бизнес- и технический уровень спецификации. Журнал выше объясняет, что именно изменилось и где это проверять.</p>
+        <p class="tz-section-lead">Далее сохранён полный бизнес- и технический уровень спецификации с учётом обязательных критериев v2.1. Журналы выше объясняют, что именно изменилось и как это принимать.</p>
       </section>
       <!-- 1 general -->
       <div style="background: #fff; border: 1px solid #ededed; border-radius: 12px; padding: 32px 44px;">
@@ -1977,6 +2057,7 @@
         </div>
         <div style="margin-top:10px; font-size:11.5px; color:#a1a1aa;">✓ — разрешено · ◐ — частично (в рамках своих документов) · — — запрещено.</div>
         <div style="margin-top: 12px; padding: 12px 14px; background: #fafafa; border: 1px solid #ededed; border-radius: 8px; font-size: 12.5px; line-height: 1.55; color: #52525b;">Права проверяются <b>на стороне сервера</b> на каждом запросе. Интерфейс использует те же правила как подсказки — скрывает или блокирует недоступные кнопки и поля.</div>
+        <div style="margin-top: 10px; padding: 12px 14px; background: #faf5ff; border: 1px solid #ddd6fe; border-radius: 8px; font-size: 12.5px; line-height: 1.55; color: #3f3f46;"><span style="color:#7c3aed;font-weight:700;">[v2.1]</span> Администратор редактирует политику не только на уровне роли или раздела, но и отдельно для каждого типа документа. Для пары «роль × тип» настраиваются просмотр, создание, редактирование, смена статуса, архивирование, экспорт и видимость финансовых полей. Сохранённая политика повторно отображается после перезагрузки и применяется сервером во всех контекстах и API. Маппинг отделов Bitrix24 на роли настраивается отдельно.</div>
       </div>
       <!-- 6 catalog -->
       <div style="background: #fff; border: 1px solid #ededed; border-radius: 12px; padding: 32px 44px;">
@@ -2019,7 +2100,19 @@
       <div style="background: #fff; border: 1px solid #ededed; border-radius: 12px; padding: 32px 44px;">
         <div style="font-family: 'IBM Plex Mono'; font-size: 11.5px; color: #4f46e5; letter-spacing: 1px;">8 · БИЗНЕС-УРОВЕНЬ</div>
         <h2 style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 24px; margin: 6px 0 16px; letter-spacing: -.5px;">Экраны системы</h2>
-        <p style="font-size: 14px; line-height: 1.65; color: #3f3f46; margin: 0 0 14px;"><span style="color:#7c3aed;font-weight:700;">[v2]</span> Ниже сохранены базовые экраны исходной спецификации. Актуальные состояния массовой загрузки, связанных документов и финансового итога размещены в блоке v2.0 выше; кнопки блока открывают интерактивные экраны. Мобильная версия не входит в объём.</p>
+        <p style="font-size: 14px; line-height: 1.65; color: #3f3f46; margin: 0 0 14px;"><span style="color:#7c3aed;font-weight:700;">[v2]</span> Ниже сохранены базовые экраны исходной спецификации. Интерактивные экраны отражают состояние прототипа v2.0 и не подтверждают выполнение новых критериев v2.1. Мобильная версия не входит в объём.</p>
+        <div style="margin:0 0 18px;padding:14px 16px;border:1px solid #ddd6fe;border-radius:10px;background:#faf5ff;">
+          <div style="font-family:'Space Grotesk';font-size:13.5px;font-weight:650;color:#6d28d9;">[v2.1] Обязательные состояния интерфейса</div>
+          <ul style="font-size:12.5px;line-height:1.65;color:#3f3f46;margin:9px 0 0;padding-left:19px;">
+            <li>Разделы в реестре, карточке сделки и карточке компании принимают два или более файлов через drag-and-drop; до отпускания мыши доступная цель явно подсвечивается.</li>
+            <li>Массовая загрузка требует раздел и тип для каждого файла, поддерживает общую шапку и построчную замену, удаление одной строки и повтор только ошибочных строк.</li>
+            <li>При ширине от 1280 px элементы формы массовой загрузки не перекрываются; длинные значения и ошибки остаются читаемыми.</li>
+            <li>«Компания-контрагент» выбирается поиском по компаниям CRM Bitrix24 и хранит идентификатор; в готовой карточке значение ведёт в соответствующую Компанию Bitrix24.</li>
+            <li>Подсказка обозначается кнопкой «?» и доступна мышью и клавиатурой; неподписанные декоративные кружки не используются.</li>
+            <li>Карточка документа сразу показывает основные данные и содержимое; вторичные блоки свёрнуты и визуально разделены, а история версий открывается отдельной кнопкой с количеством версий.</li>
+            <li>Экран «Политики ролей» позволяет администратору изменять права для каждой пары «роль × тип документа» и сохранять их без участия разработчика.</li>
+          </ul>
+        </div>
         <figure style="margin:0 0 22px;"><img src="c212f48f-e809-41d3-9ac2-7ebbcbd8bb6f" alt="Рис. 1. Полноэкранный реестр." style="width:100%; display:block; border:1px solid #ededed; border-radius:9px;"><figcaption style="margin-top:8px; font-size:12.5px; color:#52525b; line-height:1.5;"><b style="color:#18181b;">Рис. 1. Полноэкранный реестр.</b> Плотная таблица всех документов в зоне видимости роли: разделы слева, сохранённые виды (Все / Мои / В работе / Черновики), поиск, фильтры, массовые действия и экспорт XLSX.</figcaption></figure><figure style="margin:0 0 22px;"><img src="ed95e9b0-9449-4b11-aa83-779348febde1" alt="Рис. 2. Карточка документа." style="width:100%; display:block; border:1px solid #ededed; border-radius:9px;"><figcaption style="margin-top:8px; font-size:12.5px; color:#52525b; line-height:1.5;"><b style="color:#18181b;">Рис. 2. Карточка документа.</b> Боковая панель: реквизиты (номер, дата, сумма, компания-контрагент, ответственный), содержимое (файлы и ссылки), привязки к сущностям Bitrix24, переключатель статуса и история изменений.</figcaption></figure><figure style="margin:0 0 22px;"><img src="e5b7fdfc-5dee-484b-8ed5-2c86b7efe350" alt="Рис. 3. Мастер создания документа." style="width:100%; display:block; border:1px solid #ededed; border-radius:9px;"><figcaption style="margin-top:8px; font-size:12.5px; color:#52525b; line-height:1.5;"><b style="color:#18181b;">Рис. 3. Мастер создания документа.</b> Три шага: выбор раздела и типа → реквизиты и содержимое → привязки и подтверждение. Прогресс по шагам показан индикатором.</figcaption></figure><figure style="margin:0 0 22px;"><img src="e62247cf-1278-4543-8a8c-96b588b0ffb4" alt="Рис. 4. Документы в карточке сделки." style="width:100%; display:block; border:1px solid #ededed; border-radius:9px;"><figcaption style="margin-top:8px; font-size:12.5px; color:#52525b; line-height:1.5;"><b style="color:#18181b;">Рис. 4. Документы в карточке сделки.</b> Встроенная вкладка: сводка по документам сделки, группировка по разделам, контекстное добавление. Документы привязаны к сделке и её компании.</figcaption></figure><figure style="margin:0 0 22px;"><img src="c7d89c52-0b79-4d0b-9504-aa13217a1053" alt="Рис. 5. Реестр глазами менеджера продаж." style="width:100%; display:block; border:1px solid #ededed; border-radius:9px;"><figcaption style="margin-top:8px; font-size:12.5px; color:#52525b; line-height:1.5;"><b style="color:#18181b;">Рис. 5. Реестр глазами менеджера продаж.</b> Тот же реестр под ролью «Менеджер продаж»: видны только клиентские и внутренние разделы, суммы и финансовые поля скрыты (прочерк).</figcaption></figure><figure style="margin:0 0 22px;"><img src="c593ca13-7ed1-48aa-9881-ae2efbba95ea" alt="Рис. 6. Администрирование." style="width:100%; display:block; border:1px solid #ededed; border-radius:9px;"><figcaption style="margin-top:8px; font-size:12.5px; color:#52525b; line-height:1.5;"><b style="color:#18181b;">Рис. 6. Администрирование.</b> Справочники разделов и типов, шаблоны жизненного цикла статусов и политики ролей. Доступно только роли «Администратор».</figcaption></figure>
       </div>
       <!-- 9 scenarios -->
@@ -2114,6 +2207,7 @@
         <div style="font-family: 'IBM Plex Mono'; font-size: 11.5px; line-height: 1.9; color: #3f3f46; background: #fafafa; border: 1px solid #ededed; border-radius: 9px; padding: 13px 16px;">
           <div><span style="color:#15803d;">GET</span>&nbsp;&nbsp;/documents · /documents/:id&nbsp;&nbsp;<span style="color:#a1a1aa;">список + карточка</span></div>
           <div><span style="color:#2563eb;">POST</span>&nbsp;/documents · PUT /documents/:id&nbsp;&nbsp;<span style="color:#a1a1aa;">создание / правка</span></div>
+          <div><span style="color:#2563eb;">POST</span>&nbsp;/documents/bulk-upload&nbsp;&nbsp;<span style="color:#a1a1aa;">[v2.1] пачка файлов с разделом/типом и построчным результатом</span></div>
           <div><span style="color:#2563eb;">POST</span>&nbsp;/documents/:id/transition&nbsp;&nbsp;<span style="color:#a1a1aa;">смена статуса</span></div>
           <div><span style="color:#2563eb;">POST</span>&nbsp;/documents/:id/attachments/file · /link · /:attId/replace</div>
           <div><span style="color:#2563eb;">POST</span>&nbsp;/documents/:id/links · <span style="color:#dc2626;">DELETE</span> /links/:linkId</div>
@@ -2122,7 +2216,7 @@
           <div><span style="color:#2563eb;">POST</span>&nbsp;/documents/bulk-export&nbsp;&nbsp;<span style="color:#a1a1aa;">XLSX</span></div>
         </div>
         <h3 style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 15px; margin: 20px 0 9px;">Методы Bitrix24 REST</h3>
-        <div style="font-size: 13px; line-height: 1.7; color: #3f3f46;"><code style="font-family:'IBM Plex Mono';font-size:12px;">user.current</code> · <code style="font-family:'IBM Plex Mono';font-size:12px;">crm.deal.get / crm.company.get</code> · <code style="font-family:'IBM Plex Mono';font-size:12px;">disk.folder.uploadfile / disk.file.get</code> · <code style="font-family:'IBM Plex Mono';font-size:12px;">im.notify.system.add</code> · <code style="font-family:'IBM Plex Mono';font-size:12px;">placement.bind</code> · <code style="font-family:'IBM Plex Mono';font-size:12px;">event.bind</code>.</div>
+        <div style="font-size: 13px; line-height: 1.7; color: #3f3f46;"><code style="font-family:'IBM Plex Mono';font-size:12px;">user.current</code> · <code style="font-family:'IBM Plex Mono';font-size:12px;">crm.deal.get / crm.company.get / crm.company.list</code> · <code style="font-family:'IBM Plex Mono';font-size:12px;">disk.folder.uploadfile / disk.file.get</code> · <code style="font-family:'IBM Plex Mono';font-size:12px;">im.notify.system.add</code> · <code style="font-family:'IBM Plex Mono';font-size:12px;">placement.bind</code> · <code style="font-family:'IBM Plex Mono';font-size:12px;">event.bind</code>.</div>
         <h3 style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 15px; margin: 20px 0 9px;">Placement’ы</h3>
         <div style="font-size: 13px; line-height: 1.7; color: #3f3f46;"><code style="font-family:'IBM Plex Mono';font-size:12px;">CRM_DEAL_DETAIL_TAB</code> · <code style="font-family:'IBM Plex Mono';font-size:12px;">CRM_COMPANY_DETAIL_TAB</code> · <code style="font-family:'IBM Plex Mono';font-size:12px;">LEFT_MENU</code>. SPA встраивается в iframe, авторизация через BX24 JS SDK.</div>
         <div style="margin-top: 14px; padding: 12px 14px; background: #eff4ff; border-left: 3px solid #2563eb; border-radius: 6px; font-size: 12.5px; line-height: 1.55; color: #1e3a5f;">Webhook’и <code style="font-family:'IBM Plex Mono';font-size:11.5px;">OnCrmDealUpdate/Delete, OnCrmCompanyUpdate/Delete</code> обновляют денормализованное название и чистят orphan‑привязки при удалении сущности. Сбой синхронизации с Bitrix не прерывает работу модуля.</div>
@@ -2151,9 +2245,10 @@
           <li><b>Полноэкранный реестр</b> — плотная таблица, разделы слева, виды/фильтры/поиск, bulk‑панель, экспорт.</li>
           <li><b>Встроенная вкладка в сделке</b> — сводка, матрица «Раздел × Статус» (сводка по числу документов раздела в каждом статусе), документы по разделам со сворачиванием, контекстное добавление.</li>
           <li><b>Встроенная вкладка в компании</b> — все сделки контрагента; представления «По сделкам» (каждую сделку можно развернуть → матрица + документы) и «По документам» (документы по типам).</li>
-          <li><b>Карточка документа (drawer)</b> — реквизиты (ядро + поля типа), содержимое (файлы + ссылки), привязки, смена статуса, история.</li>
+          <li><b>Карточка документа (drawer)</b> — основные реквизиты и содержимое видны сразу; вторичные блоки свёрнуты и разделены контрастными заголовками; «История версий» открывается отдельной кнопкой с количеством версий.</li>
           <li><b>Мастер создания</b> — 3 шага: раздел/тип → реквизиты + динамические поля типа + содержимое → привязки и подтверждение.</li>
-          <li><b>Администрирование</b> (роль admin) — справочники разделов и типов, конструктор полей типа, lifecycle статусов, политики ролей, обучающие материалы.</li>        </ul>
+          <li><b>Массовая загрузка</b> — drag-and-drop в раздел или запуск кнопкой; обязательные раздел и тип для каждой строки, поисковая Компания Bitrix24, удаление одной строки, явные состояния drop, ошибок и повтора.</li>
+          <li><b>Администрирование</b> (роль admin) — справочники разделов и типов, конструктор полей типа, lifecycle статусов, редактируемая матрица «роль × тип документа», обучающие материалы.</li>        </ul>
         <div style="font-size: 13px; line-height: 1.6; color: #3f3f46; margin-bottom: 18px;">Принципы: плотно и информативно, цветовой код по разделам и статусам, permission‑aware (недоступное скрыто), desktop (1280px+), контраст WCAG AA, русский язык.</div>
         <h3 style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 15px; margin: 4px 0 9px;">Стек и НФТ</h3>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 9px; font-size: 12.5px;">
@@ -2180,6 +2275,9 @@
           <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="color: #15803d;">✓</span> Раздел открывается в карточке сделки, компании и в левом меню; placement’ы зарегистрированы.</div>
           <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="color: #15803d;">✓</span> Документ создаётся мастером, привязывается к сделке и компании Bitrix24, виден в обоих контекстах.</div>
           <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="color: #15803d;">✓</span> Прикрепляются файл (Bitrix Disk) и внешняя ссылка; смена статуса работает по lifecycle.</div>
+          <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="color: #15803d;">✓</span> [v2.1] Два или более файла перетаскиваются в нужный раздел; форма явно показывает drop-состояние, позволяет удалить одну строку и требует раздел и тип для каждого файла без перекрытия элементов на ширине 1280 px.</div>
+          <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="color: #15803d;">✓</span> [v2.1] Компания-контрагент выбирается из CRM Bitrix24 и открывается ссылкой из карточки; произвольный несвязанный текст не сохраняется как компания.</div>
+          <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="color: #15803d;">✓</span> [v2.1] Карточка документа компактно разделена на основные и вторичные блоки, версии открываются отдельно, а администратор сохраняет права для каждой пары «роль × тип».</div>
           <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="color: #15803d;">✓</span> Фильтры, поиск, сохранённые виды и экспорт XLSX работают.</div>
           <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="color: #15803d;">✓</span> Ролевая модель: для менеджера продаж суммы скрыты, недоступные разделы и кнопки отсутствуют (проверка на сервере).</div>
           <div style="display: flex; gap: 9px; align-items: flex-start;"><span style="color: #15803d;">✓</span> typecheck / lint / сборка проходят без ошибок.</div>
@@ -2928,6 +3026,14 @@ class Component extends DCLogic {
     ['ROL-01', '[v2] Права по каждому типу; после закрытия всех связанных сделок менеджер полностью теряет доступ', 'P0'],
     ['NOT-01', '[v2] Создатель карточки и загрузивший файл уведомляются об архивировании и восстановлении', 'P1'],
     ['BLK-01', '[v2] Массовая загрузка 2+ файлов с общей шапкой и отдельными значениями каждой строки в трёх контекстах', 'P0'],
+    ['BLK-02', '[v2.1] Drag-and-drop 2+ файлов непосредственно в доступный раздел реестра, сделки или компании с автоматическим заполнением раздела', 'P0'],
+    ['BLK-03', '[v2.1] До drop целевой раздел явно меняет фон и границу и показывает приглашение отпустить файлы', 'P0'],
+    ['BLK-04', '[v2.1] Для каждого файла обязательны раздел и тип; отдельную строку можно удалить без сброса остальных данных', 'P0'],
+    ['BLK-05', '[v2.1] На ширине 1280 px поля не перекрываются; ошибка привязана к строке, повтор не дублирует успешные документы', 'P0'],
+    ['CRM-01', '[v2.1] Компания-контрагент выбирается поиском по CRM Bitrix24, хранит company_id и открывается ссылкой из готовой карточки', 'P0'],
+    ['UX-01', '[v2.1] Подсказки используют кнопку «?» с одинаковым поведением для мыши и клавиатуры; пустая подсказка не показывается', 'P0'],
+    ['UX-02', '[v2.1] Карточка показывает основные данные сразу, вторичные блоки свёрнуты, история версий открывается отдельной кнопкой', 'P0'],
+    ['ROL-02', '[v2.1] Администратор редактирует и сохраняет серверную политику отдельно для каждой пары «роль × тип документа»', 'P0'],
     ['FIN-01', '[v2] Итог сделки в выбранной валюте; курс ЦБ РФ на дату документа, расшифровка и 0 при отсутствии суммы', 'P0'],
     ['B24-01', '[v2] Все счета и КП сделки импортируются отдельно; повторная синхронизация по внешнему ID без дублей', 'P0'],
     ['DEV-01', '[v2] Мобильная версия не входит в объём; на телефоне открывается десктопный интерфейс, вход только через учётную запись Bitrix24', 'P0'],
@@ -4152,7 +4258,7 @@ class Component extends DCLogic {
     });
     const scrollToTz = id => () => {
       const section = document.getElementById(id);
-      if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (section) section.scrollIntoView({ behavior: 'auto', block: 'start' });
     };
     const xlsxColumnDefs = [
       ['document', 'Документ', item => `${item.title} · ${item.num}`],
@@ -4197,6 +4303,7 @@ class Component extends DCLogic {
       frRows, dataModel, historySpec,
       v2Summary, v2Sources, v2ChangeGroups, v2Conflicts, v2MeetingDecisions, v2Deferred,
       traceabilityRows, evidenceScreens,
+      scrollTzV21: scrollToTz('tz-v21-changes'),
       scrollTzOverview: scrollToTz('tz-v2-overview'),
       scrollTzChanges: scrollToTz('tz-v2-changes'),
       scrollTzConflicts: scrollToTz('tz-v2-conflicts'),
