@@ -11,6 +11,7 @@ import {
   isNull,
   lte,
   ne,
+  notInArray,
   or,
   type SQL,
 } from 'drizzle-orm';
@@ -34,9 +35,11 @@ import type { RegistryContext } from '../http/registry-context.js';
 import { BitrixNotificationsService } from '../notifications/bitrix-notifications.service.js';
 import {
   assertSectionVisible,
+  assertTypePermission,
   assertTypeVisible,
   isDocumentFieldHidden,
   isMoneyHidden,
+  isTypePermissionGranted,
   loadRegistryPolicy,
   type RegistryPolicy,
 } from '../permissions/policy.service.js';
@@ -112,6 +115,12 @@ export class DocumentsService {
     }
     if (policy.visibleTypeCodes) {
       conditions.push(inArray(registryDocumentTypes.code, policy.visibleTypeCodes));
+    }
+    const hiddenTypeCodes = Object.entries(policy.permissions.byType ?? {})
+      .filter(([, permissions]) => permissions.view === false)
+      .map(([typeCode]) => typeCode);
+    if (hiddenTypeCodes.length) {
+      conditions.push(notInArray(registryDocumentTypes.code, hiddenTypeCodes));
     }
     if (query.responsibleId) {
       conditions.push(eq(registryDocuments.responsibleId, query.responsibleId));
@@ -224,6 +233,12 @@ export class DocumentsService {
     ];
     if (policy.visibleTypeCodes) {
       visibleConditions.push(inArray(registryDocumentTypes.code, policy.visibleTypeCodes));
+    }
+    const hiddenTypeCodes = Object.entries(policy.permissions.byType ?? {})
+      .filter(([, permissions]) => permissions.view === false)
+      .map(([typeCode]) => typeCode);
+    if (hiddenTypeCodes.length) {
+      visibleConditions.push(notInArray(registryDocumentTypes.code, hiddenTypeCodes));
     }
     const activeScope = and(
       ...visibleConditions,
@@ -598,7 +613,7 @@ export class DocumentsService {
     ]);
 
     const fieldValues = rawFieldValues
-      .filter((field) => !isDocumentFieldHidden(policy, field))
+      .filter((field) => !isDocumentFieldHidden(policy, field, row.typeCode))
       .map((field) => ({
         key: field.key,
         label: field.labelOverride || field.defaultLabel,
@@ -616,10 +631,6 @@ export class DocumentsService {
 
   async create(context: RegistryContext, input: CreateDocumentInput) {
     const policy = await loadRegistryPolicy(this.database, context);
-    if (!policy.permissions.create) {
-      throw new ApiError(403, 'create_access_denied', 'Document creation is not allowed.');
-    }
-
     const typeConfig = await this.loadTypeConfiguration(
       context,
       input.sectionCode,
@@ -627,14 +638,23 @@ export class DocumentsService {
     );
     assertSectionVisible(policy, typeConfig.sectionCode);
     assertTypeVisible(policy, typeConfig.typeCode);
-    if (typeConfig.isFinancial && isMoneyHidden(policy)) {
+    assertTypePermission(policy, typeConfig.typeCode, 'create');
+    if (!isTypePermissionGranted(
+      policy,
+      typeConfig.typeCode,
+      'create',
+      policy.permissions.create,
+    )) {
+      throw new ApiError(403, 'create_access_denied', 'Document creation is not allowed.');
+    }
+    if (typeConfig.isFinancial && isMoneyHidden(policy, typeConfig.typeCode)) {
       throw new ApiError(
         403,
         'financial_document_create_denied',
         'A role with hidden financial fields cannot create financial documents.',
       );
     }
-    if (isMoneyHidden(policy) && (input.amount !== undefined || input.currency !== undefined)) {
+    if (isMoneyHidden(policy, typeConfig.typeCode) && (input.amount !== undefined || input.currency !== undefined)) {
       throw new ApiError(
         403,
         'financial_fields_access_denied',
@@ -642,7 +662,14 @@ export class DocumentsService {
       );
     }
     this.assertFinancialFields(typeConfig.isFinancial, input.amount, input.currency);
-    await this.validateFieldValues(context, typeConfig.typeId, input.fields, true, policy);
+    await this.validateFieldValues(
+      context,
+      typeConfig.typeId,
+      typeConfig.typeCode,
+      input.fields,
+      true,
+      policy,
+    );
 
     const superseded = input.supersedesId
       ? await this.loadDocumentForWrite(context, input.supersedesId)
@@ -651,6 +678,7 @@ export class DocumentsService {
       assertSectionVisible(policy, superseded.sectionCode);
       assertTypeVisible(policy, superseded.typeCode);
       this.assertCanEdit(policy, context, superseded);
+      assertTypePermission(policy, superseded.typeCode, 'archive');
       if (
         superseded.sectionCode !== typeConfig.sectionCode
         || superseded.typeCode !== typeConfig.typeCode
@@ -793,7 +821,7 @@ export class DocumentsService {
     assertTypeVisible(policy, current.typeCode);
     this.assertCanEdit(policy, context, current);
 
-    if (isMoneyHidden(policy) && (input.amount !== undefined || input.currency !== undefined)) {
+    if (isMoneyHidden(policy, current.typeCode) && (input.amount !== undefined || input.currency !== undefined)) {
       throw new ApiError(
         403,
         'financial_fields_access_denied',
@@ -814,7 +842,14 @@ export class DocumentsService {
       input.currency === undefined ? current.currency : input.currency,
     );
     if (fields) {
-      await this.validateFieldValues(context, current.typeId, fields, false, policy);
+      await this.validateFieldValues(
+        context,
+        current.typeId,
+        current.typeCode,
+        fields,
+        false,
+        policy,
+      );
     }
 
     await this.database.transaction(async (transaction) => {
@@ -870,6 +905,14 @@ export class DocumentsService {
     assertSectionVisible(policy, current.sectionCode);
     assertTypeVisible(policy, current.typeCode);
     this.assertCanTransition(policy, context, current);
+    if (targetStatus === 'archived' && !isTypePermissionGranted(
+      policy,
+      current.typeCode,
+      'archive',
+      policy.permissions.softDelete,
+    )) {
+      throw new ApiError(403, 'delete_access_denied', 'Document archiving is not allowed.');
+    }
 
     if (current.status === targetStatus) {
       throw new ApiError(409, 'status_unchanged', 'Document already has this status.');
@@ -951,7 +994,13 @@ export class DocumentsService {
     const current = await this.loadDocumentForWrite(context, id);
     assertSectionVisible(policy, current.sectionCode);
     assertTypeVisible(policy, current.typeCode);
-    if (!policy.permissions.softDelete) {
+    assertTypePermission(policy, current.typeCode, 'archive');
+    if (!isTypePermissionGranted(
+      policy,
+      current.typeCode,
+      'archive',
+      policy.permissions.softDelete,
+    )) {
       throw new ApiError(403, 'delete_access_denied', 'Soft-delete is not allowed.');
     }
 
@@ -1043,15 +1092,21 @@ export class DocumentsService {
 
   async bulkDelete(context: RegistryContext, input: BulkDeleteDocumentsInput) {
     const policy = await loadRegistryPolicy(this.database, context);
-    if (!policy.permissions.softDelete) {
-      throw new ApiError(403, 'delete_access_denied', 'Soft-delete is not allowed.');
-    }
     const documents = await Promise.all(
       input.documentIds.map((id) => this.loadDocumentForWrite(context, id)),
     );
     for (const document of documents) {
       assertSectionVisible(policy, document.sectionCode);
       assertTypeVisible(policy, document.typeCode);
+      assertTypePermission(policy, document.typeCode, 'archive');
+      if (!isTypePermissionGranted(
+        policy,
+        document.typeCode,
+        'archive',
+        policy.permissions.softDelete,
+      )) {
+        throw new ApiError(403, 'delete_access_denied', 'Soft-delete is not allowed.');
+      }
     }
 
     const deletedAt = new Date();
@@ -1087,15 +1142,21 @@ export class DocumentsService {
 
   async bulkRestore(context: RegistryContext, input: BulkRestoreDocumentsInput) {
     const policy = await loadRegistryPolicy(this.database, context);
-    if (!policy.permissions.restore) {
-      throw new ApiError(403, 'restore_access_denied', 'Восстановление документов недоступно для вашей роли.');
-    }
     const documents = await Promise.all(
       input.documentIds.map((id) => this.loadDocumentForWrite(context, id, true)),
     );
     for (const document of documents) {
       assertSectionVisible(policy, document.sectionCode);
       assertTypeVisible(policy, document.typeCode);
+      assertTypePermission(policy, document.typeCode, 'archive');
+      if (!isTypePermissionGranted(
+        policy,
+        document.typeCode,
+        'archive',
+        policy.permissions.restore,
+      )) {
+        throw new ApiError(403, 'restore_access_denied', 'Восстановление документов недоступно для вашей роли.');
+      }
       if (!document.deletedAt) {
         throw new ApiError(409, 'document_not_deleted', 'Документ не находится в архиве.');
       }
@@ -1250,12 +1311,18 @@ export class DocumentsService {
 
   async restore(context: RegistryContext, id: string) {
     const policy = await loadRegistryPolicy(this.database, context);
-    if (!policy.permissions.restore) {
-      throw new ApiError(403, 'restore_access_denied', 'Restore is not allowed.');
-    }
     const current = await this.loadDocumentForWrite(context, id, true);
     assertSectionVisible(policy, current.sectionCode);
     assertTypeVisible(policy, current.typeCode);
+    assertTypePermission(policy, current.typeCode, 'archive');
+    if (!isTypePermissionGranted(
+      policy,
+      current.typeCode,
+      'archive',
+      policy.permissions.restore,
+    )) {
+      throw new ApiError(403, 'restore_access_denied', 'Restore is not allowed.');
+    }
     if (!current.deletedAt) {
       throw new ApiError(409, 'document_not_deleted', 'Document is not deleted.');
     }
@@ -1467,6 +1534,7 @@ export class DocumentsService {
   private async validateFieldValues(
     context: RegistryContext,
     typeId: string,
+    typeCode: string,
     fields: Record<string, unknown>,
     requireAll: boolean,
     policy?: RegistryPolicy,
@@ -1508,7 +1576,7 @@ export class DocumentsService {
           isDocumentFieldHidden(policy, {
             key,
             dataType: definitionByKey.get(key)!.dataType,
-          }),
+          }, typeCode),
         )
       : [];
     if (forbiddenKeys.length) {
@@ -1587,11 +1655,17 @@ export class DocumentsService {
   private assertCanEdit(
     policy: RegistryPolicy,
     context: RegistryContext,
-    document: { createdBy: number; responsibleId: number },
+    document: { createdBy: number; responsibleId: number; typeCode: string },
   ) {
+    assertTypePermission(policy, document.typeCode, 'edit');
     const own =
       document.createdBy === context.userId || document.responsibleId === context.userId;
-    if (!policy.permissions.editAny && !(policy.permissions.editOwn && own)) {
+    if (!isTypePermissionGranted(
+      policy,
+      document.typeCode,
+      'edit',
+      policy.permissions.editAny || (policy.permissions.editOwn && own),
+    )) {
       throw new ApiError(403, 'edit_access_denied', 'Document editing is not allowed.');
     }
   }
@@ -1599,14 +1673,17 @@ export class DocumentsService {
   private assertCanTransition(
     policy: RegistryPolicy,
     context: RegistryContext,
-    document: { createdBy: number; responsibleId: number },
+    document: { createdBy: number; responsibleId: number; typeCode: string },
   ) {
+    assertTypePermission(policy, document.typeCode, 'transition');
     const own =
       document.createdBy === context.userId || document.responsibleId === context.userId;
-    if (
-      !policy.permissions.transitionAny &&
-      !(policy.permissions.transitionOwn && own)
-    ) {
+    if (!isTypePermissionGranted(
+      policy,
+      document.typeCode,
+      'transition',
+      policy.permissions.transitionAny || (policy.permissions.transitionOwn && own),
+    )) {
       throw new ApiError(403, 'transition_access_denied', 'Status change is not allowed.');
     }
   }
@@ -1629,7 +1706,7 @@ export class DocumentsService {
       internalTypeId?: string;
     },
   >(row: T, policy: RegistryPolicy) {
-    const moneyHidden = isMoneyHidden(policy);
+    const moneyHidden = isMoneyHidden(policy, row.typeCode);
     const {
       sectionCode,
       sectionName,

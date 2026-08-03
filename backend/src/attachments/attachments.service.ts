@@ -18,7 +18,9 @@ import type { RegistryContext } from '../http/registry-context.js';
 import { logger } from '../logger.js';
 import {
   assertSectionVisible,
+  assertTypePermission,
   assertTypeVisible,
+  isTypePermissionGranted,
   loadRegistryPolicy,
   type RegistryPolicy,
 } from '../permissions/policy.service.js';
@@ -510,11 +512,17 @@ export class AttachmentsService {
   private assertCanEdit(
     policy: RegistryPolicy,
     context: RegistryContext,
-    document: { createdBy: number; responsibleId: number },
+    document: { createdBy: number; responsibleId: number; typeCode: string },
   ) {
+    assertTypePermission(policy, document.typeCode, 'edit');
     const own =
       document.createdBy === context.userId || document.responsibleId === context.userId;
-    if (!policy.permissions.editAny && !(policy.permissions.editOwn && own)) {
+    if (!isTypePermissionGranted(
+      policy,
+      document.typeCode,
+      'edit',
+      policy.permissions.editAny || (policy.permissions.editOwn && own),
+    )) {
       throw new ApiError(403, 'edit_access_denied', 'Document editing is not allowed.');
     }
   }

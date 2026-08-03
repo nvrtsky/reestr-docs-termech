@@ -123,7 +123,7 @@ await waitFor(`document.body.innerText.includes('Договор поставки
 await evaluate(`document.getElementById('__bundler_err')?.remove()`);
 
 await clickButton('Техническое задание');
-await waitFor(`document.body.innerText.includes('Что вошло в обновлённое ТЗ')`, 'specification tab');
+await waitFor(`document.body.innerText.includes('Что вошло в единое ТЗ v2.1')`, 'specification tab');
 
 const selected = await evaluate(`(() => {
   const phrase = 'решения в одном месте';

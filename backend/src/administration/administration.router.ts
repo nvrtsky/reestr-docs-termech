@@ -90,14 +90,14 @@ async function assertRolePolicyReferences(
   ]);
 
   const knownSections = new Set(sections.map((section) => section.code));
+  const typeByCode = new Map(types.map((type) => [type.code, type]));
+  const visibleSections = new Set(input.visibleSectionCodes);
   for (const sectionCode of input.visibleSectionCodes) {
     if (!knownSections.has(sectionCode)) {
       throw new ApiError(400, 'section_not_found', `Section ${sectionCode} was not found.`);
     }
   }
   if (input.visibleTypeCodes) {
-    const typeByCode = new Map(types.map((type) => [type.code, type]));
-    const visibleSections = new Set(input.visibleSectionCodes);
     for (const typeCode of input.visibleTypeCodes) {
       const type = typeByCode.get(typeCode);
       if (!type) throw new ApiError(400, 'document_type_not_found', `Type ${typeCode} was not found.`);
@@ -108,6 +108,17 @@ async function assertRolePolicyReferences(
           `Type ${typeCode} belongs to hidden section ${type.sectionCode}.`,
         );
       }
+    }
+  }
+  for (const typeCode of Object.keys(input.permissions.byType)) {
+    const type = typeByCode.get(typeCode);
+    if (!type) throw new ApiError(400, 'document_type_not_found', `Type ${typeCode} was not found.`);
+    if (!visibleSections.has(type.sectionCode)) {
+      throw new ApiError(
+        400,
+        'type_section_not_visible',
+        `Type ${typeCode} belongs to hidden section ${type.sectionCode}.`,
+      );
     }
   }
   const knownFields = new Set(['amount', 'currency', ...fieldDefinitions.map((field) => field.key)]);
@@ -257,7 +268,9 @@ export function createAdministrationRouter({
         const visibleSections = new Set(input.visibleSectionCodes);
         const hasAllSections = visibleSections.size === references.knownSections.size
           && [...references.knownSections].every((code) => visibleSections.has(code));
-        const hasAllPermissions = Object.values(input.permissions).every(Boolean);
+        const { byType, ...basePermissions } = input.permissions;
+        const hasAllPermissions = Object.values(basePermissions).every(Boolean)
+          && Object.keys(byType).length === 0;
         if (
           input.roleName !== 'Администратор'
           || !hasAllSections

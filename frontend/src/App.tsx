@@ -52,7 +52,8 @@ export function App() {
       if (event.data?.type === 'registry-bitrix-select-crm-request') {
         const requestId = event.data.requestId;
         const value = event.data.value || { deal: [], company: [] };
-        void selectCrmEntities(value)
+        const options = event.data.options || {};
+        void selectCrmEntities(value, options)
           .then((items) => frameRef.current?.contentWindow?.postMessage(
             { type: 'registry-bitrix-select-crm-response', requestId, items },
             window.location.origin,

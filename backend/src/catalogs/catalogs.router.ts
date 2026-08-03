@@ -16,6 +16,7 @@ import { requireRegistryContext } from '../http/registry-context.js';
 import { ApiError } from '../http/api-error.js';
 import {
   isDocumentFieldHidden,
+  isTypePermissionAllowed,
   loadRegistryPolicy,
 } from '../permissions/policy.service.js';
 import {
@@ -137,7 +138,8 @@ export function createCatalogsRouter({ database }: CatalogsRouterDependencies) {
       const visibleTypes = types.filter(
         (type) =>
           visibleSectionIds.has(type.sectionId) &&
-          (!policy.visibleTypeCodes || policy.visibleTypeCodes.includes(type.code)),
+          (!policy.visibleTypeCodes || policy.visibleTypeCodes.includes(type.code)) &&
+          isTypePermissionAllowed(policy, type.code, 'view'),
       );
       const typesBySection = new Map<string, typeof visibleTypes>();
       for (const type of visibleTypes) {
@@ -148,9 +150,10 @@ export function createCatalogsRouter({ database }: CatalogsRouterDependencies) {
       const countsBySection = new Map(
         documentCounts.map((item) => [item.sectionId, item.value]),
       );
+      const typeCodeById = new Map(types.map((type) => [type.id, type.code]));
       const fieldsByType = new Map<string, typeof typeFields>();
       for (const field of typeFields) {
-        if (isDocumentFieldHidden(policy, field)) continue;
+        if (isDocumentFieldHidden(policy, field, typeCodeById.get(field.typeId))) continue;
         const current = fieldsByType.get(field.typeId) ?? [];
         current.push(field);
         fieldsByType.set(field.typeId, current);
@@ -276,9 +279,10 @@ export function createCatalogsRouter({ database }: CatalogsRouterDependencies) {
           )
           .orderBy(asc(registryTypeFields.sortOrder)),
       ]);
+      const typeCodeById = new Map(types.map((type) => [type.id, type.code]));
       const fieldsByType = new Map<string, typeof typeFields>();
       for (const field of typeFields) {
-        if (isDocumentFieldHidden(policy, field)) continue;
+        if (isDocumentFieldHidden(policy, field, typeCodeById.get(field.typeId))) continue;
         const current = fieldsByType.get(field.typeId) ?? [];
         current.push(field);
         fieldsByType.set(field.typeId, current);
@@ -287,7 +291,8 @@ export function createCatalogsRouter({ database }: CatalogsRouterDependencies) {
         items: types
           .filter((type) =>
             policy.visibleSectionCodes.includes(type.sectionCode) &&
-            (!policy.visibleTypeCodes || policy.visibleTypeCodes.includes(type.code)),
+            (!policy.visibleTypeCodes || policy.visibleTypeCodes.includes(type.code)) &&
+            isTypePermissionAllowed(policy, type.code, 'view'),
           )
           .map((type) => ({
             code: type.code,

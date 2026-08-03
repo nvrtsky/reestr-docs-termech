@@ -523,7 +523,7 @@
       <div style="width: 23px; height: 23px; border-radius: 6px; background: #6366f1; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: #fff;">Р</div>
       <span style="color: #fff; font-weight: 600; font-size: 13px;">Реестр документов</span>
       <span style="color: #71717a; font-size: 11.5px;">· Bitrix24</span>
-      <span style="padding: 2px 7px; border-radius: 999px; background: #312e81; color: #c4b5fd; font-family: 'IBM Plex Mono'; font-size: 10.5px; font-weight: 600;">v2.0</span>
+      <span style="padding: 2px 7px; border-radius: 999px; background: #312e81; color: #c4b5fd; font-family: 'IBM Plex Mono'; font-size: 10.5px; font-weight: 600;">v2.1</span>
       <span title="Новое или изменённое требование" style="color: #a78bfa; font-size: 10.5px; font-weight: 700;">[v2]</span>
     </div>
     <div style="flex: 1;"></div>
@@ -557,7 +557,7 @@
           <span style="margin-left: auto; font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ totalCount }}</span>
         </button>
         <sc-for list="{{ sidebarSections }}" as="s" hint-placeholder-count="6">
-          <button type="button" onclick="{{ s.onPick }}" style="{{ s.style }}">
+          <button type="button" data-bulk-section="{{ s.code }}" onclick="{{ s.onPick }}" style="{{ s.style }}">
             <span style="width: 6px; height: 6px; border-radius: 2px; background: {{ s.c }};"></span> {{ s.label }}
             <span style="margin-left: auto; font-family: 'IBM Plex Mono'; font-size: 10.5px; color: #a1a1aa;">{{ s.count }}</span>
           </button>
@@ -838,7 +838,7 @@
 
         <div style="display: flex; flex-direction: column; gap: 7px;">
           <sc-for list="{{ embeddedGroups }}" as="g" hint-placeholder-count="4">
-            <div style="border: 1px solid #ededed; border-radius: 10px; overflow: hidden;">
+            <div data-bulk-section="{{ g.code }}" style="{{ g.style }}">
               <div style="padding: 9px 14px; display: flex; align-items: center; gap: 8px; border-left: 3px solid {{ g.c }};">
                 <div onclick="{{ g.onToggle }}" style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
                   <span style="color: #a1a1aa; font-size: 10px; width: 10px;">{{ g.caret }}</span>
@@ -931,7 +931,7 @@
 
                 <div style="display: flex; flex-direction: column; gap: 7px; margin-top: 16px;">
                   <sc-for list="{{ dl.groups }}" as="g" hint-placeholder-count="3">
-                    <div style="border: 1px solid #ededed; border-radius: 10px; overflow: hidden;">
+                    <div data-bulk-section="{{ g.code }}" style="{{ g.style }}">
                       <div onclick="{{ g.onToggle }}" style="padding: 9px 14px; display: flex; align-items: center; gap: 8px; border-left: 3px solid {{ g.c }}; cursor: pointer;">
                         <span style="color: #a1a1aa; font-size: 10px; width: 10px;">{{ g.caret }}</span>
                         <span style="font-weight: 600; font-size: 12.5px; color: {{ g.c }};">{{ g.label }}</span>
@@ -1088,7 +1088,7 @@
           </sc-if>
 
           <sc-if value="{{ admRoles }}" hint-placeholder-val="{{ false }}">
-            <div style="max-width: 760px;">
+            <div style="max-width: 1040px;">
               <div style="font-size: 12.5px; color: #71717a; margin-bottom: 12px; line-height: 1.55;">Политика роли задаёт видимость разделов/типов, скрытые поля и права на действия. Сервер всегда применяет политику авторитетно; интерфейс получает её через <code style="font-family: 'IBM Plex Mono'; font-size: 11.5px; background: #f4f4f5; padding: 1px 5px; border-radius: 4px;">GET /me/policy</code>.</div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <sc-for list="{{ adminRoleRows }}" as="r" hint-placeholder-count="6">
@@ -1101,6 +1101,18 @@
                     </div>
                   </div>
                 </sc-for>
+              </div>
+              <div style="margin-top:14px;border:1px solid #ddd6fe;border-radius:11px;overflow:hidden;">
+                <div style="padding:12px 14px;background:#faf5ff;border-bottom:1px solid #ede9fe;display:flex;align-items:end;gap:12px;flex-wrap:wrap;">
+                  <label style="display:block;min-width:220px;"><span style="display:block;font-size:10px;color:#7c3aed;margin-bottom:4px;">Редактируемая роль</span><select value="{{ policyRole }}" onchange="{{ setPolicyRole }}" style="width:100%;padding:7px 9px;border:1px solid #c4b5fd;border-radius:7px;background:#fff;font-size:11.5px;"><sc-for list="{{ policyRoleOptions }}" as="o" hint-placeholder-count="6"><option value="{{ o.code }}">{{ o.label }}</option></sc-for></select></label>
+                  <div style="font-size:10.5px;color:#71717a;line-height:1.45;flex:1;min-width:260px;">Настройки задаются отдельно для каждого типа. Нажмите ячейку, чтобы разрешить или запретить действие.</div>
+                  <button type="button" onclick="{{ saveRolePolicy }}" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:650;cursor:pointer;">Сохранить политику</button>
+                </div>
+                <div style="overflow:auto;">
+                  <div style="display:grid;grid-template-columns:minmax(180px,1.5fr) repeat(7,minmax(84px,1fr));min-width:850px;background:#fafafa;color:#71717a;font-size:9.5px;text-transform:uppercase;letter-spacing:.3px;"><div style="padding:8px 10px;">Тип документа</div><sc-for list="{{ policyActionHeaders }}" as="h" hint-placeholder-count="7"><div style="padding:8px 5px;text-align:center;">{{ h }}</div></sc-for></div>
+                  <sc-for list="{{ roleTypePolicyRows }}" as="r" hint-placeholder-count="8"><div style="display:grid;grid-template-columns:minmax(180px,1.5fr) repeat(7,minmax(84px,1fr));min-width:850px;border-top:1px solid #f4f4f5;align-items:center;"><div style="padding:8px 10px;"><div style="font-size:11.5px;font-weight:600;">{{ r.type }}</div><div style="font-size:9.5px;color:#a1a1aa;margin-top:2px;">{{ r.section }}</div></div><sc-for list="{{ r.actions }}" as="a" hint-placeholder-count="7"><button type="button" onclick="{{ a.onToggle }}" aria-label="{{ a.ariaLabel }}" style="{{ a.style }}">{{ a.label }}</button></sc-for></div></sc-for>
+                </div>
+                <sc-if value="{{ policySaved }}" hint-placeholder-val="{{ false }}"><div style="padding:8px 12px;border-top:1px solid #d1fae5;background:#ecfdf5;color:#15803d;font-size:10.5px;">Политика сохранена. Сервер применит её к спискам, карточкам, поиску, экспорту и действиям.</div></sc-if>
               </div>
             </div>
           </sc-if>
@@ -1159,7 +1171,7 @@
           <div style="background: #fff; padding: 9px 12px;"><div style="font-size: 10.5px; color: #a1a1aa;">Номер</div><div style="font-family: 'IBM Plex Mono'; font-size: 12.5px; margin-top: 2px;">{{ doc.number }}</div></div>
           <div style="background: #fff; padding: 9px 12px;"><div style="font-size: 10.5px; color: #a1a1aa;">Дата документа</div><div style="font-family: 'IBM Plex Mono'; font-size: 12.5px; margin-top: 2px;">{{ doc.docDate }}</div></div>
           <div style="background: #fff; padding: 9px 12px;"><div style="font-size: 10.5px; color: #a1a1aa;">Сумма</div><div style="font-family: 'IBM Plex Mono'; font-size: 12.5px; margin-top: 2px;">{{ doc.amountStr }}</div></div>
-          <div style="background: #fff; padding: 9px 12px;"><div style="font-size: 10.5px; color: #a1a1aa;">Компания-контрагент · Bitrix24</div><div style="font-size: 12.5px; margin-top: 2px;">{{ doc.counterparty }}</div></div>
+          <div style="background: #fff; padding: 9px 12px;"><div style="font-size: 10.5px; color: #a1a1aa;">Компания-контрагент · Bitrix24</div><sc-if value="{{ doc.counterpartyLinked }}" hint-placeholder-val="{{ true }}"><a href="{{ doc.counterpartyUrl }}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;margin-top:2px;color:#4f46e5;text-decoration:none;font-weight:600;">{{ doc.counterparty }} ↗</a></sc-if><sc-if value="{{ doc.counterpartyUnlinked }}" hint-placeholder-val="{{ false }}"><div style="font-size:12.5px;margin-top:2px;color:#a1a1aa;">Компания Bitrix24 не выбрана</div></sc-if></div>
           <div style="background: #fff; padding: 9px 12px; grid-column: span 2;"><div style="font-size: 10.5px; color: #a1a1aa;">Ответственный</div><div style="font-size: 12.5px; margin-top: 2px;">{{ doc.responsible }}</div></div>
         </div>
 
@@ -1206,20 +1218,12 @@
           <button type="button" style="flex: 1; background: #fff; border: 1px dashed #d4d4d8; border-radius: 8px; padding: 8px; font-size: 11.5px; color: #52525b; cursor: pointer;">🔗 Ссылка</button>
         </div>
 
-        <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 16px; padding: 11px 12px; border: 1px solid #ddd6fe; border-radius: 9px; background: #faf5ff;">
           <span style="color: #7c3aed; font-size: 10px; font-weight: 750;">[v2]</span>
-          <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 11.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px;">История версий · {{ doc.versionCount }}</div>
+          <div style="font-family: 'Space Grotesk'; font-weight: 650; font-size: 11.5px; color: #6b21a8;">Версии и история документа</div>
           <div style="flex: 1;"></div>
+          <button type="button" onclick="{{ openDocumentHistory }}" style="background:#fff;color:#6d28d9;border:1px solid #c4b5fd;border-radius:7px;padding:5px 9px;font-size:10.5px;font-weight:650;cursor:pointer;">Открыть историю · {{ doc.versionCount }}</button>
           <button type="button" onclick="{{ doc.onReplaceFile }}" style="background: #7c3aed; color: #fff; border: none; border-radius: 7px; padding: 5px 9px; font-size: 10.5px; font-weight: 650; cursor: pointer;">Заменить файл → новая версия</button>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px;">
-          <sc-for list="{{ doc.versions }}" as="ver" hint-placeholder-count="3">
-            <div style="{{ ver.style }}">
-              <span style="{{ ver.badgeStyle }}">{{ ver.number }}</span>
-              <div><div style="font-size: 11px; font-weight: 550; color: #3f3f46;">{{ ver.name }}</div><div style="font-size: 9.5px; color: #a1a1aa; margin-top: 2px;">{{ ver.date }} · {{ ver.author }}</div></div>
-              <span style="{{ ver.currentStyle }}">{{ ver.currentLabel }}</span>
-            </div>
-          </sc-for>
         </div>
         <sc-if value="{{ doc.versionNotice }}" hint-placeholder-val="{{ false }}"><div style="margin-bottom: 16px; padding: 7px 9px; border-radius: 7px; background: #e7f5ec; color: #15803d; font-size: 10.5px;">{{ doc.versionNotice }}</div></sc-if>
 
@@ -1263,16 +1267,19 @@
           <sc-if value="{{ doc.archiveNotice }}" hint-placeholder-val="{{ false }}"><div style="margin-top: 7px; padding: 6px 8px; border-radius: 7px; background: #e7f5ec; color: #15803d; font-size: 10px;">{{ doc.archiveNotice }}</div></sc-if>
         </div>
 
-        <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 11.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px; margin: 18px 0 8px;">История</div>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-          <sc-for list="{{ doc.history }}" as="h" hint-placeholder-count="3">
-            <div style="display: flex; gap: 9px; align-items: flex-start;">
-              <span style="width: 6px; height: 6px; border-radius: 50%; background: #d4d4d8; margin-top: 5px;"></span>
-              <div style="font-size: 11.5px; color: #52525b; line-height: 1.4;"><span style="color: #18181b;">{{ h.what }}</span> · {{ h.who }} · <span style="font-family: 'IBM Plex Mono'; color: #a1a1aa;">{{ h.when }}</span></div>
-            </div>
-          </sc-for>
-        </div>
       </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ historyOpen }}" hint-placeholder-val="{{ false }}">
+  <div role="dialog" aria-modal="true" aria-label="История версий документа" style="position:fixed;inset:0;z-index:59;display:flex;align-items:center;justify-content:center;padding:20px;">
+    <div onclick="{{ closeDocumentHistory }}" style="position:absolute;inset:0;background:rgba(24,24,27,.5);"></div>
+    <div style="position:relative;width:min(620px,94vw);max-height:82vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 22px 70px rgba(0,0,0,.3);padding:20px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;"><div><div style="font-family:'Space Grotesk';font-weight:700;font-size:17px;">История версий</div><div style="font-size:11px;color:#71717a;margin-top:2px;">Версии файла и журнал действий вынесены из основной карточки.</div></div><div style="flex:1;"></div><button type="button" onclick="{{ closeDocumentHistory }}" aria-label="Закрыть историю" style="background:none;border:none;color:#a1a1aa;font-size:18px;cursor:pointer;">✕</button></div>
+      <div style="display:flex;flex-direction:column;gap:6px;"><sc-for list="{{ historyVersions }}" as="ver" hint-placeholder-count="3"><div style="{{ ver.style }}"><span style="{{ ver.badgeStyle }}">{{ ver.number }}</span><div><div style="font-size:11px;font-weight:550;color:#3f3f46;">{{ ver.name }}</div><div style="font-size:9.5px;color:#a1a1aa;margin-top:2px;">{{ ver.date }} · {{ ver.author }}</div></div><span style="{{ ver.currentStyle }}">{{ ver.currentLabel }}</span></div></sc-for></div>
+      <div style="border-top:1px solid #e4e4e7;margin:16px 0 12px;padding-top:12px;font-family:'Space Grotesk';font-size:12px;font-weight:650;">Журнал действий</div>
+      <div style="display:flex;flex-direction:column;gap:8px;"><sc-for list="{{ historyEvents }}" as="h" hint-placeholder-count="3"><div style="display:flex;gap:9px;align-items:flex-start;"><span style="width:6px;height:6px;border-radius:50%;background:#7c3aed;margin-top:5px;"></span><div style="font-size:11.5px;color:#52525b;line-height:1.4;"><span style="color:#18181b;">{{ h.what }}</span> · {{ h.who }} · <span style="font-family:'IBM Plex Mono';color:#a1a1aa;">{{ h.when }}</span></div></div></sc-for></div>
     </div>
   </div>
   </sc-if>
@@ -1301,6 +1308,7 @@
           <div style="font-size: 11.5px; color: #71717a; margin-top: 2px;">{{ bulkContextLabel }} · отдельные реквизиты и связи для каждого файла</div>
         </div>
         <div style="flex: 1;"></div>
+        <button type="button" title="Добавьте несколько файлов, затем укажите раздел, тип и связанную компанию Bitrix24 для каждой строки." aria-label="Подсказка по массовой загрузке" style="width:28px;height:28px;border-radius:50%;border:1px solid #c4b5fd;background:#fff;color:#6d28d9;font-weight:750;cursor:help;">?</button>
         <span style="font-family: 'IBM Plex Mono'; font-size: 11px; color: #7c3aed;">{{ bulkCountLabel }}</span>
         <button type="button" onclick="{{ closeBulk }}" style="background: none; border: none; font-size: 19px; color: #a1a1aa; cursor: pointer;">✕</button>
       </div>
@@ -1310,21 +1318,20 @@
           <div style="font-size: 11px; font-weight: 650; color: #52525b;">Общие значения</div>
           <span style="font-size: 10.5px; color: #a1a1aa;">заполните нужные поля и примените ко всем строкам; после этого строку можно изменить отдельно</span>
         </div>
-        <div style="display: grid; grid-template-columns: 1.25fr .9fr 1.2fr 1.05fr 1.35fr auto; gap: 8px; align-items: end;">
-          <label style="display: block;"><span style="font-size: 10px; color: #a1a1aa;">Тип</span><select value="{{ bulkCommonType }}" onchange="{{ setBulkCommonType }}" style="width: 100%; margin-top: 3px; padding: 7px 8px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 11.5px;"><option value="">Не менять</option><sc-for list="{{ bulkTypeOptions }}" as="o" hint-placeholder-count="8"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
-          <label style="display: block;"><span style="font-size: 10px; color: #a1a1aa;">Дата</span><input value="{{ bulkCommonDate }}" oninput="{{ setBulkCommonDate }}" placeholder="дд.мм.гггг" style="width: 100%; margin-top: 3px; padding: 7px 8px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 11.5px;"></label>
-          <label style="display: block;"><span style="font-size: 10px; color: #a1a1aa;">Компания-контрагент</span><input value="{{ bulkCommonCounterparty }}" oninput="{{ setBulkCommonCounterparty }}" placeholder="Компания Bitrix24" style="width: 100%; margin-top: 3px; padding: 7px 8px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 11.5px;"></label>
-          <label style="display: block;"><span style="font-size: 10px; color: #a1a1aa;">Ответственный</span><select value="{{ bulkCommonResponsible }}" onchange="{{ setBulkCommonResponsible }}" style="width: 100%; margin-top: 3px; padding: 7px 8px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 11.5px;"><option value="">Не менять</option><sc-for list="{{ responsibleOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
-          <label style="display: block;"><span style="font-size: 10px; color: #7c3aed;"><b>[v2]</b> Задача Bitrix24</span><select value="{{ bulkCommonTask }}" onchange="{{ setBulkCommonTask }}" style="width: 100%; margin-top: 3px; padding: 7px 8px; border: 1px solid #ddd6fe; border-radius: 7px; font-size: 11.5px;"><option value="">Не менять</option><sc-for list="{{ taskOptions }}" as="task" hint-placeholder-count="3"><option value="{{ task.id }}">{{ task.label }}</option></sc-for></select></label>
-          <button type="button" onclick="{{ applyBulkCommon }}" style="background: #7c3aed; color: #fff; border: none; border-radius: 8px; padding: 8px 12px; font-size: 11.5px; font-weight: 650; cursor: pointer; white-space: nowrap;">Применить ко всем</button>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px;align-items:end;">
+          <label style="display:block;min-width:0;"><span style="font-size:10px;color:#a1a1aa;">Раздел</span><select value="{{ bulkCommonSection }}" onchange="{{ setBulkCommonSection }}" style="width:100%;min-width:0;margin-top:3px;padding:7px 8px;border:1px solid #e4e4e7;border-radius:7px;font-size:11.5px;"><option value="">Не менять</option><sc-for list="{{ bulkSectionOptions }}" as="o" hint-placeholder-count="6"><option value="{{ o.code }}">{{ o.label }}</option></sc-for></select></label>
+          <label style="display:block;min-width:0;"><span style="font-size:10px;color:#a1a1aa;">Тип документа</span><select value="{{ bulkCommonType }}" onchange="{{ setBulkCommonType }}" style="width:100%;min-width:0;margin-top:3px;padding:7px 8px;border:1px solid #e4e4e7;border-radius:7px;font-size:11.5px;"><option value="">Не менять</option><sc-for list="{{ bulkCommonTypeOptions }}" as="o" hint-placeholder-count="8"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
+          <label style="display:block;min-width:0;"><span style="font-size:10px;color:#a1a1aa;">Компания-контрагент · Bitrix24</span><select value="{{ bulkCommonCounterparty }}" onchange="{{ setBulkCommonCounterparty }}" style="width:100%;min-width:0;margin-top:3px;padding:7px 8px;border:1px solid #c4b5fd;border-radius:7px;font-size:11.5px;background:#fff;"><option value="">Не менять</option><sc-for list="{{ bulkCompanyOptions }}" as="o" hint-placeholder-count="3"><option value="{{ o.name }}">{{ o.name }}</option></sc-for></select></label>
+          <label style="display:block;min-width:0;"><span style="font-size:10px;color:#a1a1aa;">Ответственный</span><select value="{{ bulkCommonResponsible }}" onchange="{{ setBulkCommonResponsible }}" style="width:100%;min-width:0;margin-top:3px;padding:7px 8px;border:1px solid #e4e4e7;border-radius:7px;font-size:11.5px;"><option value="">Не менять</option><sc-for list="{{ responsibleOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
+          <button type="button" onclick="{{ applyBulkCommon }}" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:11.5px;font-weight:650;cursor:pointer;white-space:nowrap;">Применить ко всем</button>
         </div>
       </div>
 
       <div style="padding: 11px 18px; border-bottom: 1px solid #ededed;">
-        <div id="bulk-drop-zone-v2" style="display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 1.5px dashed #c4b5fd; border-radius: 10px; background: #faf5ff;">
+        <div id="bulk-drop-zone-v2" style="{{ bulkDropStyle }}">
           <div style="width: 34px; height: 34px; border-radius: 9px; background: #ede9fe; color: #7c3aed; display: flex; align-items: center; justify-content: center; font-size: 18px;">⇧</div>
           <div>
-            <div style="font-size: 12px; font-weight: 650; color: #4c1d95;">Перетащите несколько файлов сюда</div>
+            <div style="font-size: 12px; font-weight: 650; color: #4c1d95;">{{ bulkDropTitle }}</div>
             <div style="font-size: 10.5px; color: #7c3aed; margin-top: 2px;">Каждый файл станет отдельной редактируемой строкой. Тип по имени файла не распознаётся автоматически.</div>
           </div>
           <div style="flex: 1;"></div>
@@ -1341,44 +1348,30 @@
           </div>
         </sc-if>
         <sc-if value="{{ bulkHasRows }}" hint-placeholder-val="{{ false }}">
-          <div style="min-width: 1090px;">
-            <div style="display: grid; grid-template-columns: 220px 165px 185px 180px 180px 1fr 28px; gap: 8px; padding: 9px 7px 6px; color: #a1a1aa; font-size: 10px; text-transform: uppercase; letter-spacing: .35px;">
-              <div>Файл и название</div><div>Тип и поле типа</div><div>Дата, сумма, валюта</div><div>Компания и ответственный</div><div>Задача Bitrix24</div><div>Сделки</div><div></div>
-            </div>
+          <div style="display:flex;flex-direction:column;gap:10px;padding-top:10px;">
             <sc-for list="{{ bulkRows }}" as="r" hint-placeholder-count="2">
-              <div style="display: grid; grid-template-columns: 220px 165px 185px 180px 180px 1fr 28px; gap: 8px; padding: 10px 7px; border-top: 1px solid #ededed; align-items: start; background: {{ r.bg }};">
-                <div style="min-width: 0;">
-                  <div style="font-family: 'IBM Plex Mono'; font-size: 10px; color: #7c3aed; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.fileName }}</div>
-                  <input value="{{ r.title }}" oninput="{{ r.onTitle }}" aria-label="Название документа" style="width: 100%; margin-top: 6px; padding: 7px 8px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 11.5px;">
+              <article style="padding:12px;border:1px solid {{ r.border }};border-radius:10px;background:{{ r.bg }};">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px;min-width:0;"><div style="font-family:'IBM Plex Mono';font-size:10.5px;color:#7c3aed;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">{{ r.fileName }}</div><span style="font-size:10px;color:{{ r.statusColor }};">{{ r.statusLabel }}</span><button type="button" onclick="{{ r.onRemove }}" aria-label="Удалить файл {{ r.fileName }}" title="Удалить только этот файл" style="background:#fff;color:#b91c1c;border:1px solid #fecaca;border-radius:7px;padding:5px 8px;font-size:10.5px;cursor:pointer;">Удалить</button></div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;align-items:start;">
+                  <label style="display:block;min-width:0;"><span style="font-size:9.5px;color:#71717a;">Раздел *</span><select value="{{ r.section }}" onchange="{{ r.onSection }}" style="width:100%;min-width:0;margin-top:3px;padding:7px 8px;border:1px solid #e4e4e7;border-radius:7px;font-size:11px;"><option value="">Выберите раздел</option><sc-for list="{{ bulkSectionOptions }}" as="o" hint-placeholder-count="6"><option value="{{ o.code }}">{{ o.label }}</option></sc-for></select></label>
+                  <label style="display:block;min-width:0;"><span style="font-size:9.5px;color:#71717a;">Тип документа *</span><select value="{{ r.type }}" onchange="{{ r.onType }}" style="width:100%;min-width:0;margin-top:3px;padding:7px 8px;border:1px solid #e4e4e7;border-radius:7px;font-size:11px;"><option value="">Выберите тип</option><sc-for list="{{ r.typeOptions }}" as="o" hint-placeholder-count="8"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
+                  <label style="display:block;min-width:0;"><span style="font-size:9.5px;color:#71717a;">Название *</span><input value="{{ r.title }}" oninput="{{ r.onTitle }}" style="width:100%;min-width:0;margin-top:3px;padding:7px 8px;border:1px solid #e4e4e7;border-radius:7px;font-size:11px;"></label>
+                  <label style="display:block;min-width:0;"><span style="font-size:9.5px;color:#71717a;">Компания Bitrix24 *</span><select value="{{ r.counterparty }}" onchange="{{ r.onCounterparty }}" style="width:100%;min-width:0;margin-top:3px;padding:7px 8px;border:1px solid #c4b5fd;border-radius:7px;font-size:11px;background:#fff;"><option value="">Найти и выбрать компанию</option><sc-for list="{{ bulkCompanyOptions }}" as="o" hint-placeholder-count="3"><option value="{{ o.name }}">{{ o.name }}</option></sc-for></select></label>
+                  <label style="display:block;min-width:0;"><span style="font-size:9.5px;color:#71717a;">Дата</span><input value="{{ r.date }}" oninput="{{ r.onDate }}" placeholder="дд.мм.гггг" style="width:100%;min-width:0;margin-top:3px;padding:7px 8px;border:1px solid #e4e4e7;border-radius:7px;font-size:11px;"></label>
+                  <label style="display:block;min-width:0;"><span style="font-size:9.5px;color:#71717a;">Сумма и валюта</span><div style="display:grid;grid-template-columns:minmax(0,1fr) 70px;gap:5px;margin-top:3px;"><input value="{{ r.amount }}" oninput="{{ r.onAmount }}" placeholder="0" style="min-width:0;padding:7px 8px;border:1px solid #e4e4e7;border-radius:7px;font-size:11px;"><select value="{{ r.currency }}" onchange="{{ r.onCurrency }}" style="min-width:0;padding:7px 4px;border:1px solid #e4e4e7;border-radius:7px;font-size:10.5px;"><option>RUB</option><option>USD</option><option>EUR</option><option>CNY</option></select></div></label>
+                  <label style="display:block;min-width:0;"><span style="font-size:9.5px;color:#71717a;">Ответственный</span><select value="{{ r.responsible }}" onchange="{{ r.onResponsible }}" style="width:100%;min-width:0;margin-top:3px;padding:7px 8px;border:1px solid #e4e4e7;border-radius:7px;font-size:11px;"><sc-for list="{{ responsibleOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select></label>
+                  <div style="min-width:0;"><span style="font-size:9.5px;color:#71717a;">Связь со сделкой</span><sc-if value="{{ bulkIsDeal }}" hint-placeholder-val="{{ false }}"><div style="margin-top:3px;padding:7px 8px;border-radius:7px;background:#eef2ff;color:#4f46e5;font-size:10.5px;">#1234 · из контекста</div></sc-if><sc-if value="{{ bulkCanPickDeals }}" hint-placeholder-val="{{ true }}"><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;"><sc-for list="{{ r.dealOptions }}" as="deal" hint-placeholder-count="3"><label style="{{ deal.style }}"><input type="checkbox" checked="{{ deal.selected }}" onchange="{{ deal.onToggle }}" style="margin:0 4px 0 0;">#{{ deal.id }}</label></sc-for></div></sc-if></div>
                 </div>
-                <div>
-                  <select value="{{ r.type }}" onchange="{{ r.onType }}" aria-label="Тип документа" style="width: 100%; padding: 7px 8px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 11px;"><sc-for list="{{ bulkTypeOptions }}" as="o" hint-placeholder-count="8"><option value="{{ o }}">{{ o }}</option></sc-for></select>
-                  <label style="display: block; margin-top: 6px;"><span style="font-size: 9.5px; color: #7c3aed;">{{ r.dynamicLabel }}</span><input value="{{ r.dynamicValue }}" oninput="{{ r.onDynamic }}" style="width: 100%; margin-top: 2px; padding: 6px 7px; border: 1px solid #ddd6fe; border-radius: 6px; font-size: 10.5px;"></label>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 68px; gap: 5px;">
-                  <input value="{{ r.date }}" oninput="{{ r.onDate }}" placeholder="дд.мм.гггг" style="grid-column: span 2; padding: 7px 8px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 11px;">
-                  <input value="{{ r.amount }}" oninput="{{ r.onAmount }}" placeholder="0" style="padding: 7px 8px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 11px;">
-                  <select value="{{ r.currency }}" onchange="{{ r.onCurrency }}" style="padding: 7px 4px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 10.5px;"><option>RUB</option><option>USD</option><option>EUR</option><option>CNY</option></select>
-                </div>
-                <div>
-                  <input value="{{ r.counterparty }}" oninput="{{ r.onCounterparty }}" placeholder="Компания Bitrix24" style="width: 100%; padding: 7px 8px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 10.5px;">
-                  <select value="{{ r.responsible }}" onchange="{{ r.onResponsible }}" style="width: 100%; margin-top: 6px; padding: 7px 7px; border: 1px solid #e4e4e7; border-radius: 7px; font-size: 10.5px;"><sc-for list="{{ responsibleOptions }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for></select>
-                </div>
-                <select value="{{ r.task }}" onchange="{{ r.onTask }}" style="width: 100%; padding: 7px 7px; border: 1px solid #ddd6fe; border-radius: 7px; font-size: 10.5px;"><option value="">Не выбрана</option><sc-for list="{{ taskOptions }}" as="task" hint-placeholder-count="3"><option value="{{ task.id }}">{{ task.label }}</option></sc-for></select>
-                <div>
-                  <sc-if value="{{ bulkIsDeal }}" hint-placeholder-val="{{ false }}"><div style="padding: 7px 8px; border-radius: 7px; background: #eef2ff; color: #4f46e5; font-size: 10.5px; line-height: 1.35;">Автоматически: #1234 «Поставка линии розлива»<br>ООО «Ромашка»</div></sc-if>
-                  <sc-if value="{{ bulkCanPickDeals }}" hint-placeholder-val="{{ true }}"><div style="display: flex; flex-wrap: wrap; gap: 4px;"><sc-for list="{{ r.dealOptions }}" as="deal" hint-placeholder-count="3"><label style="{{ deal.style }}"><input type="checkbox" checked="{{ deal.selected }}" onchange="{{ deal.onToggle }}" style="margin: 0 4px 0 0;">#{{ deal.id }}</label></sc-for></div><div style="font-size: 9.5px; color: #a1a1aa; margin-top: 5px;">Можно выбрать несколько сделок одной компании.</div></sc-if>
-                </div>
-                <span title="Строка добавлена из файла" style="color: #c4b5fd; font-size: 15px; padding: 5px;">•</span>
-              </div>
+                <sc-if value="{{ r.hasError }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:8px;margin-top:9px;padding:7px 9px;border-radius:7px;background:#fef2f2;color:#b91c1c;font-size:10.5px;"><span>{{ r.errorText }}</span><div style="flex:1;"></div><button type="button" onclick="{{ r.onRetry }}" style="background:#fff;color:#b91c1c;border:1px solid #fecaca;border-radius:6px;padding:4px 7px;font-size:10px;cursor:pointer;">Повторить строку</button></div></sc-if>
+              </article>
             </sc-for>
           </div>
         </sc-if>
       </div>
 
       <div style="padding: 13px 18px; border-top: 1px solid #ededed; display: flex; align-items: center; gap: 10px;">
-        <span style="font-size: 10.5px; color: #71717a;">Прототип: серверная пакетная загрузка не выполняется.</span>
-        <sc-if value="{{ bulkHasError }}" hint-placeholder-val="{{ false }}"><span style="color: #dc2626; font-size: 10.5px;">Заполните тип, название и выберите сделку там, где она требуется.</span></sc-if>
+        <span style="font-size: 10.5px; color: #71717a;">Каждая строка создаётся независимо; ошибочную можно повторить без дублирования успешных.</span>
+        <sc-if value="{{ bulkHasError }}" hint-placeholder-val="{{ false }}"><span style="color: #dc2626; font-size: 10.5px;">Заполните раздел, тип, название, компанию и обязательную связь.</span></sc-if>
         <div style="flex: 1;"></div>
         <button type="button" onclick="{{ closeBulk }}" style="background: #fff; border: 1px solid #e4e4e7; border-radius: 8px; padding: 8px 14px; color: #52525b; font-size: 11.5px; cursor: pointer;">Отмена</button>
         <button type="button" onclick="{{ createBulkDocuments }}" style="{{ bulkCreateStyle }}">Подготовить {{ bulkCountLabel }}</button>
@@ -1660,13 +1653,13 @@
           <div style="border: 1px solid #ededed; border-radius: 10px; padding: 13px 16px;"><div style="font-size: 10.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px;">Заказчик</div><div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 15px; margin-top: 3px;">ООО «ТЕРМОМЕХАНИКС»</div></div>
           <div style="border: 1px solid #ededed; border-radius: 10px; padding: 13px 16px;"><div style="font-size: 10.5px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .5px;">Исполнитель</div><div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 15px; margin-top: 3px;">ИП Навроцкий А.О.</div></div>
         </div>
-        <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px; font-size: 11.5px; color: #71717a; font-family: 'IBM Plex Mono';"><span>Документ: ТЗ · v2.1</span><span>Основание: Договор №19082 от 27.04.2026</span><span>Дата редакции: 31.07.2026</span></div>
-        <div style="margin-top: 18px; padding: 14px 16px; background: #faf5ff; border: 1px solid #ddd6fe; border-radius: 10px; font-size: 13px; line-height: 1.6; color: #3f3f46;"><span style="color: #7c3aed; font-weight: 750;">[v2.1]</span> Редакция дополняет синхронизированное ТЗ v2.0 десятью корректировками по результатам проверки интерфейса Заказчиком. В этой редакции изменён только текст ТЗ: прототип и программная реализация не изменялись. При конфликте с прежним текстом критерии AC-1—AC-10 блока «v2.1» имеют приоритет.</div>
+        <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px; font-size: 11.5px; color: #71717a; font-family: 'IBM Plex Mono';"><span>Документ: ТЗ · v2.1</span><span>Основание: Договор №19082 от 27.04.2026</span><span>Дата редакции: 03.08.2026</span></div>
+        <div style="margin-top: 18px; padding: 14px 16px; background: #faf5ff; border: 1px solid #ddd6fe; border-radius: 10px; font-size: 13px; line-height: 1.6; color: #3f3f46;"><span style="color: #7c3aed; font-weight: 750;">[v2.1]</span> Текущая редакция объединяет требования v2.0 и десять замечаний тестировщика в одно ТЗ. Изменения 19–28 входят в общий журнал, функциональные требования и матрицу трассировки. Прототип и программная реализация приведены в соответствие с этими требованиями.</div>
       </div>
 
       <nav class="tz-jump-nav" aria-label="Навигация по изменениям ТЗ v2.1">
         <button type="button" class="tz-jump-primary" onclick="{{ scrollTzV21 }}">Правки v2.1</button>
-        <button type="button" onclick="{{ scrollTzOverview }}">Обзор v2.0</button>
+        <button type="button" onclick="{{ scrollTzOverview }}">Обзор v2.1</button>
         <button type="button" onclick="{{ scrollTzChanges }}">Все изменения</button>
         <button type="button" onclick="{{ scrollTzConflicts }}">Было → стало</button>
         <button type="button" onclick="{{ scrollTzMeeting }}">Решения созвона</button>
@@ -1776,10 +1769,10 @@
 
       <!-- v2.1 review corrections -->
       <section id="tz-v21-changes" class="tz-surface tz-section" style="scroll-margin-top:72px;">
-        <div class="tz-eyebrow">Редакция v2.1 · 31.07.2026</div>
-        <h2 class="tz-section-title">Корректировки по результатам проверки Заказчиком</h2>
-        <p class="tz-section-lead">Ниже зафиксированы десять обязательных, наблюдаемых критериев. Они уточняют массовую загрузку, связь с Bitrix24, компактность карточки документа и настройку прав. Нумерация AC-1—AC-10 стабильна и должна сохраняться в последующих редакциях.</p>
-        <div style="margin-top:15px;padding:13px 14px;border:1px solid #bfdbfe;border-left:4px solid #2563eb;border-radius:9px;background:#eff6ff;color:#1e3a5f;font-size:11.5px;line-height:1.55;"><b>Граница редакции:</b> v2.1 является изменением только технического задания. Скриншоты и интерактивные состояния прототипа ниже отражают предыдущую реализацию и не считаются доказательством выполнения AC-1—AC-10.</div>
+        <div class="tz-eyebrow">Редакция v2.1 · 03.08.2026</div>
+        <h2 class="tz-section-title">История редакции и замечания тестировщика</h2>
+        <p class="tz-section-lead">Ниже сохранены десять обязательных критериев тестировщика. Они также включены в единый журнал как изменения 19–28, в функциональные требования TST-01—TST-10 и в матрицу трассировки.</p>
+        <div style="margin-top:15px;padding:13px 14px;border:1px solid #bfdbfe;border-left:4px solid #2563eb;border-radius:9px;background:#eff6ff;color:#1e3a5f;font-size:11.5px;line-height:1.55;"><b>Состав редакции:</b> ТЗ, интерактивный прототип и программная реализация синхронизированы. Проверяемые экраны ниже отражают требования AC-1—AC-10.</div>
 
         <h3 style="font-family:'Space Grotesk';font-size:15px;font-weight:650;margin:24px 0 10px;">История редакций</h3>
         <div style="border:1px solid #ededed;border-radius:10px;overflow:hidden;font-size:12px;">
@@ -1793,59 +1786,59 @@
             <div style="padding:9px 11px;font-family:'IBM Plex Mono';">ТЗ · v2.0</div><div style="padding:9px 11px;color:#71717a;">29.07.2026</div><div style="padding:9px 11px;color:#3f3f46;">Сверка v1.1, замечаний Google Docs, полной транскрипции встречи 17.07.2026 и последующих уточнений Заказчика.</div>
           </div>
           <div style="display:grid;grid-template-columns:92px 112px 1fr;border-top:1px solid #f4f4f5;background:#faf5ff;">
-            <div style="padding:9px 11px;font-family:'IBM Plex Mono';color:#6d28d9;font-weight:700;">ТЗ · v2.1</div><div style="padding:9px 11px;color:#6d28d9;">31.07.2026</div><div style="padding:9px 11px;color:#3f3f46;">Десять корректировок по проверке массовой загрузки, карточки документа и политики ролей. Код и прототип не изменялись.</div>
+            <div style="padding:9px 11px;font-family:'IBM Plex Mono';color:#6d28d9;font-weight:700;">ТЗ · v2.1</div><div style="padding:9px 11px;color:#6d28d9;">03.08.2026</div><div style="padding:9px 11px;color:#3f3f46;">Десять замечаний тестировщика объединены с v2.0; обновлены прототип и программная реализация.</div>
           </div>
         </div>
 
         <h3 style="font-family:'Space Grotesk';font-size:15px;font-weight:650;margin:24px 0 10px;">Критерии приёмки редакции v2.1</h3>
         <div class="tz-change-list">
           <article id="tz-v21-ac-1" class="tz-change-card">
-            <div class="tz-change-head"><div class="tz-change-index">AC-1</div><div><div class="tz-change-title">Перетаскивание нескольких файлов в нужный раздел</div><div class="tz-change-source">Замечание Заказчика 1</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-head"><div class="tz-change-index">AC-1</div><div><div class="tz-change-title">Перетаскивание нескольких файлов в нужный раздел</div><div class="tz-change-source">Замечание тестировщика 1 · изменение 19</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
             <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">В полном реестре, карточке сделки и карточке компании пользователь может одновременно перетащить два или более файла непосредственно в область доступного ему раздела, например «Поставщик». После отпускания мыши открывается массовая загрузка со списком этих файлов, а целевой раздел уже заполнен. Использование кнопки «Массовая загрузка» для этого сценария не требуется.</div></div>
             <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Перетащить два файла в раздел «Поставщик» и убедиться, что оба файла появились в форме, а раздел заполнен значением «Поставщик».</div></div>
           </article>
           <article id="tz-v21-ac-2" class="tz-change-card">
-            <div class="tz-change-head"><div class="tz-change-index">AC-2</div><div><div class="tz-change-title">Поля массовой загрузки не перекрываются</div><div class="tz-change-source">Замечание Заказчика 2</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-head"><div class="tz-change-index">AC-2</div><div><div class="tz-change-title">Поля массовой загрузки не перекрываются</div><div class="tz-change-source">Замечание тестировщика 2 · изменение 20</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
             <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">При поддерживаемой ширине десктопа от 1280 px и масштабе браузера 100% подписи, поля, списки, имена файлов, кнопки и сообщения в форме массовой загрузки не перекрывают и не обрезают друг друга. Длинные значения переносятся или сокращаются с доступом к полному тексту; при недостаточной высоте прокручивается содержимое формы, а не элементы поверх друг друга.</div></div>
             <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Открыть форму на ширине 1280 px с длинными именами файлов и ошибками валидации; все элементы остаются читаемыми и доступными.</div></div>
           </article>
           <article id="tz-v21-ac-3" class="tz-change-card">
-            <div class="tz-change-head"><div class="tz-change-index">AC-3</div><div><div class="tz-change-title">Удаление одного файла из набора</div><div class="tz-change-source">Замечание Заказчика 3</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-head"><div class="tz-change-index">AC-3</div><div><div class="tz-change-title">Удаление одного файла из набора</div><div class="tz-change-source">Замечание тестировщика 3 · изменение 21</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
             <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">У каждой строки файла есть явно подписанное действие удаления. Оно удаляет только выбранный файл и сохраняет остальные файлы, общие значения и заполненные поля других строк. Полная отмена формы остаётся отдельным действием; после удаления последнего файла показывается пустое состояние с возможностью добавить файлы заново.</div></div>
             <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Добавить три файла, заполнить общие и построчные поля, удалить второй файл; первая и третья строки и их значения не меняются.</div></div>
           </article>
           <article id="tz-v21-ac-4" class="tz-change-card">
-            <div class="tz-change-head"><div class="tz-change-index">AC-4</div><div><div class="tz-change-title">Компания-контрагент выбирается из Bitrix24</div><div class="tz-change-source">Замечание Заказчика 4</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-head"><div class="tz-change-index">AC-4</div><div><div class="tz-change-title">Компания-контрагент выбирается из Bitrix24</div><div class="tz-change-source">Замечание тестировщика 4 · изменение 22</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
             <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">Поле «Компания-контрагент» в массовой загрузке является поисковым выпадающим списком компаний CRM Bitrix24. Контекстное значение подставляется как связанная сущность и может быть заменено выбором из результатов поиска. Сохраняются идентификатор и отображаемое название компании; произвольный текст без идентификатора Bitrix24 не считается выбранной компанией и не позволяет отправить строку.</div></div>
             <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Заменить автоматически выбранную компанию через поиск; после выбора строка хранит новую компанию, а введённый без выбора текст вызывает понятную валидацию.</div></div>
           </article>
           <article id="tz-v21-ac-5" class="tz-change-card">
-            <div class="tz-change-head"><div class="tz-change-index">AC-5</div><div><div class="tz-change-title">Явное состояние готовности принять файлы</div><div class="tz-change-source">Замечание Заказчика 5</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-head"><div class="tz-change-index">AC-5</div><div><div class="tz-change-title">Явное состояние готовности принять файлы</div><div class="tz-change-source">Замечание тестировщика 5 · изменение 23</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
             <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">Пока курсор с файлами находится над доступной областью раздела, область заметно меняет фон и границу и показывает текст «Отпустите файлы для загрузки». Подсветка появляется до отпускания мыши, сохраняется при перемещении внутри области и исчезает после ухода курсора или завершения drop. Недоступная по правам область не показывает состояние приёма.</div></div>
             <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Навести пачку файлов на доступный и недоступный разделы; состояние готовности появляется только у доступной цели и сбрасывается после ухода.</div></div>
           </article>
           <article id="tz-v21-ac-6" class="tz-change-card">
-            <div class="tz-change-head"><div class="tz-change-index">AC-6</div><div><div class="tz-change-title">Понятная и доступная подсказка</div><div class="tz-change-source">Замечание Заказчика 6</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-head"><div class="tz-change-index">AC-6</div><div><div class="tz-change-title">Понятная и доступная подсказка</div><div class="tz-change-source">Замечание тестировщика 6 · изменение 24</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
             <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">Если рядом с полем нужна подсказка, используется стандартная кнопка с символом «?» и доступным названием. Одинаковый текст подсказки открывается при наведении мыши, фокусе с клавиатуры и активации кнопки. Неподписанный декоративный кружок запрещён; если полезного текста подсказки нет, элемент не отображается.</div></div>
             <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Открыть форму мышью и клавиатурой; «?» однозначно распознаётся как подсказка и сообщает один и тот же текст.</div></div>
           </article>
           <article id="tz-v21-ac-7" class="tz-change-card">
-            <div class="tz-change-head"><div class="tz-change-index">AC-7</div><div><div class="tz-change-title">Раздел и тип обязательны для каждого файла</div><div class="tz-change-source">Замечание Заказчика 7</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-head"><div class="tz-change-index">AC-7</div><div><div class="tz-change-title">Раздел и тип обязательны для каждого файла</div><div class="tz-change-source">Замечание тестировщика 7 · изменение 25</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
             <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">В массовой загрузке каждый файл до отправки имеет обязательные значения «Раздел» и «Тип документа». Общая шапка позволяет применить раздел и тип ко всем строкам, после чего строку можно изменить отдельно; список типов зависит от выбранного раздела. При запуске из раздела он заполняется автоматически. Отправка блокируется, пока хотя бы одна строка не классифицирована. Ошибка загрузки показывается у конкретной строки с причиной и повтором без повторной отправки успешно созданных документов.</div></div>
             <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Назначить пачке общий раздел, изменить тип одной строки, вызвать ошибку другой строки и повторить только ошибочную загрузку.</div></div>
           </article>
           <article id="tz-v21-ac-8" class="tz-change-card">
-            <div class="tz-change-head"><div class="tz-change-index">AC-8</div><div><div class="tz-change-title">Ссылка на компанию в созданном документе</div><div class="tz-change-source">Замечание Заказчика 8</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-head"><div class="tz-change-index">AC-8</div><div><div class="tz-change-title">Ссылка на компанию в созданном документе</div><div class="tz-change-source">Замечание тестировщика 8 · изменение 26</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
             <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">В сохранённой карточке значение «Компания-контрагент» отображается как ссылка на ту же сущность «Компания» в CRM Bitrix24, идентификатор которой сохранён у документа. Ссылка открывает карточку компании в текущем портале; при отсутствии или недоступности сущности система показывает понятный статус и не формирует ссылку на другой объект.</div></div>
             <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Создать документ с выбранной компанией и перейти по значению поля; открывается соответствующая карточка компании Bitrix24.</div></div>
           </article>
           <article id="tz-v21-ac-9" class="tz-change-card">
-            <div class="tz-change-head"><div class="tz-change-index">AC-9</div><div><div class="tz-change-title">Компактная и разделённая по смыслу карточка документа</div><div class="tz-change-source">Замечание Заказчика 9</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-head"><div class="tz-change-index">AC-9</div><div><div class="tz-change-title">Компактная и разделённая по смыслу карточка документа</div><div class="tz-change-source">Замечание тестировщика 9 · изменение 27</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
             <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">При открытии карточка сразу показывает заголовок, основные реквизиты и содержимое. Вторичные блоки имеют контрастные заголовки и разделители и по умолчанию свёрнуты, если в них нет действия, требующего внимания. «История версий» не выводится длинным раскрытым списком: отдельная кнопка с числом версий открывает её в самостоятельной панели или диалоге. Пользователь может открыть и закрыть каждый вторичный блок мышью и клавиатурой без потери позиции в карточке.</div></div>
             <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Открыть документ с несколькими версиями и длинной историей; основные данные видны сразу, версии открываются отдельной кнопкой, смысловые блоки визуально разделены.</div></div>
           </article>
           <article id="tz-v21-ac-10" class="tz-change-card">
-            <div class="tz-change-head"><div class="tz-change-index">AC-10</div><div><div class="tz-change-title">Редактируемые права для каждой роли и типа документа</div><div class="tz-change-source">Замечание Заказчика 10</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
+            <div class="tz-change-head"><div class="tz-change-index">AC-10</div><div><div class="tz-change-title">Редактируемые права для каждой роли и типа документа</div><div class="tz-change-source">Замечание тестировщика 10 · изменение 28</div></div><span class="tz-chip tz-chip-spec">обязательно</span></div>
             <div class="tz-change-after"><div class="tz-field-label">Требование</div><div class="tz-field-text">Администратор может открыть политику роли, выбрать конкретный тип документа и изменить как минимум права просмотра, создания, редактирования, смены статуса, архивирования, экспорта и видимость финансовых полей. Настройки сохраняются без участия разработчика, повторно отображаются после перезагрузки и авторитетно применяются сервером к списку, карточке, поиску, экспорту и действиям. Отдельно сохраняется маппинг отделов Bitrix24 на роли.</div></div>
             <div class="tz-change-check"><div class="tz-check-copy"><span style="font-family:'IBM Plex Mono';font-size:9px;color:#4f46e5;">ПРОВЕРКА</span><br>Запретить одной роли просмотр выбранного типа, сохранить и войти под этой ролью; тип и его документы отсутствуют во всех контекстах и API, остальные типы остаются доступны.</div></div>
           </article>
@@ -1855,8 +1848,8 @@
 
       <!-- v2 overview -->
       <section id="tz-v2-overview" class="tz-surface tz-section">
-        <div class="tz-eyebrow">Редакция v2.0 · 29.07.2026</div>
-        <h2 class="tz-section-title">Что вошло в обновлённое ТЗ v2.0</h2>
+        <div class="tz-eyebrow">Текущая редакция v2.1 · 03.08.2026</div>
+        <h2 class="tz-section-title">Что вошло в единое ТЗ v2.1</h2>
         <p class="tz-section-lead">Эта HTML-версия собирает решения в одном месте. Ниже можно увидеть исходную формулировку, принятое правило, подробности реализации и экран, на котором проверяется результат.</p>
         <div class="tz-legend">
           <span class="tz-chip tz-chip-v2">[v2] новое или изменённое</span>
@@ -1873,7 +1866,7 @@
         </div>
         <h3 style="font-family:'Space Grotesk';font-size:14px;font-weight:650;margin:22px 0 0;">Что было проверено</h3>
         <div class="tz-source-grid">
-          <sc-for list="{{ v2Sources }}" as="source" hint-placeholder-count="5">
+          <sc-for list="{{ v2Sources }}" as="source" hint-placeholder-count="6">
             <div class="tz-source-card"><div class="tz-source-count">{{ source.count }}</div><div class="tz-source-title">{{ source.title }}</div><div class="tz-source-note">{{ source.note }}</div></div>
           </sc-for>
         </div>
@@ -1882,10 +1875,10 @@
       <!-- all v2 changes -->
       <section id="tz-v2-changes" class="tz-surface tz-section">
         <div class="tz-eyebrow">Полный журнал изменений</div>
-        <h2 class="tz-section-title">18 изменений, которые нужно проверить</h2>
-        <p class="tz-section-lead">Первые 14 пунктов повторяют прямые замечания Заказчика. Ещё четыре блока собирают решения созвона, которые влияют на контексты работы, справочники, историю и границы первого запуска.</p>
+        <h2 class="tz-section-title">28 изменений, которые нужно проверить</h2>
+        <p class="tz-section-lead">Пункты 1–18 сохраняют решения v2.0. Пункты 19–28 явно включают замечания тестировщика и связывают их с обновлёнными экранами и программным поведением.</p>
         <div style="margin-top:22px;">
-          <sc-for list="{{ v2ChangeGroups }}" as="group" hint-placeholder-count="4">
+          <sc-for list="{{ v2ChangeGroups }}" as="group" hint-placeholder-count="5">
             <div class="tz-group">
               <div class="tz-group-heading"><span class="tz-group-number">{{ group.number }}</span><span class="tz-group-title">{{ group.title }}</span></div>
               <div class="tz-change-list">
@@ -1899,7 +1892,7 @@
                     <div class="tz-change-body">
                       <div class="tz-change-before"><div class="tz-field-label">Было / проблема</div><div class="tz-field-text">{{ change.before }}</div></div>
                       <div class="tz-change-after">
-                        <div class="tz-field-label">Принято в v2.0</div>
+                        <div class="tz-field-label">Принято в v2.1</div>
                         <div class="tz-field-text">{{ change.after }}</div>
                         <div class="tz-detail-list">
                           <sc-for list="{{ change.details }}" as="detail" hint-placeholder-count="3">
@@ -1924,7 +1917,7 @@
       <section id="tz-v2-conflicts" class="tz-surface tz-section">
         <div class="tz-eyebrow">Сравнение с v1.1 и замечаниями</div>
         <h2 class="tz-section-title">Семь противоречий сняты</h2>
-        <p class="tz-section-lead">В исходном тексте и обсуждении встречались несовместимые варианты. В колонке «Стало» указано правило, которое действует в редакции v2.0.</p>
+        <p class="tz-section-lead">В исходном тексте и обсуждении встречались несовместимые варианты. В колонке «Стало» указано правило, которое действует в редакции v2.1.</p>
         <div class="tz-compare-grid">
           <sc-for list="{{ v2Conflicts }}" as="conflict" hint-placeholder-count="7">
             <div class="tz-compare-card">
@@ -1940,7 +1933,7 @@
       <section id="tz-v2-meeting" class="tz-surface tz-section">
         <div class="tz-eyebrow">Созвон 17.07.2026 · 1 час 37 минут</div>
         <h2 class="tz-section-title">Решения и границы, которые нельзя потерять</h2>
-        <p class="tz-section-lead">Согласованные правила входят в v2.0. Темы без окончательного решения отмечены как следующая фаза или отдельная оценка.</p>
+        <p class="tz-section-lead">Согласованные правила входят в v2.1. Темы без окончательного решения отмечены как следующая фаза или отдельная оценка.</p>
         <div class="tz-decision-grid">
           <div class="tz-decision-panel">
             <div class="tz-decision-heading">Зафиксировано в первой фазе</div>
@@ -1967,8 +1960,8 @@
         <h2 class="tz-section-title">Требование → раздел ТЗ → экран</h2>
         <p class="tz-section-lead">Каждая строка связывает принятое правило с текстом спецификации и проверяемым состоянием прототипа. Кнопка в третьей колонке открывает соответствующий сценарий.</p>
         <div class="tz-trace-table">
-          <div class="tz-trace-row tz-trace-head"><div class="tz-trace-cell">Требование</div><div class="tz-trace-cell">Раздел ТЗ v2.0</div><div class="tz-trace-cell">Проверяемый экран</div></div>
-          <sc-for list="{{ traceabilityRows }}" as="trace" hint-placeholder-count="16">
+          <div class="tz-trace-row tz-trace-head"><div class="tz-trace-cell">Требование</div><div class="tz-trace-cell">Раздел ТЗ v2.1</div><div class="tz-trace-cell">Проверяемый экран</div></div>
+          <sc-for list="{{ traceabilityRows }}" as="trace" hint-placeholder-count="26">
             <div class="tz-trace-row"><div class="tz-trace-cell"><span style="color:#7c3aed;font-weight:700;">[v2]</span> {{ trace.requirement }}</div><div class="tz-trace-cell" style="color:#52525b;">{{ trace.section }}</div><div class="tz-trace-cell"><button type="button" class="tz-open-screen" onclick="{{ trace.onOpen }}">{{ trace.screen }} →</button></div></div>
           </sc-for>
         </div>
@@ -2100,7 +2093,7 @@
       <div style="background: #fff; border: 1px solid #ededed; border-radius: 12px; padding: 32px 44px;">
         <div style="font-family: 'IBM Plex Mono'; font-size: 11.5px; color: #4f46e5; letter-spacing: 1px;">8 · БИЗНЕС-УРОВЕНЬ</div>
         <h2 style="font-family: 'Space Grotesk'; font-weight: 700; font-size: 24px; margin: 6px 0 16px; letter-spacing: -.5px;">Экраны системы</h2>
-        <p style="font-size: 14px; line-height: 1.65; color: #3f3f46; margin: 0 0 14px;"><span style="color:#7c3aed;font-weight:700;">[v2]</span> Ниже сохранены базовые экраны исходной спецификации. Интерактивные экраны отражают состояние прототипа v2.0 и не подтверждают выполнение новых критериев v2.1. Мобильная версия не входит в объём.</p>
+        <p style="font-size: 14px; line-height: 1.65; color: #3f3f46; margin: 0 0 14px;"><span style="color:#7c3aed;font-weight:700;">[v2.1]</span> Интерактивные экраны синхронизированы с текущей редакцией: массовая загрузка, карточка документа и матрица прав отражают критерии тестировщика. Мобильная версия не входит в объём.</p>
         <div style="margin:0 0 18px;padding:14px 16px;border:1px solid #ddd6fe;border-radius:10px;background:#faf5ff;">
           <div style="font-family:'Space Grotesk';font-size:13.5px;font-weight:650;color:#6d28d9;">[v2.1] Обязательные состояния интерфейса</div>
           <ul style="font-size:12.5px;line-height:1.65;color:#3f3f46;margin:9px 0 0;padding-left:19px;">
@@ -2310,11 +2303,37 @@ class Component extends DCLogic {
       const zone = event.target && event.target.closest
         ? event.target.closest('#bulk-drop-zone-v2')
         : null;
-      if (!zone) return;
+      const sectionTarget = event.target && event.target.closest
+        ? event.target.closest('[data-bulk-section]')
+        : null;
+      if (!zone && !sectionTarget) return;
       event.preventDefault();
-      if (event.type === 'drop') this.addBulkFiles(event.dataTransfer ? event.dataTransfer.files : []);
+      if (event.type === 'dragenter' || event.type === 'dragover') {
+        const nextSection = sectionTarget ? sectionTarget.getAttribute('data-bulk-section') : null;
+        if (zone && !this.state.bulkDropActive) this.setState({ bulkDropActive: true });
+        if (sectionTarget && this.state.bulkSectionDragTarget !== nextSection) this.setState({ bulkSectionDragTarget: nextSection });
+      }
+      if (event.type === 'dragleave') {
+        const related = event.relatedTarget;
+        if (zone && (!related || !zone.contains(related))) this.setState({ bulkDropActive: false });
+        if (sectionTarget && (!related || !sectionTarget.contains(related))) this.setState({ bulkSectionDragTarget: null });
+      }
+      if (event.type === 'drop') {
+        event.stopPropagation();
+        const files = event.dataTransfer ? event.dataTransfer.files : [];
+        if (zone) {
+          this.setState({ bulkDropActive: false });
+          this.addBulkFiles(files);
+        } else if (sectionTarget) {
+          const sectionCode = sectionTarget.getAttribute('data-bulk-section');
+          this.setState({ bulkSectionDragTarget: null });
+          this.openBulk(sectionCode, files);
+        }
+      }
     };
+    document.addEventListener('dragenter', this.bulkNativeDragHandler, true);
     document.addEventListener('dragover', this.bulkNativeDragHandler, true);
+    document.addEventListener('dragleave', this.bulkNativeDragHandler, true);
     document.addEventListener('drop', this.bulkNativeDragHandler, true);
     this.tzSelectionHandler = event => this.captureTzSelection(event);
     this.tzHighlightClickHandler = event => this.openTzCommentAtPoint(event);
@@ -2333,7 +2352,9 @@ class Component extends DCLogic {
   }
 
   componentWillUnmount() {
+    document.removeEventListener('dragenter', this.bulkNativeDragHandler, true);
     document.removeEventListener('dragover', this.bulkNativeDragHandler, true);
+    document.removeEventListener('dragleave', this.bulkNativeDragHandler, true);
     document.removeEventListener('drop', this.bulkNativeDragHandler, true);
     document.removeEventListener('mouseup', this.tzSelectionHandler, true);
     document.removeEventListener('keyup', this.tzSelectionHandler, true);
@@ -2821,6 +2842,7 @@ class Component extends DCLogic {
     closedDeals: { '1234': true, '1290': false },
     archiveNotice: '',
     versionNotice: '',
+    historyOpen: false,
     xlsxOpen: false,
     dealTotalCurrency: 'RUB',
     syncCount: 0,
@@ -2830,12 +2852,18 @@ class Component extends DCLogic {
     bulkOpen: false,
     bulkContext: 'registry',
     bulkRows: [],
+    bulkCommonSection: '',
     bulkCommonType: '',
     bulkCommonDate: '',
     bulkCommonCounterparty: '',
     bulkCommonResponsible: '',
     bulkCommonTask: '',
     bulkValidationShown: false,
+    bulkDropActive: false,
+    bulkSectionDragTarget: null,
+    policyRole: 'manager',
+    roleTypePolicy: {},
+    policySaved: false,
     wizardOpen: false,
     wz: { step: 1, sectionCode: null, typeLabel: null, number: '', date: '', amount: '', currency: 'RUB', counterparty: '', task: '', fileName: '', url: '', contentError: false, fieldVals: {} },
     tzComments: [],
@@ -2882,6 +2910,12 @@ class Component extends DCLogic {
   ];
 
   RESPONSIBLES = ['А. Петров', 'Е. Смирнова', 'М. Сидоров', 'И. Логинов'];
+
+  COMPANIES = [
+    { id: '77', name: 'ООО «Ромашка»' },
+    { id: '91', name: 'АО «Промснаб»' },
+    { id: '114', name: 'ООО «ТермоСервис»' },
+  ];
 
   CBR_RATES = { RUB: 1, USD: 92.5, EUR: 100.2, CNY: 12.7 };
 
@@ -3026,14 +3060,16 @@ class Component extends DCLogic {
     ['ROL-01', '[v2] Права по каждому типу; после закрытия всех связанных сделок менеджер полностью теряет доступ', 'P0'],
     ['NOT-01', '[v2] Создатель карточки и загрузивший файл уведомляются об архивировании и восстановлении', 'P1'],
     ['BLK-01', '[v2] Массовая загрузка 2+ файлов с общей шапкой и отдельными значениями каждой строки в трёх контекстах', 'P0'],
-    ['BLK-02', '[v2.1] Drag-and-drop 2+ файлов непосредственно в доступный раздел реестра, сделки или компании с автоматическим заполнением раздела', 'P0'],
-    ['BLK-03', '[v2.1] До drop целевой раздел явно меняет фон и границу и показывает приглашение отпустить файлы', 'P0'],
-    ['BLK-04', '[v2.1] Для каждого файла обязательны раздел и тип; отдельную строку можно удалить без сброса остальных данных', 'P0'],
-    ['BLK-05', '[v2.1] На ширине 1280 px поля не перекрываются; ошибка привязана к строке, повтор не дублирует успешные документы', 'P0'],
-    ['CRM-01', '[v2.1] Компания-контрагент выбирается поиском по CRM Bitrix24, хранит company_id и открывается ссылкой из готовой карточки', 'P0'],
-    ['UX-01', '[v2.1] Подсказки используют кнопку «?» с одинаковым поведением для мыши и клавиатуры; пустая подсказка не показывается', 'P0'],
-    ['UX-02', '[v2.1] Карточка показывает основные данные сразу, вторичные блоки свёрнуты, история версий открывается отдельной кнопкой', 'P0'],
-    ['ROL-02', '[v2.1] Администратор редактирует и сохраняет серверную политику отдельно для каждой пары «роль × тип документа»', 'P0'],
+    ['TST-01', '[v2.1] В реестре, сделке и компании 2+ файлов перетаскиваются прямо в доступный раздел; раздел заполняется автоматически', 'P0'],
+    ['TST-02', '[v2.1] На десктопе от 1280 px при масштабе 100% поля, подписи, кнопки и сообщения массовой загрузки не перекрываются', 'P0'],
+    ['TST-03', '[v2.1] Пользователь удаляет одну строку файла без сброса остальных строк и общих значений', 'P0'],
+    ['TST-04', '[v2.1] Компания-контрагент выбирается поиском по CRM Bitrix24; сохраняются company_id и название, произвольный текст запрещён', 'P0'],
+    ['TST-05', '[v2.1] До drop целевой раздел заметно меняет фон и границу и показывает текст «Отпустите файлы для загрузки»', 'P0'],
+    ['TST-06', '[v2.1] Подсказка обозначается кнопкой «?» с доступным названием; неподписанный декоративный кружок запрещён', 'P0'],
+    ['TST-07', '[v2.1] Для каждой строки обязательны раздел и зависящий от него тип; ошибка и повтор относятся только к этой строке', 'P0'],
+    ['TST-08', '[v2.1] Компания-контрагент в сохранённой карточке открывает по ссылке ту же компанию CRM Bitrix24', 'P0'],
+    ['TST-09', '[v2.1] Основные данные карточки видны сразу; вторичные блоки разделены, а история версий открывается отдельной кнопкой', 'P0'],
+    ['TST-10', '[v2.1] Администратор изменяет и сохраняет серверные права для каждой пары «роль × тип документа»', 'P0'],
     ['FIN-01', '[v2] Итог сделки в выбранной валюте; курс ЦБ РФ на дату документа, расшифровка и 0 при отсутствии суммы', 'P0'],
     ['B24-01', '[v2] Все счета и КП сделки импортируются отдельно; повторная синхронизация по внешнему ID без дублей', 'P0'],
     ['DEV-01', '[v2] Мобильная версия не входит в объём; на телефоне открывается десктопный интерфейс, вход только через учётную запись Bitrix24', 'P0'],
@@ -3041,9 +3077,9 @@ class Component extends DCLogic {
   ];
 
   V2_SUMMARY = [
-    ['14', 'прямых замечаний Заказчика разобраны по пунктам'],
+    ['24', 'замечания Заказчика и тестировщика разобраны по пунктам'],
     ['7', 'противоречий v1.1 получили одно итоговое правило'],
-    ['18', 'изменений описаны с проверкой в HTML-прототипе'],
+    ['28', 'изменений описаны с проверкой в HTML-прототипе'],
     ['1:37', 'полная транскрипция созвона вошла в сверку'],
   ];
 
@@ -3053,6 +3089,7 @@ class Component extends DCLogic {
     ['14', 'Оранжевый список', 'Дополнительные требования Заказчика'],
     ['1 ч 37 мин', 'Созвон 17.07.2026', 'Полная транскрипция без сокращения'],
     ['после встречи', 'Прямые уточнения', 'Последние решения имеют приоритет'],
+    ['10', 'Замечания тестировщика', 'Проверка массовой загрузки, карточки документа и политик ролей'],
   ];
 
   V2_CHANGE_GROUPS = [
@@ -3387,6 +3424,82 @@ class Component extends DCLogic {
         },
       ],
     },
+    {
+      number: '05',
+      title: 'Корректировки по результатам тестирования редакции v2.1',
+      changes: [
+        {
+          number: '19', title: 'Перетаскивание пачки файлов прямо в раздел', source: 'Замечание тестировщика 1', badge: 'ТЗ + прототип + код', badgeTone: 'ready',
+          before: 'Пачку можно было открыть только кнопкой массовой загрузки.',
+          after: 'Два и более файла принимаются областью доступного раздела в реестре, сделке и компании; целевой раздел подставляется в каждую строку.',
+          details: ['Кнопка остаётся дополнительным способом.', 'Drop недоступен для скрытого политикой раздела.', 'Все переданные файлы попадают в одну форму.'],
+          verify: 'Перетащить два файла в «Поставщик» и проверить обе строки и заполненный раздел.', screenKey: 'bulk', actionLabel: 'Проверить drag-and-drop',
+        },
+        {
+          number: '20', title: 'Поля массовой формы не перекрываются', source: 'Замечание тестировщика 2', badge: 'ТЗ + прототип + код', badgeTone: 'ready',
+          before: 'Жёсткая табличная сетка приводила к наложению полей и кнопок.',
+          after: 'Общие поля и строки используют адаптивную сетку без перекрытий при ширине от 1280 px и масштабе 100%.',
+          details: ['Длинные имена сокращаются с сохранением доступного полного имени.', 'Содержимое формы прокручивается по вертикали.', 'Каждый контрол имеет минимальную полезную ширину.'],
+          verify: 'Открыть форму при 1280 px с длинными именами и сообщениями ошибок.', screenKey: 'bulk', actionLabel: 'Проверить форму',
+        },
+        {
+          number: '21', title: 'Удаление одного файла из пачки', source: 'Замечание тестировщика 3', badge: 'ТЗ + прототип + код', badgeTone: 'ready',
+          before: 'Можно было отменить только всю форму.',
+          after: 'В каждой строке есть подписанная кнопка удаления только этого файла без сброса остальных данных.',
+          details: ['Общие значения сохраняются.', 'Данные других строк не меняются.', 'После удаления последней строки показывается пустое состояние.'],
+          verify: 'Добавить три файла, удалить второй и проверить сохранность первого и третьего.', screenKey: 'bulk', actionLabel: 'Удалить строку',
+        },
+        {
+          number: '22', title: 'Связанный селектор компании Bitrix24', source: 'Замечание тестировщика 4', badge: 'ТЗ + прототип + код', badgeTone: 'ready',
+          before: 'Компания была произвольным текстом без устойчивой CRM-связи.',
+          after: 'Компания выбирается поисковым селектором CRM; сохраняются идентификатор и отображаемое название.',
+          details: ['Контекстная компания подставляется связанной сущностью.', 'Её можно заменить результатом поиска.', 'Произвольный текст без company_id не проходит валидацию.'],
+          verify: 'Заменить компанию через селектор и проверить сохранённый идентификатор.', screenKey: 'bulk', actionLabel: 'Выбрать компанию',
+        },
+        {
+          number: '23', title: 'Явная подсветка области drop', source: 'Замечание тестировщика 5', badge: 'ТЗ + прототип + код', badgeTone: 'ready',
+          before: 'До отпускания мыши интерфейс не подтверждал, что примет файлы.',
+          after: 'Доступная область меняет фон, границу и размер и показывает «Отпустите файлы для загрузки».',
+          details: ['Состояние включается до drop.', 'Не мигает при движении внутри области.', 'Сбрасывается после ухода или завершения drop.'],
+          verify: 'Навести файлы на раздел, уйти с него и повторить drop.', screenKey: 'bulk', actionLabel: 'Проверить подсветку',
+        },
+        {
+          number: '24', title: 'Однозначная и доступная подсказка', source: 'Замечание тестировщика 6', badge: 'ТЗ + прототип + код', badgeTone: 'ready',
+          before: 'Неподписанный кружок не объяснял своё назначение.',
+          after: 'Полезная подсказка обозначается кнопкой «?» с доступным названием; пустой элемент не показывается.',
+          details: ['Текст доступен мышью и клавиатурой.', 'Кнопка имеет aria-label.', 'Декоративный кружок удалён.'],
+          verify: 'Найти «?» в форме и открыть подсказку мышью и клавиатурой.', screenKey: 'bulk', actionLabel: 'Проверить подсказку',
+        },
+        {
+          number: '25', title: 'Раздел, тип, ошибка и повтор для каждой строки', source: 'Замечание тестировщика 7', badge: 'ТЗ + прототип + код', badgeTone: 'ready',
+          before: 'Массовая форма не позволяла явно классифицировать каждый файл.',
+          after: 'Каждая строка требует раздел и тип из этого раздела; общие значения можно применить ко всем, затем изменить отдельно.',
+          details: ['Отправка блокируется для неклассифицированной строки.', 'Ошибка показана рядом с конкретным файлом.', 'Повтор отправляет только ошибочную строку и не дублирует успешные.'],
+          verify: 'Изменить тип одной строки, вызвать ошибку другой и повторить только её.', screenKey: 'bulk', actionLabel: 'Проверить классификацию',
+        },
+        {
+          number: '26', title: 'Ссылка на компанию в сохранённом документе', source: 'Замечание тестировщика 8', badge: 'ТЗ + прототип + код', badgeTone: 'ready',
+          before: 'В карточке отображалось только текстовое название контрагента.',
+          after: 'Название открывает сохранённую компанию в текущем портале Bitrix24 по её company_id.',
+          details: ['Ссылка ведёт на ту же сущность, что выбрана при загрузке.', 'Открывается в новой вкладке.', 'При недоступной связи показывается статус без ложной ссылки.'],
+          verify: 'Создать документ и перейти по компании из его карточки.', screenKey: 'document', actionLabel: 'Открыть карточку',
+        },
+        {
+          number: '27', title: 'Компактная карточка и отдельная история', source: 'Замечание тестировщика 9', badge: 'ТЗ + прототип + код', badgeTone: 'ready',
+          before: 'Длинные вторичные блоки растягивали карточку и сливались друг с другом.',
+          after: 'Основные данные и содержимое видны сразу, блоки разделены, а версии и журнал открываются отдельной кнопкой в диалоге.',
+          details: ['История не занимает высоту основной карточки.', 'Кнопка показывает количество версий.', 'Диалог закрывается без потери позиции карточки.'],
+          verify: 'Открыть документ с несколькими версиями и вызвать отдельную историю.', screenKey: 'document', actionLabel: 'Открыть историю',
+        },
+        {
+          number: '28', title: 'Редактируемые права по типу документа', source: 'Замечание тестировщика 10', badge: 'ТЗ + прототип + код', badgeTone: 'ready',
+          before: 'Экран политик показывал общую роль без изменяемых прав для типов.',
+          after: 'Администратор меняет права для каждой пары «роль × тип»: просмотр, создание, изменение, статус, архив, экспорт и финансы.',
+          details: ['Настройки сохраняются и восстанавливаются после перезагрузки.', 'Сервер применяет их к списку, карточке, поиску, экспорту и действиям.', 'Тип с запретом просмотра отсутствует во всех пользовательских контекстах.'],
+          verify: 'Запретить просмотр одного типа, сохранить и проверить под выбранной ролью.', screenKey: 'admin', actionLabel: 'Настроить права',
+        },
+      ],
+    },
   ];
 
   V2_CONFLICTS = [
@@ -3440,6 +3553,16 @@ class Component extends DCLogic {
     ['Инструкции двух ролей', '§17 Инструкции', 'Обучение', 'training'],
     ['Все счета и КП из Bitrix24', '§13 Автоимпорт', 'Карточка сделки', 'deal'],
     ['Копия в папке каждой сделки', '§10 Версии и хранение', 'Физические копии', 'versions'],
+    ['TST-01 · Drop 2+ файлов в целевой раздел', '§8 Массовая загрузка', 'Реестр / сделка / компания', 'bulk'],
+    ['TST-02 · Поля формы не перекрываются', '§8 Массовая загрузка', 'Массовая загрузка 1280 px', 'bulk'],
+    ['TST-03 · Удаление одной строки файла', '§8 Массовая загрузка', 'Строка массовой загрузки', 'bulk'],
+    ['TST-04 · Поисковый селектор компании CRM', '§6 Компания-контрагент', 'Массовая загрузка', 'bulk'],
+    ['TST-05 · Подсветка области drop', '§8 Массовая загрузка', 'Целевой раздел', 'bulk'],
+    ['TST-06 · Подсказка с символом «?»', '§8 Требования к интерфейсу', 'Массовая загрузка', 'bulk'],
+    ['TST-07 · Раздел, тип, ошибка и повтор строки', '§8 Массовая загрузка', 'Массовая загрузка', 'bulk'],
+    ['TST-08 · Ссылка на компанию Bitrix24', '§6 Карточка и поля', 'Карточка документа', 'document'],
+    ['TST-09 · Компактная карточка и отдельная история', '§6 Карточка документа', 'Карточка / история', 'document'],
+    ['TST-10 · Матрица прав «роль × тип»', '§4 Роли и права', 'Администрирование', 'admin'],
   ];
 
   DATA_MODEL = [
@@ -3744,10 +3867,11 @@ class Component extends DCLogic {
     const sidebarSections = this.SECTIONS.filter(s => this.visibleSections().includes(s.code)).map(s => {
       const count = scoped.filter(d => d.section === s.code).length;
       const active = !!S.filters.sections[s.code];
+      const dragActive = S.bulkSectionDragTarget === s.code;
       return {
         code: s.code, label: s.label, c: s.c, count,
         onPick: () => { const ss = { ...S.filters.sections }; if (ss[s.code]) delete ss[s.code]; else ss[s.code] = true; this.setState({ filters: { ...S.filters, sections: ss }, sel: {} }); },
-        style: `display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:${active ? '#eef2ff' : 'transparent'};color:${active ? '#4f46e5' : '#52525b'};font-weight:${active ? '600' : '400'};border:none;border-radius:7px;padding:7px 9px;font-size:12.5px;cursor:pointer;`,
+        style: `display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:${dragActive ? '#ede9fe' : active ? '#eef2ff' : 'transparent'};color:${dragActive || active ? '#4f46e5' : '#52525b'};font-weight:${dragActive || active ? '600' : '400'};border:${dragActive ? '1px dashed #7c3aed' : '1px solid transparent'};border-radius:7px;padding:7px 9px;font-size:12.5px;cursor:pointer;transform:${dragActive ? 'scale(1.02)' : 'none'};`,
       };
     });
 
@@ -3797,7 +3921,8 @@ class Component extends DCLogic {
       const ds = dealDocs.filter(d => d.section === s.code);
       const gkey = 'deal_' + s.code;
       const open = !S.collapsedGroups[gkey];
-      return { code: s.code, label: s.label, c: s.c, count: ds.length + ' док.', docs: ds.map(d => this.enrich(d)), open, caret: open ? '▾' : '▸', onToggle: () => this.toggleGroup(gkey) };
+      const dragActive = S.bulkSectionDragTarget === s.code;
+      return { code: s.code, label: s.label, c: s.c, count: ds.length + ' док.', docs: ds.map(d => this.enrich(d)), open, caret: open ? '▾' : '▸', onToggle: () => this.toggleGroup(gkey), style: `border:${dragActive ? '2px dashed #7c3aed' : '1px solid #ededed'};border-radius:10px;overflow:hidden;background:${dragActive ? '#faf5ff' : '#fff'};transform:${dragActive ? 'scale(1.01)' : 'none'};` };
     }).filter(g => g.docs.length > 0);
 
     const dm = this.buildMatrix(dealDocs, 'deal_');
@@ -3811,7 +3936,8 @@ class Component extends DCLogic {
         const gd = ddocs.filter(d => d.section === s.code);
         const gkey = 'co_' + dl.id + '_' + s.code;
         const open = !S.collapsedGroups[gkey];
-        return { label: s.label, c: s.c, count: gd.length + ' док.', docs: gd.map(d => this.enrich(d)), open, caret: open ? '▾' : '▸', onToggle: () => this.toggleGroup(gkey) };
+        const dragActive = S.bulkSectionDragTarget === s.code;
+        return { code: s.code, label: s.label, c: s.c, count: gd.length + ' док.', docs: gd.map(d => this.enrich(d)), open, caret: open ? '▾' : '▸', onToggle: () => this.toggleGroup(gkey), style: `border:${dragActive ? '2px dashed #7c3aed' : '1px solid #ededed'};border-radius:10px;overflow:hidden;background:${dragActive ? '#faf5ff' : '#fff'};transform:${dragActive ? 'scale(1.01)' : 'none'};` };
       }).filter(g => g.docs.length > 0);
       const expanded = !!S.expandedDeals[dl.id];
       return {
@@ -3837,11 +3963,11 @@ class Component extends DCLogic {
       return { label, icon: m.icon, chip: `display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;font-size:11px;color:${m.c};background:${m.bg === 'transparent' ? '#f4f4f5' : m.bg};` };
     });
 
+    const bulkSectionOptions = this.SECTIONS.map(section => ({ code: section.code, label: section.label }));
     const bulkTypeOptions = Object.values(this.TYPES).flat();
+    const bulkCommonTypeOptions = S.bulkCommonSection ? this.TYPES[S.bulkCommonSection] || [] : bulkTypeOptions;
     const bulkCanPickDeals = S.bulkContext !== 'deal';
     const bulkRows = S.bulkRows.map((row, index) => {
-      const typeFields = this.TYPE_FIELDS_MAP[row.type] || [];
-      const dynamicLabel = typeFields.length ? typeFields[0][0] : 'Комментарий';
       const dealOptions = this.COMPANY.deals.map(deal => {
         const selected = row.deals.includes(deal.id);
         return {
@@ -3852,12 +3978,21 @@ class Component extends DCLogic {
         };
       });
       const set = patch => this.updateBulkRow(row.id, patch);
+      const companyBound = this.COMPANIES.some(company => company.name === row.counterparty);
+      const rowValid = !!(row.section && row.type && row.title.trim() && companyBound && (S.bulkContext === 'deal' || row.deals.length > 0));
+      const hasError = S.bulkValidationShown && !rowValid;
       return {
         ...row,
-        bg: index % 2 ? '#fcfcfd' : '#fff',
-        dynamicLabel,
+        bg: hasError ? '#fffafa' : index % 2 ? '#fcfcfd' : '#fff',
+        border: hasError ? '#fecaca' : '#ededed',
+        typeOptions: row.section ? this.TYPES[row.section] || [] : [],
         dealOptions,
+        hasError,
+        errorText: 'Заполните обязательные поля и связанную компанию Bitrix24.',
+        statusLabel: hasError ? 'Требует исправления' : 'Готов к загрузке',
+        statusColor: hasError ? '#b91c1c' : '#15803d',
         onTitle: event => set({ title: event.target.value }),
+        onSection: event => set({ section: event.target.value, type: '' }),
         onType: event => set({ type: event.target.value, dynamicValue: '' }),
         onDynamic: event => set({ dynamicValue: event.target.value }),
         onDate: event => set({ date: event.target.value }),
@@ -3867,11 +4002,14 @@ class Component extends DCLogic {
         onResponsible: event => set({ responsible: event.target.value }),
         onTask: event => set({ task: event.target.value }),
         onRemove: () => this.setState({ bulkRows: S.bulkRows.filter(item => item.id !== row.id), bulkValidationShown: false }),
+        onRetry: () => this.setState({ bulkValidationShown: true }),
       };
     });
     const bulkValid = S.bulkRows.length >= 2 && S.bulkRows.every(row =>
       row.title.trim()
+      && row.section
       && row.type
+      && this.COMPANIES.some(company => company.name === row.counterparty)
       && (S.bulkContext === 'deal' || row.deals.length > 0)
     );
     const bulkContextLabel = S.bulkContext === 'deal'
@@ -3879,6 +4017,7 @@ class Component extends DCLogic {
       : S.bulkContext === 'company'
         ? 'Компания ООО «Ромашка» подставлена; сделки выбираются по строкам'
         : 'Полный реестр; компания и сделки выбираются по строкам';
+    const bulkDropStyle = `display:flex;align-items:center;gap:12px;padding:${S.bulkDropActive ? '15px 14px' : '11px 14px'};border:${S.bulkDropActive ? '2px solid #7c3aed' : '1.5px dashed #c4b5fd'};border-radius:10px;background:${S.bulkDropActive ? '#ede9fe' : '#faf5ff'};transform:${S.bulkDropActive ? 'scale(1.01)' : 'none'};transition:all .12s ease;`;
 
     let doc = null;
     let drawerDenied = false;
@@ -3946,6 +4085,9 @@ class Component extends DCLogic {
           sectionLabel: sec.label, sectionC: sec.c, sectionBg: sec.bg,
           docDate: dd.docDate, amountStr: this.fmtAmount(dd),
           counterparty: dd.counterparty || '—', responsible: dd.responsible,
+          counterpartyLinked: !!dd.counterparty && dd.counterparty !== '—',
+          counterpartyUnlinked: !dd.counterparty || dd.counterparty === '—',
+          counterpartyUrl: `https://termech.bitrix24.ru/crm/company/details/${(this.COMPANIES.find(company => company.name === dd.counterparty) || this.COMPANIES[0]).id}/`,
           attCount: dd.atts.length, linkCount: dd.links.length,
           attachments: dd.atts.map(a => this.ATT[a]),
           links: dd.links.map(l => ({ type: l.startsWith('Сделка') ? 'Сделка' : 'Компания', title: l })),
@@ -4058,6 +4200,36 @@ class Component extends DCLogic {
       const scopeLabel = r.sections === 'all' ? 'все разделы' : r.sections.length + ' раздела(ов)';
       return { code, label: r.label, summary: r.hint, scopeLabel, ...moneyTag(r.hideMoney) };
     });
+    const policyActions = [
+      ['view', 'Просмотр'], ['create', 'Создание'], ['edit', 'Изменение'], ['transition', 'Статус'],
+      ['archive', 'Архив'], ['export', 'Экспорт'], ['finance', 'Финансы'],
+    ];
+    const policyDefault = (action) => {
+      if (S.policyRole === 'admin') return true;
+      if (action === 'finance') return !this.ROLES[S.policyRole].hideMoney;
+      if (action === 'archive' || action === 'export') return S.policyRole === 'manager' || S.policyRole === 'accounting';
+      return true;
+    };
+    const roleTypePolicyRows = [];
+    this.SECTIONS.forEach(section => this.TYPES[section.code].forEach(type => {
+      const typeCode = `${section.code}:${type}`;
+      roleTypePolicyRows.push({
+        type,
+        section: section.label,
+        actions: policyActions.map(([action, label]) => {
+          const key = `${S.policyRole}:${typeCode}:${action}`;
+          const allowed = Object.prototype.hasOwnProperty.call(S.roleTypePolicy, key)
+            ? S.roleTypePolicy[key]
+            : policyDefault(action);
+          return {
+            label: allowed ? 'Разрешено' : 'Запрещено',
+            ariaLabel: `${label}: ${type}, ${allowed ? 'разрешено' : 'запрещено'}`,
+            onToggle: () => this.setState({ roleTypePolicy: { ...S.roleTypePolicy, [key]: !allowed }, policySaved: false }),
+            style: `margin:5px;border:1px solid ${allowed ? '#bbf7d0' : '#fecaca'};background:${allowed ? '#ecfdf5' : '#fef2f2'};color:${allowed ? '#15803d' : '#b91c1c'};border-radius:6px;padding:6px 5px;font-size:9.5px;font-weight:650;cursor:pointer;`,
+          };
+        }),
+      });
+    }));
 
     const frRows = this.FR.map(([id, text, p]) => ({ id, text, p, pc: p === 'P0' ? '#dc2626' : '#c2410c' }));
     const dataModel = this.DATA_MODEL.map(([t, d]) => ({ t, d }));
@@ -4368,6 +4540,13 @@ class Component extends DCLogic {
       isAdmin, adminAllowed, adminDenied: !adminAllowed,
       becomeAdmin: () => this.setState({ role: 'admin', activeSection: 'all' }),
       adminTabs, adminSectionRows, adminTypeRows, adminLifecycles, adminRoleRows,
+      policyRole: S.policyRole,
+      policyRoleOptions: Object.keys(this.ROLES).map(code => ({ code, label: this.ROLES[code].label })),
+      setPolicyRole: event => this.setState({ policyRole: event.target.value, policySaved: false }),
+      policyActionHeaders: policyActions.map(([, label]) => label),
+      roleTypePolicyRows,
+      policySaved: S.policySaved,
+      saveRolePolicy: () => this.setState({ policySaved: true }),
       typeTotal: adminTypeRows.length,
       admSections: S.adminTab === 'sections', admTypes: S.adminTab === 'types',
       admLifecycles: S.adminTab === 'lifecycles', admRoles: S.adminTab === 'roles', admTraining: S.adminTab === 'training',
@@ -4424,7 +4603,12 @@ class Component extends DCLogic {
       importedCount: dealImportedDocs.length,
       syncMessage: S.syncMessage,
       syncB24: () => this.syncB24(),
-      drawerOpen: !!doc, doc, closeDoc: () => this.setState({ drawerId: null, archiveNotice: '', versionNotice: '' }),
+      drawerOpen: !!doc, doc, closeDoc: () => this.setState({ drawerId: null, archiveNotice: '', versionNotice: '', historyOpen: false }),
+      historyOpen: S.historyOpen && !!doc,
+      historyVersions: doc ? doc.versions : [],
+      historyEvents: doc ? doc.history : [],
+      openDocumentHistory: () => this.setState({ historyOpen: true }),
+      closeDocumentHistory: () => this.setState({ historyOpen: false }),
       drawerDenied,
       deniedDocumentNumber,
       closeDenied: () => this.setState({ drawerId: null }),
@@ -4433,11 +4617,14 @@ class Component extends DCLogic {
       statusOptions: doc ? doc.statusOptions : [],
       bulkOpen: S.bulkOpen,
       openBulk: () => this.openBulk(),
-      closeBulk: () => this.setState({ bulkOpen: false, bulkValidationShown: false }),
+      closeBulk: () => this.setState({ bulkOpen: false, bulkValidationShown: false, bulkDropActive: false }),
       bulkContextLabel,
       bulkCountLabel: `${S.bulkRows.length} файл${S.bulkRows.length === 1 ? '' : S.bulkRows.length < 5 ? 'а' : 'ов'}`,
       bulkRows,
       bulkTypeOptions,
+      bulkSectionOptions,
+      bulkCommonTypeOptions,
+      bulkCompanyOptions: this.COMPANIES,
       responsibleOptions: this.RESPONSIBLES,
       taskOptions: this.TASKS,
       bulkIsEmpty: S.bulkRows.length === 0,
@@ -4445,11 +4632,15 @@ class Component extends DCLogic {
       bulkIsDeal: S.bulkContext === 'deal',
       bulkCanPickDeals,
       bulkHasError: S.bulkValidationShown && !bulkValid,
+      bulkDropStyle,
+      bulkDropTitle: S.bulkDropActive ? 'Отпустите файлы для загрузки' : 'Перетащите несколько файлов сюда',
+      bulkCommonSection: S.bulkCommonSection,
       bulkCommonType: S.bulkCommonType,
       bulkCommonDate: S.bulkCommonDate,
       bulkCommonCounterparty: S.bulkCommonCounterparty,
       bulkCommonResponsible: S.bulkCommonResponsible,
       bulkCommonTask: S.bulkCommonTask,
+      setBulkCommonSection: event => this.setState({ bulkCommonSection: event.target.value, bulkCommonType: '' }),
       setBulkCommonType: event => this.setState({ bulkCommonType: event.target.value }),
       setBulkCommonDate: event => this.setState({ bulkCommonDate: event.target.value }),
       setBulkCommonCounterparty: event => this.setState({ bulkCommonCounterparty: event.target.value }),
@@ -4526,7 +4717,7 @@ class Component extends DCLogic {
     }
   }
 
-  openBulk() {
+  openBulk(sectionCode = '', files = []) {
     const context = this.state.screen === 'deal'
       ? 'deal'
       : this.state.screen === 'company'
@@ -4536,12 +4727,16 @@ class Component extends DCLogic {
       bulkOpen: true,
       bulkContext: context,
       bulkRows: [],
+      bulkCommonSection: sectionCode || '',
       bulkCommonType: '',
       bulkCommonDate: '',
       bulkCommonCounterparty: context === 'registry' ? '' : this.COMPANY.name,
       bulkCommonResponsible: '',
       bulkCommonTask: '',
       bulkValidationShown: false,
+      bulkDropActive: false,
+    }, () => {
+      if (files && files.length) this.addBulkFiles(files);
     });
   }
 
@@ -4552,12 +4747,12 @@ class Component extends DCLogic {
     const rows = incoming.map((file, index) => {
       const fileName = String(file.name || `Документ_${index + 1}.pdf`);
       const title = fileName.replace(/\.[^.]+$/, '').replaceAll('_', ' ');
-      const invoiceLike = /сч[её]т|invoice/i.test(fileName);
       return {
         id: `bulk-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`,
         fileName,
         title,
-        type: invoiceLike ? 'Счёт' : 'Договор',
+        section: this.state.bulkCommonSection || '',
+        type: '',
         date: '',
         amount: '',
         currency: 'RUB',
@@ -4582,6 +4777,7 @@ class Component extends DCLogic {
   bulkDropFiles(event) {
     if (event && event.preventDefault) event.preventDefault();
     if (event && event.stopPropagation) event.stopPropagation();
+    this.setState({ bulkDropActive: false });
     this.addBulkFiles(event && event.dataTransfer ? event.dataTransfer.files : []);
   }
 
@@ -4603,6 +4799,7 @@ class Component extends DCLogic {
 
   applyBulkCommon() {
     const {
+      bulkCommonSection,
       bulkCommonType,
       bulkCommonDate,
       bulkCommonCounterparty,
@@ -4612,6 +4809,7 @@ class Component extends DCLogic {
     this.setState({
       bulkRows: this.state.bulkRows.map(row => ({
         ...row,
+        ...(bulkCommonSection ? { section: bulkCommonSection, type: bulkCommonType || '' } : {}),
         ...(bulkCommonType ? { type: bulkCommonType, dynamicValue: '' } : {}),
         ...(bulkCommonDate ? { date: bulkCommonDate } : {}),
         ...(bulkCommonCounterparty ? { counterparty: bulkCommonCounterparty } : {}),
@@ -4625,7 +4823,9 @@ class Component extends DCLogic {
   createBulkDocuments() {
     const valid = this.state.bulkRows.length >= 2 && this.state.bulkRows.every(row =>
       row.title.trim()
+      && row.section
       && row.type
+      && this.COMPANIES.some(company => company.name === row.counterparty)
       && (this.state.bulkContext === 'deal' || row.deals.length > 0)
     );
     if (!valid) {
@@ -4633,8 +4833,7 @@ class Component extends DCLogic {
       return;
     }
     const created = this.state.bulkRows.map((row, index) => {
-      const sectionEntry = Object.entries(this.TYPES).find(([, types]) => types.includes(row.type));
-      const section = sectionEntry ? sectionEntry[0] : 'client';
+      const section = row.section;
       const task = this.TASKS.find(item => item.id === row.task);
       const deals = this.state.bulkContext === 'deal' ? ['1234'] : row.deals;
       const links = deals.map(id => `Сделка #${id}`);

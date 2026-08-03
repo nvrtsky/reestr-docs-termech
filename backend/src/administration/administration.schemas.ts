@@ -93,6 +93,16 @@ export const updateLifecycleSchema = createLifecycleSchema.omit({ code: true }).
   isActive: z.boolean(),
 });
 
+const typePermissionsSchema = z.object({
+  view: z.boolean(),
+  create: z.boolean(),
+  edit: z.boolean(),
+  transition: z.boolean(),
+  archive: z.boolean(),
+  export: z.boolean(),
+  finance: z.boolean(),
+});
+
 const rolePermissionsSchema = z.object({
   create: z.boolean(),
   editOwn: z.boolean(),
@@ -103,6 +113,7 @@ const rolePermissionsSchema = z.object({
   restore: z.boolean(),
   export: z.boolean(),
   administer: z.boolean(),
+  byType: z.record(codeSchema, typePermissionsSchema).default({}),
 });
 
 export const updateRolePolicySchema = z.object({

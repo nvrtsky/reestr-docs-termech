@@ -6,19 +6,65 @@ import { ApiError } from '../http/api-error.js';
 import type { RegistryContext } from '../http/registry-context.js';
 
 export type RegistryPolicy = Awaited<ReturnType<typeof loadRegistryPolicy>>;
+export type TypePermissionKey = 'view' | 'create' | 'edit' | 'transition' | 'archive' | 'export' | 'finance';
 
-export function isMoneyHidden(policy: RegistryPolicy) {
+export function isTypePermissionAllowed(
+  policy: RegistryPolicy,
+  typeCode: string,
+  permission: TypePermissionKey,
+) {
+  return policy.permissions.byType?.[typeCode]?.[permission] !== false;
+}
+
+export function typePermissionOverride(
+  policy: RegistryPolicy,
+  typeCode: string,
+  permission: TypePermissionKey,
+) {
+  return policy.permissions.byType?.[typeCode]?.[permission];
+}
+
+export function isTypePermissionGranted(
+  policy: RegistryPolicy,
+  typeCode: string,
+  permission: TypePermissionKey,
+  fallback: boolean,
+) {
+  return typePermissionOverride(policy, typeCode, permission) ?? fallback;
+}
+
+export function assertTypePermission(
+  policy: RegistryPolicy,
+  typeCode: string,
+  permission: TypePermissionKey,
+) {
+  if (!isTypePermissionAllowed(policy, typeCode, permission)) {
+    throw new ApiError(
+      403,
+      'type_permission_denied',
+      `Role ${policy.roleCode} cannot use ${permission} for document type ${typeCode}.`,
+    );
+  }
+}
+
+export function isMoneyHidden(policy: RegistryPolicy, typeCode?: string) {
+  if (typeCode) {
+    const override = typePermissionOverride(policy, typeCode, 'finance');
+    if (override !== undefined) return !override;
+  }
   return policy.hideMoney
     || policy.hiddenFields.includes('amount')
-    || policy.hiddenFields.includes('currency');
+    || policy.hiddenFields.includes('currency')
+    || (!!typeCode && !isTypePermissionAllowed(policy, typeCode, 'finance'));
 }
 
 export function isDocumentFieldHidden(
   policy: RegistryPolicy,
   field: { key: string; dataType: string },
+  typeCode?: string,
 ) {
   return policy.hiddenFields.includes(field.key)
-    || (isMoneyHidden(policy) && field.dataType === 'money');
+    || (isMoneyHidden(policy, typeCode) && field.dataType === 'money');
 }
 
 export async function loadRegistryPolicy(
@@ -80,6 +126,7 @@ export async function loadRegistryPolicy(
         restore: true,
         export: true,
         administer: true,
+        byType: {},
       },
       hideMoney: false,
     };
@@ -102,7 +149,10 @@ export function assertSectionVisible(
 }
 
 export function assertTypeVisible(policy: RegistryPolicy, typeCode: string) {
-  if (policy.visibleTypeCodes && !policy.visibleTypeCodes.includes(typeCode)) {
+  if (
+    (policy.visibleTypeCodes && !policy.visibleTypeCodes.includes(typeCode))
+    || !isTypePermissionAllowed(policy, typeCode, 'view')
+  ) {
     throw new ApiError(
       403,
       'type_access_denied',

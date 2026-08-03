@@ -11,6 +11,16 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
+export interface TypePermissions {
+  view: boolean;
+  create: boolean;
+  edit: boolean;
+  transition: boolean;
+  archive: boolean;
+  export: boolean;
+  finance: boolean;
+}
+
 export interface RolePermissions {
   create: boolean;
   editOwn: boolean;
@@ -21,6 +31,7 @@ export interface RolePermissions {
   restore: boolean;
   export: boolean;
   administer: boolean;
+  byType?: Record<string, TypePermissions>;
 }
 
 export const registryRolePolicies = pgTable(

@@ -37,12 +37,22 @@ let sdkPromise: Promise<ClassicBx24> | null = null;
 export async function selectCrmEntities(value: {
   deal: number[];
   company: number[];
-}): Promise<SelectedCrmEntity[]> {
+}, options: {
+  entityTypes?: Array<'deal' | 'company'>;
+  multiple?: boolean;
+} = {}): Promise<SelectedCrmEntity[]> {
+  const entityTypes: Array<'deal' | 'company'> = options.entityTypes?.length
+    ? options.entityTypes
+    : ['deal', 'company'];
   const bx24 = await loadClassicSdk();
   await initializeClassicSdk(bx24);
   const result = await new Promise<SelectCrmResult>((resolve) => {
     bx24.selectCRM(
-      { entityType: ['deal', 'company'], multiple: true, value },
+      {
+        entityType: entityTypes,
+        multiple: options.multiple !== false,
+        value,
+      },
       (selection) => resolve(selection || {}),
     );
   });

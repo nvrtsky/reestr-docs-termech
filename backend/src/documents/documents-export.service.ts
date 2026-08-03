@@ -6,7 +6,10 @@ import type { Database } from '../db/database.js';
 import { registryLifecycles } from '../db/schema/index.js';
 import { ApiError } from '../http/api-error.js';
 import type { RegistryContext } from '../http/registry-context.js';
-import { loadRegistryPolicy } from '../permissions/policy.service.js';
+import {
+  isTypePermissionGranted,
+  loadRegistryPolicy,
+} from '../permissions/policy.service.js';
 import { listBitrixUsers } from '../users/bitrix-users.service.js';
 import type { DocumentExportQuery } from './documents.schemas.js';
 import type { DocumentsService } from './documents.service.js';
@@ -31,8 +34,18 @@ export class DocumentsExportService {
 
   async create(context: RegistryContext, query: DocumentExportQuery) {
     const policy = await loadRegistryPolicy(this.dependencies.database, context);
-    if (!policy.permissions.export) {
+    const hasTypeExportGrant = Object.values(policy.permissions.byType ?? {})
+      .some((permissions) => permissions.export === true);
+    if (!policy.permissions.export && !hasTypeExportGrant) {
       throw new ApiError(403, 'export_access_denied', 'Document export is not allowed.');
+    }
+    if (query.type && !isTypePermissionGranted(
+      policy,
+      query.type,
+      'export',
+      policy.permissions.export,
+    )) {
+      throw new ApiError(403, 'type_permission_denied', 'Export is disabled for this document type.');
     }
 
     const firstPage = await this.dependencies.documents.list(context, {
@@ -59,6 +72,13 @@ export class DocumentsExportService {
       items.push(...page.items);
     }
 
+    const exportableItems = items.filter((item) =>
+      isTypePermissionGranted(
+        policy,
+        item.type.code,
+        'export',
+        policy.permissions.export,
+      ));
     const statusLabels = await this.loadStatusLabels(context.portalUrl);
     const responsibleNames = await this.loadResponsibleNames(context);
     const columns = this.exportColumns(
@@ -77,7 +97,7 @@ export class DocumentsExportService {
     });
     worksheet.columns = columns;
 
-    for (const item of items) {
+    for (const item of exportableItems) {
       const row: Record<string, unknown> = {
         number: item.number || '',
         title: item.title,

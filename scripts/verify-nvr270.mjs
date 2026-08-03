@@ -1,8 +1,10 @@
 import { writeFile } from 'node:fs/promises';
 
+const reviewUrl = process.env.TERMECH_REVIEW_URL || 'http://127.0.0.1:4173/index.html';
+const reviewHost = new URL(reviewUrl).host;
 const pages = await fetch('http://127.0.0.1:9223/json/list').then(response => response.json());
-const page = pages.find(item => item.type === 'page' && item.url.includes('127.0.0.1:4173'));
-if (!page) throw new Error('Prototype page on 127.0.0.1:4173 not found');
+const page = pages.find(item => item.type === 'page' && item.url.includes(reviewHost));
+if (!page) throw new Error(`Prototype page on ${reviewHost} not found`);
 
 const socket = new WebSocket(page.webSocketDebuggerUrl);
 const pending = new Map();
@@ -89,17 +91,17 @@ await evaluate(`document.getElementById('__bundler_err')?.remove()`);
 
 await clickButton('Техническое задание');
 await waitFor(
-  `document.body.innerText.includes('Что вошло в обновлённое ТЗ') &&
-   document.body.innerText.includes('18 изменений, которые нужно проверить') &&
-   document.body.innerText.includes('ТЗ · v2.0')`,
+  `document.body.innerText.includes('Что вошло в единое ТЗ v2.1') &&
+   document.body.innerText.includes('28 изменений, которые нужно проверить') &&
+   document.body.innerText.includes('ТЗ · v2.1')`,
   'embedded specification v2',
 );
 
 const evidence = {};
 evidence.versionAndDate = await evaluate(`(() => {
   const text = document.body.innerText;
-  return text.includes('ТЗ · v2.0') &&
-    text.includes('29.07.2026') &&
+  return text.includes('ТЗ · v2.1') &&
+    text.includes('03.08.2026') &&
     text.includes('17.07.2026') &&
     text.includes('Договор №19082 от 27.04.2026');
 })()`);
@@ -117,14 +119,14 @@ evidence.legend = await evaluate(`(() => {
     text.includes('[оценка] до разработки');
 })()`);
 evidence.summaryComplete = await evaluate(`document.querySelectorAll('#tz-v2-overview .tz-summary-card').length === 4`);
-evidence.sourcesComplete = await evaluate(`document.querySelectorAll('#tz-v2-overview .tz-source-card').length === 5`);
-evidence.changesComplete = await evaluate(`document.querySelectorAll('#tz-v2-changes .tz-change-card').length === 18`);
+evidence.sourcesComplete = await evaluate(`document.querySelectorAll('#tz-v2-overview .tz-source-card').length === 6`);
+evidence.changesComplete = await evaluate(`document.querySelectorAll('#tz-v2-changes .tz-change-card').length === 28`);
 evidence.conflictsComplete = await evaluate(`document.querySelectorAll('#tz-v2-conflicts .tz-compare-card').length === 7`);
 evidence.meetingComplete = await evaluate(`
   document.querySelectorAll('#tz-v2-meeting .tz-decision-panel:first-child .tz-decision-row').length === 10 &&
   document.querySelectorAll('#tz-v2-meeting .tz-decision-panel:last-child .tz-decision-row').length === 8
 `);
-evidence.traceRowsComplete = await evaluate(`document.querySelectorAll('#tz-v2-trace .tz-trace-row:not(.tz-trace-head)').length === 16`);
+evidence.traceRowsComplete = await evaluate(`document.querySelectorAll('#tz-v2-trace .tz-trace-row:not(.tz-trace-head)').length === 26`);
 evidence.evidenceScreensComplete = await evaluate(`document.querySelectorAll('#tz-v2-trace .tz-evidence-card').length === 4`);
 evidence.traceability = await evaluate(`(() => {
   const text = document.querySelector('#tz-v2-trace')?.innerText || '';
@@ -140,13 +142,15 @@ evidence.traceability = await evaluate(`(() => {
     'Итог сделки и курс ЦБ',
     'Все счета и КП из Bitrix24',
     'Копия в папке каждой сделки',
+    'TST-01 · Drop 2+ файлов в целевой раздел',
+    'TST-10 · Матрица прав «роль × тип»',
   ];
   return required.every(item => text.includes(item));
 })()`);
 evidence.changeDetail = await evaluate(`(() => {
   const text = (document.querySelector('#tz-v2-changes')?.innerText || '').toLocaleUpperCase('ru');
   return text.includes('БЫЛО / ПРОБЛЕМА') &&
-    text.includes('ПРИНЯТО В V2.0') &&
+    text.includes('ПРИНЯТО В V2.1') &&
     text.includes('ПРОВЕРКА') &&
     text.includes('МАССОВАЯ ЗАГРУЗКА');
 })()`);
