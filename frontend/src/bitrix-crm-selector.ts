@@ -24,6 +24,7 @@ interface ClassicBx24 {
     },
     callback: (result: SelectCrmResult) => void,
   ): void;
+  openPath(path: string, callback?: (result: unknown) => void): void;
 }
 
 declare global {
@@ -37,16 +38,22 @@ let sdkPromise: Promise<ClassicBx24> | null = null;
 export async function selectCrmEntities(value: {
   deal: number[];
   company: number[];
-}): Promise<SelectedCrmEntity[]> {
+}, entityTypes: Array<'deal' | 'company'> = ['deal', 'company'], multiple = true): Promise<SelectedCrmEntity[]> {
   const bx24 = await loadClassicSdk();
   await initializeClassicSdk(bx24);
   const result = await new Promise<SelectCrmResult>((resolve) => {
     bx24.selectCRM(
-      { entityType: ['deal', 'company'], multiple: true, value },
+      { entityType: entityTypes, multiple, value },
       (selection) => resolve(selection || {}),
     );
   });
-  return normalizeSelection(result);
+  return normalizeSelection(result).filter((item) => entityTypes.includes(item.entityType));
+}
+
+export async function openBitrixPath(path: string) {
+  const bx24 = await loadClassicSdk();
+  await initializeClassicSdk(bx24);
+  bx24.openPath(path);
 }
 
 function loadClassicSdk() {

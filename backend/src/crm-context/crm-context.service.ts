@@ -20,6 +20,18 @@ interface BitrixStatus {
   COLOR?: string;
 }
 
+interface BitrixTask {
+  ID?: string | number;
+  TITLE?: string;
+  id?: string | number;
+  title?: string;
+}
+
+interface BitrixTaskResult {
+  task?: BitrixTask;
+  tasks?: BitrixTask[];
+}
+
 export interface CrmDealContext {
   id: number;
   title: string;
@@ -72,16 +84,71 @@ export class CrmContextService {
   ) {
     const defaultTitle = fallbackTitle || this.defaultTitle(entityType, entityId);
     if (!context.bitrix) return defaultTitle;
-    try {
-      if (entityType === 'deal') {
-        const deal = await this.call<BitrixDeal>(context, 'crm.deal.get', { id: entityId });
-        return this.entityTitle(deal.TITLE, defaultTitle);
-      }
-      const company = await this.call<BitrixCompany>(context, 'crm.company.get', { id: entityId });
-      return this.entityTitle(company.TITLE, defaultTitle);
-    } catch {
-      return defaultTitle;
+    if (entityType === 'deal') {
+      const deal = await this.call<BitrixDeal>(context, 'crm.deal.get', { id: entityId });
+      return this.entityTitle(deal.TITLE, defaultTitle);
     }
+    const company = await this.call<BitrixCompany>(context, 'crm.company.get', { id: entityId });
+    return this.entityTitle(company.TITLE, defaultTitle);
+  }
+
+  async resolveCompanySelection(
+    context: RegistryContext,
+    companyId: number,
+    fallbackTitle?: string | null,
+  ) {
+    const title = await this.resolveEntityTitle(
+      context,
+      'company',
+      companyId,
+      fallbackTitle || undefined,
+    );
+    return { id: companyId, title };
+  }
+
+  async resolveTaskSelection(
+    context: RegistryContext,
+    taskId: number,
+    fallbackTitle?: string,
+  ) {
+    const defaultTitle = fallbackTitle || `Задача #${taskId}`;
+    if (!context.bitrix) return { id: taskId, title: defaultTitle };
+    const result = await this.call<BitrixTask | BitrixTaskResult>(
+      context,
+      'tasks.task.get',
+      { taskId, select: ['ID', 'TITLE'] },
+    );
+    const rawTask = result && typeof result === 'object' && 'task' in result
+      ? result.task
+      : result as BitrixTask;
+    const resolvedId = this.positiveId(rawTask?.id ?? rawTask?.ID) || taskId;
+    return {
+      id: resolvedId,
+      title: this.entityTitle(rawTask?.title ?? rawTask?.TITLE, defaultTitle),
+    };
+  }
+
+  async searchTasks(context: RegistryContext, search: string, limit: number) {
+    if (!context.bitrix) return [];
+    const filter = search ? { TITLE: `%${search}%` } : {};
+    const result = await this.call<BitrixTask[] | BitrixTaskResult>(
+      context,
+      'tasks.task.list',
+      {
+        order: { ID: 'DESC' },
+        filter,
+        select: ['ID', 'TITLE'],
+        start: 0,
+      },
+    );
+    const tasks = Array.isArray(result) ? result : result.tasks || [];
+    return tasks
+      .map((task) => ({
+        id: this.positiveId(task.id ?? task.ID),
+        title: this.entityTitle(task.title ?? task.TITLE, ''),
+      }))
+      .filter((task): task is { id: number; title: string } => !!task.id && !!task.title)
+      .slice(0, limit);
   }
 
   private async resolveDeal(context: RegistryContext, entityId: number): Promise<CrmEntityContext> {

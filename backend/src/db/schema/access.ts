@@ -21,6 +21,19 @@ export interface RolePermissions {
   restore: boolean;
   export: boolean;
   administer: boolean;
+  byType?: Record<string, TypePermissions>;
+}
+
+export interface TypePermissions {
+  view: boolean;
+  create: boolean;
+  edit: boolean;
+  transition: boolean;
+  content: boolean;
+  archive: boolean;
+  restore: boolean;
+  export: boolean;
+  finance: boolean;
 }
 
 export const registryRolePolicies = pgTable(
@@ -58,10 +71,9 @@ export const registryDepartmentRoles = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('registry_department_roles_portal_department_role_uidx').on(
+    uniqueIndex('registry_department_roles_portal_department_uidx').on(
       table.portalUrl,
       table.departmentId,
-      table.roleCode,
     ),
   ],
 );

@@ -16,7 +16,7 @@ interface BitrixPlacementBinding {
   HANDLER?: string;
 }
 
-const REQUIRED_SCOPES = ['crm', 'placement', 'user', 'disk', 'im'] as const;
+const REQUIRED_SCOPES = ['crm', 'placement', 'user', 'department', 'disk', 'im', 'task'] as const;
 const CRM_EVENTS = [
   'ONCRMDEALUPDATE',
   'ONCRMDEALDELETE',

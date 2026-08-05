@@ -21,6 +21,7 @@ import type { AppConfig } from './config.js';
 import { createCrmContextRouter } from './crm-context/crm-context.router.js';
 import type { Database } from './db/database.js';
 import { createDocumentsRouter } from './documents/documents.router.js';
+import type { ExchangeRateProvider } from './finance/cbr-rates.service.js';
 import { ApiError } from './http/api-error.js';
 import {
   localizedApiErrorMessage,
@@ -38,6 +39,7 @@ interface AppDependencies {
   readinessCheck?: () => Promise<void>;
   bitrixSessionResolver?: BitrixSessionResolver;
   bitrixClient?: BitrixApiClient;
+  exchangeRateProvider?: ExchangeRateProvider;
 }
 
 export function createApp({
@@ -46,6 +48,7 @@ export function createApp({
   readinessCheck = async () => {},
   bitrixSessionResolver,
   bitrixClient,
+  exchangeRateProvider,
 }: AppDependencies = {}) {
   const app = express();
 
@@ -135,7 +138,11 @@ export function createApp({
     registryRouter.use('/users', createUsersRouter({ bitrix }));
     registryRouter.use('/saved-views', createSavedViewsRouter({ database }));
     registryRouter.use(createCrmContextRouter({ database, bitrix }));
-    registryRouter.use('/documents', createDocumentsRouter({ database, bitrix }));
+    registryRouter.use('/documents', createDocumentsRouter({
+      database,
+      bitrix,
+      exchangeRateProvider,
+    }));
     app.use('/api/v1/registry', registryRouter);
   }
 

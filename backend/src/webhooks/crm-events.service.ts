@@ -9,18 +9,22 @@ import {
 } from '../db/schema/index.js';
 import { ApiError } from '../http/api-error.js';
 import type { CrmEvent } from './crm-events.schemas.js';
+import { closedDealState } from '../permissions/sales-deal-access.service.js';
 
 type EntityType = 'deal' | 'company';
 
 interface BitrixEntity {
   ID?: string | number;
   TITLE?: string;
+  CLOSED?: string | boolean | number;
+  STAGE_SEMANTIC_ID?: string;
 }
 
 interface DocumentChange {
   documentId: string;
   previousLinkTitles: string[];
   previousCounterpartyName?: string | null;
+  previousDealClosed?: boolean | null;
 }
 
 export class CrmEventsService {
@@ -58,20 +62,28 @@ export class CrmEventsService {
         'Bitrix24 returned an entity without a title.',
       );
     }
-    return this.synchronizeTitle(`https://${domain}`, entityType, entityId, title);
+    return this.synchronizeEntity(
+      `https://${domain}`,
+      entityType,
+      entityId,
+      title,
+      entityType === 'deal' ? closedDealState(entity) : null,
+    );
   }
 
-  private async synchronizeTitle(
+  private async synchronizeEntity(
     portalUrl: string,
     entityType: EntityType,
     entityId: number,
     title: string,
+    dealClosed: boolean | null,
   ) {
     const links = await this.database
       .select({
         id: registryDocumentLinks.id,
         documentId: registryDocumentLinks.documentId,
         entityTitle: registryDocumentLinks.entityTitle,
+        dealClosed: registryDocumentLinks.dealClosed,
       })
       .from(registryDocumentLinks)
       .where(
@@ -98,12 +110,15 @@ export class CrmEventsService {
 
     const changes = new Map<string, DocumentChange>();
     for (const link of links) {
-      if (link.entityTitle === title) continue;
+      const titleChanged = link.entityTitle !== title;
+      const stateChanged = entityType === 'deal' && link.dealClosed !== dealClosed;
+      if (!titleChanged && !stateChanged) continue;
       const change = changes.get(link.documentId) ?? {
         documentId: link.documentId,
         previousLinkTitles: [],
       };
-      change.previousLinkTitles.push(link.entityTitle);
+      if (titleChanged) change.previousLinkTitles.push(link.entityTitle);
+      if (stateChanged) change.previousDealClosed = link.dealClosed;
       changes.set(link.documentId, change);
     }
     for (const document of counterpartyDocuments) {
@@ -116,13 +131,28 @@ export class CrmEventsService {
       changes.set(document.documentId, change);
     }
     if (!changes.size) {
+      if (entityType === 'deal') {
+        await this.database
+          .update(registryDocumentLinks)
+          .set({ dealClosed, dealStateCheckedAt: new Date() })
+          .where(
+            and(
+              eq(registryDocumentLinks.portalUrl, portalUrl),
+              eq(registryDocumentLinks.entityType, 'deal'),
+              eq(registryDocumentLinks.entityId, entityId),
+            ),
+          );
+      }
       return { status: 'unchanged' as const, entityType, entityId, affectedDocuments: 0 };
     }
 
     await this.database.transaction(async (transaction) => {
       await transaction
         .update(registryDocumentLinks)
-        .set({ entityTitle: title })
+        .set({
+          entityTitle: title,
+          ...(entityType === 'deal' ? { dealClosed, dealStateCheckedAt: new Date() } : {}),
+        })
         .where(
           and(
             eq(registryDocumentLinks.portalUrl, portalUrl),
@@ -151,11 +181,19 @@ export class CrmEventsService {
             entityType,
             entityId,
             linkTitles: change.previousLinkTitles,
+            ...(Object.hasOwn(change, 'previousDealClosed')
+              ? { dealClosed: change.previousDealClosed }
+              : {}),
             ...(Object.hasOwn(change, 'previousCounterpartyName')
               ? { counterpartyName: change.previousCounterpartyName }
               : {}),
           },
-          after: { entityType, entityId, title },
+          after: {
+            entityType,
+            entityId,
+            title,
+            ...(entityType === 'deal' ? { dealClosed } : {}),
+          },
           metadata: { source: 'bitrix_webhook' },
         })),
       );

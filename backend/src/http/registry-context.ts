@@ -8,6 +8,9 @@ export interface RegistryContext {
   portalUrl: string;
   userId: number;
   roleCode: string;
+  roleSource: 'development' | 'bitrix_admin' | 'user' | 'department';
+  roleDepartmentId?: number;
+  departmentIds: number[];
   source: 'development' | 'bitrix';
   bitrix?: {
     domain: string;
@@ -45,6 +48,8 @@ export function createRegistryContextMiddleware(
           roleCode: requestedDevelopmentRole && /^[a-z0-9_]{1,100}$/.test(requestedDevelopmentRole)
             ? requestedDevelopmentRole
             : config.DEVELOPMENT_ROLE,
+          roleSource: 'development',
+          departmentIds: [],
           source: 'development',
         };
         next();

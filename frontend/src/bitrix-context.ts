@@ -18,7 +18,7 @@ export interface RegistryBitrixContext {
 let framePromise: Promise<B24Frame | null> | null = null;
 let validationPromise: Promise<void> | null = null;
 
-const REQUIRED_SCOPES = ['crm', 'placement', 'user', 'disk', 'im'];
+const REQUIRED_SCOPES = ['crm', 'placement', 'user', 'department', 'disk', 'im', 'task'];
 
 interface BitrixAppInfo {
   CODE?: string;

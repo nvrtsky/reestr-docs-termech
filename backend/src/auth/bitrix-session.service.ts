@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import { saveBitrixAdminStatus } from '../bitrix/bitrix-admin-users.repository.js';
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
 import type { Database } from '../db/database.js';
-import { registryUserRoles } from '../db/schema/index.js';
+import { registryDepartmentRoles, registryUserRoles } from '../db/schema/index.js';
 import { ApiError } from '../http/api-error.js';
 import type { RegistryContext } from '../http/registry-context.js';
 
@@ -17,6 +17,7 @@ interface BitrixProfile {
 interface BitrixUser {
   ID: string;
   ACTIVE: boolean;
+  UF_DEPARTMENT?: Array<string | number> | string | number;
 }
 
 interface CachedSession {
@@ -98,13 +99,17 @@ export class BitrixSessionService implements BitrixSessionResolver {
           ),
         );
     }
-    const roleCode = profile.ADMIN
-      ? 'admin'
-      : await this.resolveUserRole(portalUrl, userId);
+    const departmentIds = this.departmentIds(user.UF_DEPARTMENT);
+    const role = profile.ADMIN
+      ? { roleCode: 'admin', roleSource: 'bitrix_admin' as const }
+      : await this.resolveUserRole(portalUrl, userId, departmentIds);
     const context: RegistryContext = {
       portalUrl,
       userId,
-      roleCode,
+      roleCode: role.roleCode,
+      roleSource: role.roleSource,
+      ...('roleDepartmentId' in role ? { roleDepartmentId: role.roleDepartmentId } : {}),
+      departmentIds,
       source: 'bitrix',
       bitrix: { domain, accessToken, memberId },
     };
@@ -118,7 +123,11 @@ export class BitrixSessionService implements BitrixSessionResolver {
     return context;
   }
 
-  private async resolveUserRole(portalUrl: string, userId: number) {
+  private async resolveUserRole(
+    portalUrl: string,
+    userId: number,
+    departmentIds: number[],
+  ) {
     const [mapping] = await this.database
       .select({ roleCode: registryUserRoles.roleCode })
       .from(registryUserRoles)
@@ -129,11 +138,45 @@ export class BitrixSessionService implements BitrixSessionResolver {
         ),
       )
       .limit(1);
-    if (mapping) return mapping.roleCode;
+    if (mapping) return { roleCode: mapping.roleCode, roleSource: 'user' as const };
+    if (departmentIds.length) {
+      const [departmentMapping] = await this.database
+        .select({
+          roleCode: registryDepartmentRoles.roleCode,
+          roleDepartmentId: registryDepartmentRoles.departmentId,
+        })
+        .from(registryDepartmentRoles)
+        .where(
+          and(
+            eq(registryDepartmentRoles.portalUrl, portalUrl),
+            inArray(registryDepartmentRoles.departmentId, departmentIds),
+          ),
+        )
+        .orderBy(
+          asc(registryDepartmentRoles.priority),
+          asc(registryDepartmentRoles.departmentId),
+          asc(registryDepartmentRoles.roleCode),
+        )
+        .limit(1);
+      if (departmentMapping) {
+        return {
+          ...departmentMapping,
+          roleSource: 'department' as const,
+        };
+      }
+    }
     throw new ApiError(
       403,
       'registry_access_not_assigned',
       'Доступ к реестру не назначен.',
     );
+  }
+
+  private departmentIds(value: BitrixUser['UF_DEPARTMENT']) {
+    const source = Array.isArray(value) ? value : value === undefined ? [] : [value];
+    return [...new Set(source
+      .map((item) => Number(item))
+      .filter((id) => Number.isSafeInteger(id) && id > 0))]
+      .sort((left, right) => left - right);
   }
 }

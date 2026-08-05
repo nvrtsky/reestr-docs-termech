@@ -3,6 +3,7 @@ import { logger } from '../logger.js';
 import { and, eq } from 'drizzle-orm';
 import { createDatabase } from './database.js';
 import {
+  registryDocumentTypeSections,
   registryDocumentTypes,
   registryDepartmentRoles,
   registryFieldDefinitions,
@@ -98,6 +99,7 @@ const documentTypes = [
   ['client', 'client_addendum', 'Доп. соглашение', 'review', false],
   ['client', 'client_appendix', 'Приложение', 'simple', false],
   ['client', 'client_invoice', 'Счёт', 'financial', true],
+  ['client', 'client_quote', 'Коммерческое предложение', 'simple', true],
   ['client', 'client_vat_invoice', 'Счёт-фактура', 'financial', true],
   ['client', 'client_upd', 'УПД', 'financial', true],
   ['client', 'client_act', 'Акт', 'simple', true],
@@ -169,6 +171,7 @@ const fullPermissions: RolePermissions = {
   restore: true,
   export: true,
   administer: false,
+  byType: {},
 };
 
 const rolePolicies = [
@@ -274,6 +277,15 @@ try {
         })
         .returning({ id: registryDocumentTypes.id });
       typeIds.set(code, documentType.id);
+      await transaction
+        .insert(registryDocumentTypeSections)
+        .values({
+          portalUrl,
+          typeId: documentType.id,
+          sectionId: sectionIds.get(sectionCode)!,
+          sortOrder: order,
+        })
+        .onConflictDoNothing();
     }
 
     const fieldIds = new Map<string, string>();
@@ -316,9 +328,8 @@ try {
       await transaction
         .insert(registryRolePolicies)
         .values({ portalUrl, visibleTypeCodes: null, ...policy })
-        .onConflictDoUpdate({
+        .onConflictDoNothing({
           target: [registryRolePolicies.portalUrl, registryRolePolicies.roleCode],
-          set: { ...policy, isActive: true, updatedAt: new Date() },
         });
     }
 

@@ -8,6 +8,7 @@ import { loadKnownBitrixAdminIds } from '../bitrix/bitrix-admin-users.repository
 import { loadBitrixEventTokenHash } from '../bitrix/bitrix-event-token.repository.js';
 import type { Database } from '../db/database.js';
 import {
+  registryDocumentTypeSections,
   registryDocumentTypes,
   registryDepartmentRoles,
   registryFieldDefinitions,
@@ -19,8 +20,10 @@ import {
 import { ApiError } from '../http/api-error.js';
 import { requireRegistryContext } from '../http/registry-context.js';
 import { loadRegistryPolicy } from '../permissions/policy.service.js';
+import { listBitrixDepartments } from '../users/bitrix-departments.service.js';
 import { listBitrixUsers } from '../users/bitrix-users.service.js';
 import {
+  replaceDepartmentRolesSchema,
   replaceUserRolesSchema,
   updateRolePolicySchema,
   type UpdateRolePolicyInput,
@@ -69,10 +72,15 @@ async function assertRolePolicyReferences(
     database
       .select({ code: registryDocumentTypes.code, sectionCode: registrySections.code })
       .from(registryDocumentTypes)
-      .innerJoin(registrySections, eq(registryDocumentTypes.sectionId, registrySections.id))
+      .innerJoin(
+        registryDocumentTypeSections,
+        eq(registryDocumentTypes.id, registryDocumentTypeSections.typeId),
+      )
+      .innerJoin(registrySections, eq(registryDocumentTypeSections.sectionId, registrySections.id))
       .where(
         and(
           eq(registryDocumentTypes.portalUrl, portalUrl),
+          eq(registryDocumentTypeSections.portalUrl, portalUrl),
           eq(registryDocumentTypes.isActive, true),
           eq(registrySections.portalUrl, portalUrl),
           eq(registrySections.isActive, true),
@@ -90,24 +98,42 @@ async function assertRolePolicyReferences(
   ]);
 
   const knownSections = new Set(sections.map((section) => section.code));
+  const typeSectionsByCode = new Map<string, Set<string>>();
+  for (const type of types) {
+    const sectionCodes = typeSectionsByCode.get(type.code) ?? new Set<string>();
+    sectionCodes.add(type.sectionCode);
+    typeSectionsByCode.set(type.code, sectionCodes);
+  }
+  const visibleSections = new Set(input.visibleSectionCodes);
   for (const sectionCode of input.visibleSectionCodes) {
     if (!knownSections.has(sectionCode)) {
       throw new ApiError(400, 'section_not_found', `Section ${sectionCode} was not found.`);
     }
   }
   if (input.visibleTypeCodes) {
-    const typeByCode = new Map(types.map((type) => [type.code, type]));
-    const visibleSections = new Set(input.visibleSectionCodes);
     for (const typeCode of input.visibleTypeCodes) {
-      const type = typeByCode.get(typeCode);
-      if (!type) throw new ApiError(400, 'document_type_not_found', `Type ${typeCode} was not found.`);
-      if (!visibleSections.has(type.sectionCode)) {
+      const typeSections = typeSectionsByCode.get(typeCode);
+      if (!typeSections) throw new ApiError(400, 'document_type_not_found', `Type ${typeCode} was not found.`);
+      if (![...typeSections].some((sectionCode) => visibleSections.has(sectionCode))) {
         throw new ApiError(
           400,
           'type_section_not_visible',
-          `Type ${typeCode} belongs to hidden section ${type.sectionCode}.`,
+          `Type ${typeCode} is not connected to a visible section.`,
         );
       }
+    }
+  }
+  for (const typeCode of Object.keys(input.permissions.byType)) {
+    const typeSections = typeSectionsByCode.get(typeCode);
+    if (!typeSections) {
+      throw new ApiError(400, 'document_type_not_found', `Type ${typeCode} was not found.`);
+    }
+    if (![...typeSections].some((sectionCode) => visibleSections.has(sectionCode))) {
+      throw new ApiError(
+        400,
+        'type_section_not_visible',
+        `Type ${typeCode} is not connected to a visible section.`,
+      );
     }
   }
   const knownFields = new Set(['amount', 'currency', ...fieldDefinitions.map((field) => field.key)]);
@@ -257,7 +283,9 @@ export function createAdministrationRouter({
         const visibleSections = new Set(input.visibleSectionCodes);
         const hasAllSections = visibleSections.size === references.knownSections.size
           && [...references.knownSections].every((code) => visibleSections.has(code));
-        const hasAllPermissions = Object.values(input.permissions).every(Boolean);
+        const { byType, ...basePermissions } = input.permissions;
+        const hasAllPermissions = Object.values(basePermissions).every(Boolean)
+          && Object.keys(byType).length === 0;
         if (
           input.roleName !== 'Администратор'
           || !hasAllSections
@@ -469,6 +497,104 @@ export function createAdministrationRouter({
               userName: item.userName ?? null,
               roleCode: item.roleCode,
               assignedBy: context.userId,
+            })),
+          );
+        }
+      });
+      response.json({ items: input.items });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get('/department-roles', async (request, response, next) => {
+    try {
+      const { context } = await requireAdministrator(database, request);
+      const [items, loadedDepartments] = await Promise.all([
+        database
+          .select({
+            departmentId: registryDepartmentRoles.departmentId,
+            roleCode: registryDepartmentRoles.roleCode,
+            priority: registryDepartmentRoles.priority,
+          })
+          .from(registryDepartmentRoles)
+          .where(eq(registryDepartmentRoles.portalUrl, context.portalUrl))
+          .orderBy(
+            asc(registryDepartmentRoles.priority),
+            asc(registryDepartmentRoles.departmentId),
+          ),
+        listBitrixDepartments(context, bitrix),
+      ]);
+      const departments = new Map(
+        loadedDepartments.map((department) => [department.id, department]),
+      );
+      for (const item of items) {
+        if (departments.has(item.departmentId)) continue;
+        departments.set(item.departmentId, {
+          id: item.departmentId,
+          name: `Подразделение #${item.departmentId}`,
+          path: `Подразделение #${item.departmentId} (не найдено в Bitrix24)`,
+          parentId: null,
+          headId: null,
+          sortOrder: 500,
+        });
+      }
+      response.json({ items, departments: [...departments.values()] });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put('/department-roles', async (request, response, next) => {
+    try {
+      const { context } = await requireAdministrator(database, request);
+      const input = replaceDepartmentRolesSchema.parse(request.body);
+      const [activePolicies, departments] = await Promise.all([
+        database
+          .select({ roleCode: registryRolePolicies.roleCode })
+          .from(registryRolePolicies)
+          .where(
+            and(
+              eq(registryRolePolicies.portalUrl, context.portalUrl),
+              eq(registryRolePolicies.isActive, true),
+            ),
+          ),
+        listBitrixDepartments(context, bitrix),
+      ]);
+      const activeRoleCodes = new Set(
+        activePolicies
+          .map((policy) => policy.roleCode)
+          .filter((roleCode) => roleCode !== 'admin'),
+      );
+      const knownDepartmentIds = new Set(departments.map((department) => department.id));
+      for (const item of input.items) {
+        if (!activeRoleCodes.has(item.roleCode)) {
+          throw new ApiError(
+            400,
+            'role_policy_not_found',
+            `Active role ${item.roleCode} was not found.`,
+          );
+        }
+        if (context.source === 'bitrix' && !knownDepartmentIds.has(item.departmentId)) {
+          throw new ApiError(
+            400,
+            'bitrix_department_not_found',
+            `Department ${item.departmentId} was not found in Bitrix24.`,
+          );
+        }
+      }
+
+      await database.transaction(async (transaction) => {
+        await transaction
+          .delete(registryDepartmentRoles)
+          .where(eq(registryDepartmentRoles.portalUrl, context.portalUrl));
+        if (input.items.length) {
+          await transaction.insert(registryDepartmentRoles).values(
+            input.items.map((item) => ({
+              portalUrl: context.portalUrl,
+              departmentId: item.departmentId,
+              roleCode: item.roleCode,
+              priority: item.priority,
             })),
           );
         }

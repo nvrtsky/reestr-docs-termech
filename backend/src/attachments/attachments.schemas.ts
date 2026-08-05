@@ -14,6 +14,7 @@ export const initializeFileUploadSchema = z.object({
   name: safeDisplayName,
   mimeType: z.string().trim().max(255).optional(),
   sizeBytes: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  fieldKey: z.string().trim().min(1).max(100).optional(),
   replacesAttachmentId: attachmentIdSchema.optional(),
 });
 

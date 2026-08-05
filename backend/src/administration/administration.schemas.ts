@@ -103,6 +103,17 @@ const rolePermissionsSchema = z.object({
   restore: z.boolean(),
   export: z.boolean(),
   administer: z.boolean(),
+  byType: z.record(codeSchema, z.object({
+    view: z.boolean(),
+    create: z.boolean(),
+    edit: z.boolean(),
+    transition: z.boolean(),
+    content: z.boolean(),
+    archive: z.boolean(),
+    restore: z.boolean(),
+    export: z.boolean(),
+    finance: z.boolean(),
+  })).default({}),
 });
 
 export const updateRolePolicySchema = z.object({
@@ -134,5 +145,25 @@ export const replaceUserRolesSchema = z.object({
       });
     }
     userIds.add(item.userId);
+  }
+});
+
+export const replaceDepartmentRolesSchema = z.object({
+  items: z.array(z.object({
+    departmentId: z.number().int().positive().safe(),
+    roleCode: z.string().trim().min(1).max(100),
+    priority: z.number().int().min(0).max(1_000_000).default(100),
+  })).max(10_000),
+}).superRefine(({ items }, context) => {
+  const departmentIds = new Set<number>();
+  for (const [index, item] of items.entries()) {
+    if (departmentIds.has(item.departmentId)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['items', index, 'departmentId'],
+        message: `Department ${item.departmentId} is mapped more than once.`,
+      });
+    }
+    departmentIds.add(item.departmentId);
   }
 });
