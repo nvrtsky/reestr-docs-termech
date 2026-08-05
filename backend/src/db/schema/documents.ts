@@ -33,6 +33,7 @@ export const registryDocuments = pgTable(
       .notNull()
       .references(() => registryDocumentTypes.id, { onDelete: 'restrict' }),
     number: text('number'),
+    numberUniquenessKey: text('number_uniqueness_key'),
     title: text('title').notNull(),
     documentDate: date('document_date', { mode: 'string' }).notNull(),
     uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
@@ -49,6 +50,12 @@ export const registryDocuments = pgTable(
     responsibleName: text('responsible_name'),
     createdBy: bigint('created_by', { mode: 'number' }).notNull(),
     updatedBy: bigint('updated_by', { mode: 'number' }),
+    externalSource: varchar('external_source', { length: 40 }),
+    externalEntityTypeId: integer('external_entity_type_id'),
+    externalEntityId: bigint('external_entity_id', { mode: 'number' }),
+    externalStatus: text('external_status'),
+    externalUpdatedAt: timestamp('external_updated_at', { withTimezone: true }),
+    externalSyncedAt: timestamp('external_synced_at', { withTimezone: true }),
     supersedesId: uuid('supersedes_id'),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
     deletedBy: bigint('deleted_by', { mode: 'number' }),
@@ -56,11 +63,16 @@ export const registryDocuments = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('registry_documents_portal_number_uidx').on(
+    uniqueIndex('registry_documents_portal_number_scope_uidx').on(
       table.portalUrl,
       table.typeId,
-      table.legalEntityId,
-      table.number,
+      table.numberUniquenessKey,
+    ),
+    uniqueIndex('registry_documents_external_entity_uidx').on(
+      table.portalUrl,
+      table.externalSource,
+      table.externalEntityTypeId,
+      table.externalEntityId,
     ),
     index('registry_documents_portal_status_idx').on(
       table.portalUrl,
@@ -106,6 +118,8 @@ export const registryDocumentLinks = pgTable(
     entityId: bigint('entity_id', { mode: 'number' }).notNull(),
     entityTitle: text('entity_title').notNull(),
     linkRole: text('link_role'),
+    dealClosed: boolean('deal_closed'),
+    dealStateCheckedAt: timestamp('deal_state_checked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -123,34 +137,83 @@ export const registryDocumentLinks = pgTable(
   ],
 );
 
-export const registryAttachments = pgTable(
-  'registry_attachments',
+export const registryDocumentRelations = pgTable(
+  'registry_document_relations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    portalUrl: text('portal_url').notNull(),
+    parentDocumentId: uuid('parent_document_id')
+      .notNull()
+      .references(() => registryDocuments.id, { onDelete: 'cascade' }),
+    childDocumentId: uuid('child_document_id')
+      .notNull()
+      .references(() => registryDocuments.id, { onDelete: 'cascade' }),
+    relationType: varchar('relation_type', { length: 30 }).notNull(),
+    createdBy: bigint('created_by', { mode: 'number' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('registry_document_relations_child_uidx').on(
+      table.portalUrl,
+      table.childDocumentId,
+    ),
+    index('registry_document_relations_parent_idx').on(
+      table.portalUrl,
+      table.parentDocumentId,
+    ),
+  ],
+);
+
+export const registryTaskLinks = pgTable(
+  'registry_task_links',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     portalUrl: text('portal_url').notNull(),
     documentId: uuid('document_id')
       .notNull()
       .references(() => registryDocuments.id, { onDelete: 'cascade' }),
-    kind: attachmentKindEnum('kind').notNull(),
-    name: text('name').notNull(),
-    mimeType: text('mime_type'),
-    sizeBytes: bigint('size_bytes', { mode: 'number' }),
-    diskFileId: bigint('disk_file_id', { mode: 'number' }),
-    diskFolderId: bigint('disk_folder_id', { mode: 'number' }),
-    url: text('url'),
-    version: integer('version').notNull().default(1),
-    isPrimary: boolean('is_primary').notNull().default(false),
-    isCurrent: boolean('is_current').notNull().default(true),
-    replacesAttachmentId: uuid('replaces_attachment_id'),
-    createdBy: bigint('created_by', { mode: 'number' }).notNull(),
+    taskId: bigint('task_id', { mode: 'number' }).notNull(),
+    taskTitle: text('task_title').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    deletedAt: timestamp('deleted_at', { withTimezone: true }),
   },
   (table) => [
-    index('registry_attachments_document_idx').on(
+    uniqueIndex('registry_task_links_task_uidx').on(
       table.portalUrl,
       table.documentId,
-      table.isCurrent,
+      table.taskId,
+    ),
+    index('registry_task_links_lookup_idx').on(
+      table.portalUrl,
+      table.taskId,
+    ),
+  ],
+);
+
+export const registryBulkUploadItems = pgTable(
+  'registry_bulk_upload_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    portalUrl: text('portal_url').notNull(),
+    createdBy: bigint('created_by', { mode: 'number' }).notNull(),
+    idempotencyKey: uuid('idempotency_key').notNull(),
+    clientRowId: varchar('client_row_id', { length: 100 }).notNull(),
+    requestHash: varchar('request_hash', { length: 64 }).notNull(),
+    status: varchar('status', { length: 20 }).notNull().default('pending'),
+    documentId: uuid('document_id')
+      .references(() => registryDocuments.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('registry_bulk_upload_items_idempotency_uidx').on(
+      table.portalUrl,
+      table.createdBy,
+      table.idempotencyKey,
+    ),
+    index('registry_bulk_upload_items_document_idx').on(
+      table.portalUrl,
+      table.documentId,
     ),
   ],
 );
@@ -172,6 +235,104 @@ export const registryFieldDefinitions = pgTable(
     uniqueIndex('registry_field_definitions_portal_key_uidx').on(
       table.portalUrl,
       table.key,
+    ),
+  ],
+);
+
+export const registryAttachments = pgTable(
+  'registry_attachments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    portalUrl: text('portal_url').notNull(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => registryDocuments.id, { onDelete: 'cascade' }),
+    fieldDefinitionId: uuid('field_definition_id')
+      .references(() => registryFieldDefinitions.id, { onDelete: 'restrict' }),
+    kind: attachmentKindEnum('kind').notNull(),
+    name: text('name').notNull(),
+    mimeType: text('mime_type'),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }),
+    diskFileId: bigint('disk_file_id', { mode: 'number' }),
+    diskFolderId: bigint('disk_folder_id', { mode: 'number' }),
+    url: text('url'),
+    version: integer('version').notNull().default(1),
+    isPrimary: boolean('is_primary').notNull().default(false),
+    isCurrent: boolean('is_current').notNull().default(true),
+    replacesAttachmentId: uuid('replaces_attachment_id'),
+    createdBy: bigint('created_by', { mode: 'number' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('registry_attachments_document_idx').on(
+      table.portalUrl,
+      table.documentId,
+      table.isCurrent,
+    ),
+    index('registry_attachments_document_field_idx').on(
+      table.portalUrl,
+      table.documentId,
+      table.fieldDefinitionId,
+      table.isCurrent,
+    ),
+  ],
+);
+
+export const registryAttachmentCopies = pgTable(
+  'registry_attachment_copies',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    portalUrl: text('portal_url').notNull(),
+    attachmentId: uuid('attachment_id')
+      .notNull()
+      .references(() => registryAttachments.id, { onDelete: 'cascade' }),
+    dealId: bigint('deal_id', { mode: 'number' }).notNull(),
+    dealTitle: text('deal_title').notNull(),
+    diskFileId: bigint('disk_file_id', { mode: 'number' }).notNull(),
+    diskFolderId: bigint('disk_folder_id', { mode: 'number' }).notNull(),
+    storagePath: text('storage_path').notNull(),
+    url: text('url'),
+    createdBy: bigint('created_by', { mode: 'number' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('registry_attachment_copies_deal_uidx').on(
+      table.portalUrl,
+      table.attachmentId,
+      table.dealId,
+    ),
+    index('registry_attachment_copies_deal_lookup_idx').on(
+      table.portalUrl,
+      table.dealId,
+      table.deletedAt,
+    ),
+  ],
+);
+
+export const registryExchangeRates = pgTable(
+  'registry_exchange_rates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    portalUrl: text('portal_url').notNull(),
+    requestedDate: date('requested_date', { mode: 'string' }).notNull(),
+    rateDate: date('rate_date', { mode: 'string' }).notNull(),
+    currency: varchar('currency', { length: 3 }).notNull(),
+    nominal: integer('nominal').notNull(),
+    rubValue: numeric('rub_value', { precision: 24, scale: 8 }).notNull(),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('registry_exchange_rates_request_uidx').on(
+      table.portalUrl,
+      table.requestedDate,
+      table.currency,
+    ),
+    index('registry_exchange_rates_lookup_idx').on(
+      table.portalUrl,
+      table.requestedDate,
+      table.rateDate,
     ),
   ],
 );

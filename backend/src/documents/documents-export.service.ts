@@ -1,12 +1,21 @@
 import ExcelJS from '@excel.js/exceljs';
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
 import type { Database } from '../db/database.js';
-import { registryLifecycles } from '../db/schema/index.js';
+import {
+  registryDocumentTypes,
+  registryFieldDefinitions,
+  registryLifecycles,
+  registryTypeFields,
+} from '../db/schema/index.js';
 import { ApiError } from '../http/api-error.js';
 import type { RegistryContext } from '../http/registry-context.js';
-import { loadRegistryPolicy } from '../permissions/policy.service.js';
+import {
+  isTypePermissionGranted,
+  isDocumentFieldHidden,
+  loadRegistryPolicy,
+} from '../permissions/policy.service.js';
 import { listBitrixUsers } from '../users/bitrix-users.service.js';
 import type { DocumentExportQuery } from './documents.schemas.js';
 import type { DocumentsService } from './documents.service.js';
@@ -31,8 +40,22 @@ export class DocumentsExportService {
 
   async create(context: RegistryContext, query: DocumentExportQuery) {
     const policy = await loadRegistryPolicy(this.dependencies.database, context);
-    if (!policy.permissions.export) {
+    const hasTypeExportGrant = Object.values(policy.permissions.byType ?? {})
+      .some((permissions) => permissions.export === true);
+    if (!policy.permissions.export && !hasTypeExportGrant) {
       throw new ApiError(403, 'export_access_denied', 'Document export is not allowed.');
+    }
+    if (query.type && !isTypePermissionGranted(
+      policy,
+      query.type,
+      'export',
+      policy.permissions.export,
+    )) {
+      throw new ApiError(
+        403,
+        'type_permission_denied',
+        'Export is disabled for this document type.',
+      );
     }
 
     const firstPage = await this.dependencies.documents.list(context, {
@@ -59,12 +82,26 @@ export class DocumentsExportService {
       items.push(...page.items);
     }
 
+    const exportableItems = items.filter((item) =>
+      isTypePermissionGranted(
+        policy,
+        item.type.code,
+        'export',
+        policy.permissions.export,
+      ));
     const statusLabels = await this.loadStatusLabels(context.portalUrl);
     const responsibleNames = await this.loadResponsibleNames(context);
+    const dynamicColumns = await this.loadDynamicColumns(
+      context,
+      policy,
+      query.columns,
+      query.type,
+    );
     const columns = this.exportColumns(
       policy.hideMoney,
       policy.hiddenFields,
       query.columns,
+      dynamicColumns,
     );
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'Реестр документов Bitrix24';
@@ -77,7 +114,7 @@ export class DocumentsExportService {
     });
     worksheet.columns = columns;
 
-    for (const item of items) {
+    for (const item of exportableItems) {
       const row: Record<string, unknown> = {
         number: item.number || '',
         title: item.title,
@@ -103,6 +140,10 @@ export class DocumentsExportService {
         row.responsible = responsibleNames.get(item.responsibleId)
           || item.responsibleName
           || `Пользователь #${item.responsibleId}`;
+      }
+      for (const dynamicColumn of dynamicColumns) {
+        const field = item.fields.find((candidate) => candidate.key === dynamicColumn.fieldKey);
+        row[dynamicColumn.key] = this.exportFieldValue(field?.value, field?.dataType);
       }
       worksheet.addRow(row);
     }
@@ -133,7 +174,7 @@ export class DocumentsExportService {
     return {
       buffer: Buffer.from(buffer),
       filename: `registry-documents-${date}.xlsx`,
-      rowCount: items.length,
+      rowCount: exportableItems.length,
     };
   }
 
@@ -141,6 +182,7 @@ export class DocumentsExportService {
     hideMoney: boolean,
     hiddenFields: string[],
     selectedColumns: string[] | undefined,
+    dynamicColumns: Array<ExportColumn & { fieldKey: string }>,
   ) {
     const selected = new Set(selectedColumns ?? [
       'section',
@@ -176,7 +218,88 @@ export class DocumentsExportService {
     if (selected.has('responsible')) {
       columns.push({ header: 'Ответственный', key: 'responsible', width: 24 });
     }
+    columns.push(...dynamicColumns);
     return columns;
+  }
+
+  private async loadDynamicColumns(
+    context: RegistryContext,
+    policy: Awaited<ReturnType<typeof loadRegistryPolicy>>,
+    selectedColumns: string[] | undefined,
+    typeCode: string | undefined,
+  ) {
+    const keys = (selectedColumns ?? [])
+      .filter((column) => column.startsWith('field:'))
+      .map((column) => column.slice('field:'.length));
+    if (!keys.length) return [];
+
+    const rows = typeCode
+      ? await this.dependencies.database
+          .select({
+            key: registryFieldDefinitions.key,
+            label: registryFieldDefinitions.label,
+            labelOverride: registryTypeFields.labelOverride,
+            dataType: registryFieldDefinitions.dataType,
+          })
+          .from(registryTypeFields)
+          .innerJoin(
+            registryFieldDefinitions,
+            eq(registryTypeFields.fieldDefinitionId, registryFieldDefinitions.id),
+          )
+          .innerJoin(
+            registryDocumentTypes,
+            eq(registryTypeFields.typeId, registryDocumentTypes.id),
+          )
+          .where(and(
+            eq(registryTypeFields.portalUrl, context.portalUrl),
+            eq(registryFieldDefinitions.portalUrl, context.portalUrl),
+            eq(registryFieldDefinitions.isActive, true),
+            eq(registryDocumentTypes.portalUrl, context.portalUrl),
+            eq(registryDocumentTypes.code, typeCode),
+            inArray(registryFieldDefinitions.key, keys),
+          ))
+      : await this.dependencies.database
+          .select({
+            key: registryFieldDefinitions.key,
+            label: registryFieldDefinitions.label,
+            labelOverride: registryFieldDefinitions.label,
+            dataType: registryFieldDefinitions.dataType,
+          })
+          .from(registryFieldDefinitions)
+          .where(and(
+            eq(registryFieldDefinitions.portalUrl, context.portalUrl),
+            eq(registryFieldDefinitions.isActive, true),
+            inArray(registryFieldDefinitions.key, keys),
+          ));
+    const rowByKey = new Map(rows.map((row) => [row.key, row]));
+    const unknown = keys.filter((key) => !rowByKey.has(key));
+    if (unknown.length) {
+      throw new ApiError(400, 'unknown_document_fields', 'Unknown dynamic export columns.', { keys: unknown });
+    }
+    const forbidden = rows
+      .filter((field) => isDocumentFieldHidden(policy, field, typeCode))
+      .map((field) => field.key);
+    if (forbidden.length) {
+      throw new ApiError(403, 'document_fields_access_denied', 'Dynamic export columns are hidden for this role.', { keys: forbidden });
+    }
+    return keys.map((key, index) => {
+      const field = rowByKey.get(key)!;
+      return {
+        header: field.labelOverride || field.label,
+        key: `dynamic_${index}`,
+        fieldKey: key,
+        width: 24,
+      };
+    });
+  }
+
+  private exportFieldValue(value: unknown, dataType?: string) {
+    if (value === null || value === undefined) return '';
+    if (dataType === 'boolean') return value ? 'Да' : 'Нет';
+    if (dataType === 'file' && typeof value === 'object') return 'Файл в Bitrix24 Диск';
+    if (Array.isArray(value)) return value.join(', ');
+    if (typeof value === 'object') return JSON.stringify(value);
+    return value;
   }
 
   private async loadStatusLabels(portalUrl: string) {

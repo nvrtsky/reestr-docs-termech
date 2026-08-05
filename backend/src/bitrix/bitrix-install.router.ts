@@ -5,7 +5,7 @@ import { saveBitrixEventTokenHash } from './bitrix-event-token.repository.js';
 import type { Database } from '../db/database.js';
 import { ApiError } from '../http/api-error.js';
 
-const REQUIRED_SCOPES = ['crm', 'placement', 'user', 'disk', 'im'] as const;
+const REQUIRED_SCOPES = ['crm', 'placement', 'user', 'department', 'disk', 'im', 'task'] as const;
 
 interface InstallRouterOptions {
   database: Database;

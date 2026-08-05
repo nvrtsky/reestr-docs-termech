@@ -36,6 +36,69 @@
       "when": 1784797200000,
       "tag": "0004_russian_field_labels",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785854400000,
+      "tag": "0005_v21_role_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785858000000,
+      "tag": "0006_v21_catalog_numbering",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785861600000,
+      "tag": "0007_v21_crm_tasks_content",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785879000000,
+      "tag": "0008_v21_bulk_upload",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785882600000,
+      "tag": "0009_v21_document_relations",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785886200000,
+      "tag": "0010_v21_attachment_copies",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785889800000,
+      "tag": "0011_v21_exchange_rates",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785893400000,
+      "tag": "0012_v21_bitrix_document_import",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1785900600000,
+      "tag": "0013_v21_type_sections",
+      "breakpoints": true
     }
   ]
 }

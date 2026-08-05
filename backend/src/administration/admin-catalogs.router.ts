@@ -6,6 +6,7 @@ import { Router } from 'express';
 import type { Database } from '../db/database.js';
 import {
   registryDocuments,
+  registryDocumentTypeSections,
   registryDocumentTypes,
   registryFieldDefinitions,
   registryLifecycles,
@@ -71,10 +72,10 @@ export function createAdminCatalogsRouter({ database }: AdminCatalogsRouterDepen
           .where(eq(registrySections.portalUrl, context.portalUrl))
           .orderBy(asc(registrySections.sortOrder), asc(registrySections.name)),
         database
-          .select({ sectionId: registryDocumentTypes.sectionId, value: count(registryDocumentTypes.id) })
-          .from(registryDocumentTypes)
-          .where(eq(registryDocumentTypes.portalUrl, context.portalUrl))
-          .groupBy(registryDocumentTypes.sectionId),
+          .select({ sectionId: registryDocumentTypeSections.sectionId, value: count(registryDocumentTypeSections.typeId) })
+          .from(registryDocumentTypeSections)
+          .where(eq(registryDocumentTypeSections.portalUrl, context.portalUrl))
+          .groupBy(registryDocumentTypeSections.sectionId),
       ]);
       const sectionIds = await database
         .select({ id: registrySections.id, code: registrySections.code })
@@ -98,7 +99,7 @@ export function createAdminCatalogsRouter({ database }: AdminCatalogsRouterDepen
   router.get('/types', async (request, response, next) => {
     try {
       const { context } = await requireAdministrator(database, request);
-      const [types, fields] = await Promise.all([
+      const [types, typeSections, fields, fieldLibrary] = await Promise.all([
         database
           .select({
             id: registryDocumentTypes.id,
@@ -106,27 +107,37 @@ export function createAdminCatalogsRouter({ database }: AdminCatalogsRouterDepen
             name: registryDocumentTypes.name,
             description: registryDocumentTypes.description,
             isFinancial: registryDocumentTypes.isFinancial,
+            numberFormat: registryDocumentTypes.numberFormat,
+            numberAutoGenerate: registryDocumentTypes.numberAutoGenerate,
+            numberUniquenessEnabled: registryDocumentTypes.numberUniquenessEnabled,
+            contentRequired: registryDocumentTypes.contentRequired,
             isActive: registryDocumentTypes.isActive,
             sortOrder: registryDocumentTypes.sortOrder,
-            sectionCode: registrySections.code,
-            sectionName: registrySections.name,
-            sectionColor: registrySections.color,
             lifecycleCode: registryLifecycles.code,
           })
           .from(registryDocumentTypes)
-          .innerJoin(registrySections, eq(registryDocumentTypes.sectionId, registrySections.id))
           .leftJoin(registryLifecycles, eq(registryDocumentTypes.lifecycleId, registryLifecycles.id))
           .where(
-            and(
-              eq(registryDocumentTypes.portalUrl, context.portalUrl),
-              eq(registrySections.portalUrl, context.portalUrl),
-            ),
+            eq(registryDocumentTypes.portalUrl, context.portalUrl),
           )
           .orderBy(
-            asc(registrySections.sortOrder),
             asc(registryDocumentTypes.sortOrder),
             asc(registryDocumentTypes.name),
           ),
+        database
+          .select({
+            typeId: registryDocumentTypeSections.typeId,
+            sectionCode: registrySections.code,
+            sectionName: registrySections.name,
+            sectionColor: registrySections.color,
+          })
+          .from(registryDocumentTypeSections)
+          .innerJoin(registrySections, eq(registryDocumentTypeSections.sectionId, registrySections.id))
+          .where(and(
+            eq(registryDocumentTypeSections.portalUrl, context.portalUrl),
+            eq(registrySections.portalUrl, context.portalUrl),
+          ))
+          .orderBy(asc(registryDocumentTypeSections.sortOrder), asc(registrySections.sortOrder)),
         database
           .select({
             typeId: registryTypeFields.typeId,
@@ -149,6 +160,19 @@ export function createAdminCatalogsRouter({ database }: AdminCatalogsRouterDepen
             ),
           )
           .orderBy(asc(registryTypeFields.sortOrder)),
+        database
+          .select({
+            key: registryFieldDefinitions.key,
+            name: registryFieldDefinitions.label,
+            dataType: registryFieldDefinitions.dataType,
+            options: registryFieldDefinitions.options,
+          })
+          .from(registryFieldDefinitions)
+          .where(and(
+            eq(registryFieldDefinitions.portalUrl, context.portalUrl),
+            eq(registryFieldDefinitions.isActive, true),
+          ))
+          .orderBy(asc(registryFieldDefinitions.label)),
       ]);
       const fieldsByType = new Map<string, typeof fields>();
       for (const field of fields) {
@@ -156,17 +180,33 @@ export function createAdminCatalogsRouter({ database }: AdminCatalogsRouterDepen
         current.push(field);
         fieldsByType.set(field.typeId, current);
       }
+      const sectionsByType = new Map<string, typeof typeSections>();
+      for (const section of typeSections) {
+        const current = sectionsByType.get(section.typeId) ?? [];
+        current.push(section);
+        sectionsByType.set(section.typeId, current);
+      }
       response.json({
-        items: types.map(({ id, ...type }) => ({
-          ...type,
-          fields: (fieldsByType.get(id) ?? []).map((field) => ({
-            key: field.key,
-            name: field.labelOverride || field.name,
-            dataType: field.dataType,
-            isRequired: field.isRequired,
-            sortOrder: field.sortOrder,
-          })),
-        })),
+        fieldLibrary,
+        items: types.map(({ id, ...type }) => {
+          const sections = sectionsByType.get(id) ?? [];
+          return {
+            ...type,
+            sectionCode: sections[0]?.sectionCode ?? null,
+            sectionName: sections[0]?.sectionName ?? null,
+            sectionColor: sections[0]?.sectionColor ?? null,
+            sectionCodes: sections.map((section) => section.sectionCode),
+            sectionNames: sections.map((section) => section.sectionName),
+            sections: sections.map(({ typeId: _typeId, ...section }) => section),
+            fields: (fieldsByType.get(id) ?? []).map((field) => ({
+              key: field.key,
+              name: field.labelOverride || field.name,
+              dataType: field.dataType,
+              isRequired: field.isRequired,
+              sortOrder: field.sortOrder,
+            })),
+          };
+        }),
       });
     } catch (error) {
       next(error);
@@ -244,12 +284,13 @@ export function createAdminCatalogsRouter({ database }: AdminCatalogsRouterDepen
       if (duplicate) throw new ApiError(409, 'section_exists', 'A section with this name already exists.');
       if (!input.isActive && section.isActive) {
         const [usage] = await database
-          .select({ value: count(registryDocumentTypes.id) })
-          .from(registryDocumentTypes)
+          .select({ value: count(registryDocumentTypeSections.typeId) })
+          .from(registryDocumentTypeSections)
+          .innerJoin(registryDocumentTypes, eq(registryDocumentTypeSections.typeId, registryDocumentTypes.id))
           .where(
             and(
-              eq(registryDocumentTypes.portalUrl, context.portalUrl),
-              eq(registryDocumentTypes.sectionId, section.id),
+              eq(registryDocumentTypeSections.portalUrl, context.portalUrl),
+              eq(registryDocumentTypeSections.sectionId, section.id),
               eq(registryDocumentTypes.isActive, true),
             ),
           );
@@ -300,12 +341,12 @@ export function createAdminCatalogsRouter({ database }: AdminCatalogsRouterDepen
         .then((rows) => rows[0]);
       if (!section) throw new ApiError(404, 'section_not_found', 'Document section was not found.');
       const usage = await database
-        .select({ value: count(registryDocumentTypes.id) })
-        .from(registryDocumentTypes)
+        .select({ value: count(registryDocumentTypeSections.typeId) })
+        .from(registryDocumentTypeSections)
         .where(
           and(
-            eq(registryDocumentTypes.portalUrl, context.portalUrl),
-            eq(registryDocumentTypes.sectionId, section.id),
+            eq(registryDocumentTypeSections.portalUrl, context.portalUrl),
+            eq(registryDocumentTypeSections.sectionId, section.id),
           ),
         )
         .then((rows) => rows[0]);

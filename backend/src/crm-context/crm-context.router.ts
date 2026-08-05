@@ -5,6 +5,7 @@ import type { Database } from '../db/database.js';
 import {
   documentLinkIdSchema,
   entityDocumentsQuerySchema,
+  taskSearchQuerySchema,
 } from '../documents/documents.schemas.js';
 import { createDocumentsService } from '../documents/documents.service.js';
 import { requireRegistryContext } from '../http/registry-context.js';
@@ -20,6 +21,16 @@ export function createCrmContextRouter({
   const router = Router();
   const documents = createDocumentsService({ database, bitrix });
   const crmContext = new CrmContextService(bitrix);
+
+  router.get('/tasks', async (request, response, next) => {
+    try {
+      const context = requireRegistryContext(request);
+      const query = taskSearchQuerySchema.parse(request.query);
+      response.json({ items: await crmContext.searchTasks(context, query.search, query.limit) });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get('/by-entity', async (request, response, next) => {
     try {

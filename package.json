@@ -11,6 +11,17 @@
     "dev": "npm run app:build && concurrently -k -n api,web -c yellow,cyan \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "build": "npm run app:build && npm run build -w backend && npm run build -w frontend",
     "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
+    "test": "npm run test -w backend",
+    "verify:visual": "node scripts/verify-baseline.mjs",
+    "verify:stage1-api": "node --import tsx scripts/verify-stage1-api.mts",
+    "verify:stage2-api": "node --import tsx scripts/verify-stage2-api.mts",
+    "verify:stage3-api": "node --import tsx scripts/verify-stage3-api.mts",
+    "verify:stage4-api": "node --import tsx scripts/verify-stage4-api.mts",
+    "verify:stage6-api": "node --import tsx scripts/verify-stage6-api.mts",
+    "verify:stage7-api": "node --import tsx scripts/verify-stage7-api.mts",
+    "verify:stage8-api": "node --import tsx scripts/verify-stage8-api.mts",
+    "verify:stage9-api": "node --import tsx scripts/verify-stage9-api.mts",
+    "verify:stage10-api": "node --import tsx scripts/verify-stage10-api.mts",
     "start": "npm run start -w backend"
   },
   "devDependencies": {

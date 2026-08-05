@@ -65,6 +65,7 @@ class Component extends DCLogic {
       }
       this.registryInitialized = true;
       this.setState({ registryLoading: false, registryReady: true });
+      await this.openDeepLinkedDocument();
     } catch (error) {
       console.error('Failed to initialize registry', error);
       this.setState({
@@ -87,6 +88,14 @@ class Component extends DCLogic {
       delete this.crmSelectorWaiters[event.data.requestId];
       if (event.data.error) waiter.reject(new Error(event.data.error));
       else waiter.resolve(Array.isArray(event.data.items) ? event.data.items : []);
+      return;
+    }
+    if (event.data.type === 'registry-bitrix-open-path-response') {
+      const waiter = this.openPathWaiters && this.openPathWaiters[event.data.requestId];
+      if (!waiter) return;
+      delete this.openPathWaiters[event.data.requestId];
+      if (event.data.error) waiter.reject(new Error(event.data.error));
+      else waiter.resolve();
       return;
     }
     if (event.data.type !== 'registry-bitrix-context') return;
@@ -122,7 +131,7 @@ class Component extends DCLogic {
     });
   }
 
-  requestCrmSelection(links) {
+  requestCrmSelection(links, entityTypes = ['deal', 'company'], multiple = true) {
     if (!this.crmSelectorWaiters) this.crmSelectorWaiters = {};
     const requestId = `crm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const value = { deal: [], company: [] };
@@ -141,9 +150,169 @@ class Component extends DCLogic {
         reject: error => { clearTimeout(timeout); reject(error); },
       };
       window.parent.postMessage(
-        { type: 'registry-bitrix-select-crm-request', requestId, value },
+        { type: 'registry-bitrix-select-crm-request', requestId, value, entityTypes, multiple },
         window.location.origin,
       );
+    });
+  }
+
+  openBitrixPath(path) {
+    if (!this.openPathWaiters) this.openPathWaiters = {};
+    const requestId = `path-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        delete this.openPathWaiters[requestId];
+        reject(new Error('Время ожидания Bitrix24 истекло.'));
+      }, 15000);
+      this.openPathWaiters[requestId] = {
+        resolve: () => { clearTimeout(timeout); resolve(); },
+        reject: error => { clearTimeout(timeout); reject(error); },
+      };
+      window.parent.postMessage(
+        { type: 'registry-bitrix-open-path-request', requestId, path },
+        window.location.origin,
+      );
+    });
+  }
+
+  async openCompany(companyId) {
+    const id = this.positiveEntityId(companyId);
+    if (!id) return;
+    try {
+      await this.openBitrixPath(`/crm/company/details/${id}/`);
+    } catch (error) {
+      const domain = this.bitrixContext && this.bitrixContext.auth
+        ? this.bitrixContext.auth.domain
+        : null;
+      if (domain) window.open(`https://${domain}/crm/company/details/${id}/`, '_blank', 'noopener,noreferrer');
+      else console.error('Failed to open Bitrix24 company', error);
+    }
+  }
+
+  async openTask(taskId) {
+    const id = this.positiveEntityId(taskId);
+    if (!id) return;
+    try {
+      await this.openBitrixPath(`/company/personal/user/0/tasks/task/view/${id}/`);
+    } catch (error) {
+      console.error('Failed to open Bitrix24 task', error);
+    }
+  }
+
+  async copyInternalDocumentLink(documentId) {
+    try {
+      const parentUrl = new URL(window.parent.location.href);
+      parentUrl.searchParams.set('document', documentId);
+      await navigator.clipboard.writeText(parentUrl.toString());
+      this.setState({ internalLinkCopiedId: documentId });
+      setTimeout(() => {
+        if (this.state.internalLinkCopiedId === documentId) this.setState({ internalLinkCopiedId: null });
+      }, 2500);
+    } catch (error) {
+      console.error('Failed to copy internal registry link', error);
+    }
+  }
+
+  async openDeepLinkedDocument() {
+    if (this.deepLinkHandled) return;
+    this.deepLinkHandled = true;
+    const id = new URLSearchParams(window.location.search).get('document');
+    if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return;
+    await this.openDocument(id, false, true);
+  }
+
+  wizardContextDefaults() {
+    const company = this.entityContext && this.entityContext.company;
+    const deal = this.entityContext && this.entityContext.deal;
+    return {
+      counterparty: company ? company.title : '',
+      counterpartyId: company ? company.id : null,
+      sourceCounterpartyName: company ? company.title : '',
+      dealStageId: deal && deal.stageId ? deal.stageId : '',
+      dealStageName: deal && deal.stageName ? deal.stageName : '',
+    };
+  }
+
+  async pickWizardCompany() {
+    try {
+      const current = this.state.wz.counterpartyId
+        ? [{ entityType: 'company', entityId: this.state.wz.counterpartyId }]
+        : [];
+      const selected = await this.requestCrmSelection(current, ['company'], false);
+      const company = selected.find(item => item.entityType === 'company');
+      if (!company) return;
+      this.setState({
+        wz: {
+          ...this.state.wz,
+          counterparty: company.entityTitle,
+          counterpartyId: company.entityId,
+          sourceCounterpartyName: company.entityTitle,
+        },
+        wizardError: '',
+      });
+    } catch (error) {
+      console.error('Failed to select Bitrix24 company', error);
+    }
+  }
+
+  async pickDrawerCompany() {
+    const edit = this.state.drawerEdit;
+    if (!edit) return;
+    try {
+      const current = edit.counterpartyId
+        ? [{ entityType: 'company', entityId: edit.counterpartyId }]
+        : [];
+      const selected = await this.requestCrmSelection(current, ['company'], false);
+      const company = selected.find(item => item.entityType === 'company');
+      if (!company) return;
+      this.setState({
+        drawerEdit: {
+          ...edit,
+          counterpartyId: company.entityId,
+          counterpartyName: company.entityTitle,
+        },
+        drawerEditError: '',
+      });
+    } catch (error) {
+      console.error('Failed to select Bitrix24 company', error);
+    }
+  }
+
+  async searchWizardTasks(value) {
+    const search = String(value || '').trim();
+    const requestId = (this.taskSearchRequestId || 0) + 1;
+    this.taskSearchRequestId = requestId;
+    this.setState({ wz: { ...this.state.wz, taskSearch: value }, taskSearchLoading: true });
+    try {
+      const payload = await this.api(`/api/v1/registry/tasks?search=${encodeURIComponent(search)}&limit=20`);
+      if (requestId !== this.taskSearchRequestId) return;
+      this.setState({ taskSearchResults: payload.items || [], taskSearchLoading: false });
+    } catch (error) {
+      if (requestId !== this.taskSearchRequestId) return;
+      this.setState({ taskSearchResults: [], taskSearchLoading: false });
+      console.error('Failed to search Bitrix24 tasks', error);
+    }
+  }
+
+  selectWizardTask(task) {
+    const current = Array.isArray(this.state.wz.taskLinks) ? this.state.wz.taskLinks : [];
+    const taskLinks = [...new Map([
+      ...current,
+      { taskId: Number(task.id), taskTitle: task.title },
+    ].map(item => [String(item.taskId), item])).values()];
+    this.setState({
+      wz: { ...this.state.wz, taskLinks, taskSearch: '' },
+      taskSearchResults: [],
+      wizardError: '',
+    });
+  }
+
+  removeWizardTask(taskId) {
+    this.setState({
+      wz: {
+        ...this.state.wz,
+        taskLinks: (this.state.wz.taskLinks || []).filter(item => Number(item.taskId) !== Number(taskId)),
+      },
     });
   }
 
@@ -272,6 +441,7 @@ class Component extends DCLogic {
         counterparty: String(filters.cp || '').trim(),
         from: this.toIsoDocumentDate(filters.from),
         to: this.toIsoDocumentDate(filters.to),
+        fieldFilters: filters.dynamic || {},
       },
       columns: Object.keys(this.state.cols).filter(key => this.state.cols[key]),
     };
@@ -321,10 +491,11 @@ class Component extends DCLogic {
     const filters = view.filters || {};
     const sections = Object.fromEntries((filters.sections || []).map(code => [code, true]));
     const statuses = Object.fromEntries((filters.statuses || []).map(code => [code, true]));
-    const columns = Object.fromEntries(
-      ['section', 'counterparty', 'status', 'amount', 'docDate', 'responsible']
+    const columns = Object.fromEntries([
+      ...['section', 'counterparty', 'status', 'amount', 'docDate', 'responsible']
         .map(code => [code, (view.columns || []).includes(code)]),
-    );
+      ...(view.columns || []).filter(code => code.startsWith('field:')).map(code => [code, true]),
+    ]);
     this.persistColumnPreferences(columns);
     this.setState({
       activeSavedViewId: view.id,
@@ -338,6 +509,7 @@ class Component extends DCLogic {
         cp: filters.counterparty || '',
         from: filters.from || '',
         to: filters.to || '',
+        dynamic: filters.fieldFilters || {},
       },
       cols: columns,
       registryPage: 0,
@@ -513,12 +685,16 @@ class Component extends DCLogic {
     try {
       const stored = JSON.parse(sessionStorage.getItem('termech.registry.columns') || 'null');
       if (!stored || typeof stored !== 'object') return defaults;
-      return Object.fromEntries(
+      return {
+        ...Object.fromEntries(
         Object.entries(defaults).map(([key, fallback]) => [
           key,
           typeof stored[key] === 'boolean' ? stored[key] : fallback,
         ]),
-      );
+        ),
+        ...Object.fromEntries(Object.entries(stored)
+          .filter(([key, value]) => key.startsWith('field:') && typeof value === 'boolean')),
+      };
     } catch {
       return defaults;
     }
@@ -550,7 +726,7 @@ class Component extends DCLogic {
   }
 
   async saveDocumentType(input) {
-    if (!input.label.trim()) return;
+    if (!input.label.trim() || !Array.isArray(input.sections) || !input.sections.length) return;
     const dataTypes = {
       'Текст': 'text', 'Число': 'number', 'Дата': 'date', 'Сумма': 'money',
       'Список': 'select', 'Да/Нет': 'boolean', 'Файл': 'file',
@@ -559,9 +735,13 @@ class Component extends DCLogic {
       await this.api(`/api/v1/registry/types${input.code ? '/' + input.code : ''}`, {
         method: input.code ? 'PUT' : 'POST',
         body: JSON.stringify({
-          sectionCode: input.section,
+          sectionCodes: input.sections,
           name: input.label,
           lifecycleCode: input.lifecycle,
+          numberFormat: this.textValue(input.numberFormat).trim() || null,
+          numberAutoGenerate: input.numberAutoGenerate === true,
+          numberUniquenessEnabled: input.numberUniquenessEnabled === true,
+          contentRequired: input.contentRequired !== false,
           ...(input.code ? {
             description: this.textValue(input.description).trim() || null,
             sortOrder: Number(input.sortOrder) || 100,
@@ -595,6 +775,7 @@ class Component extends DCLogic {
       this.setState({
         adminSections: sections.items || [],
         adminTypes: types.items || [],
+        adminFieldLibrary: types.fieldLibrary || [],
         adminLifecyclesData: lifecycles.items || [],
         adminPolicies: (roles.items || []).filter(role => role.roleCode !== 'manager'),
         adminDataLoading: false,
@@ -670,26 +851,35 @@ class Component extends DCLogic {
       typeModalOpen: true,
       newType: type ? {
         code: type.code,
-        section: type.sectionCode,
+        sections: (type.sectionCodes && type.sectionCodes.length) ? [...type.sectionCodes] : [type.sectionCode],
         label: type.name,
         lifecycle: type.lifecycleCode || 'simple',
         description: this.textValue(type.description),
         sortOrder: type.sortOrder,
         isActive: type.isActive !== false,
+        numberFormat: type.numberFormat || '',
+        numberAutoGenerate: type.numberAutoGenerate === true,
+        numberUniquenessEnabled: type.numberUniquenessEnabled === true,
+        contentRequired: type.contentRequired !== false,
         fields: (type.fields || []).map(field => ({
           key: field.key,
           name: field.name,
           dtype: dataTypeLabels[field.dataType] || 'Текст',
           required: field.isRequired === true,
+          lockedSource: 'existing',
         })),
       } : {
         code: null,
-        section: (this.state.adminSections[0] && this.state.adminSections[0].code) || 'client',
+        sections: [(this.state.adminSections[0] && this.state.adminSections[0].code) || 'client'],
         label: '',
         lifecycle: (this.state.adminLifecyclesData[0] && this.state.adminLifecyclesData[0].code) || 'simple',
         description: '',
         sortOrder: 100,
         isActive: true,
+        numberFormat: '',
+        numberAutoGenerate: false,
+        numberUniquenessEnabled: false,
+        contentRequired: true,
         fields: [],
       },
       adminEditError: '',
@@ -808,6 +998,7 @@ class Component extends DCLogic {
       restore: false,
       export: false,
       administer: false,
+      byType: {},
     };
     this.setState({
       roleModalOpen: true,
@@ -818,7 +1009,10 @@ class Component extends DCLogic {
         allTypes: role.visibleTypeCodes === null,
         visibleTypeCodes: [...(role.visibleTypeCodes || [])],
         hiddenFields: [...(role.hiddenFields || [])],
-        permissions: { ...(role.permissions || {}) },
+        permissions: {
+          ...(role.permissions || {}),
+          byType: { ...((role.permissions && role.permissions.byType) || {}) },
+        },
         hideMoney: role.hideMoney === true,
         isActive: role.isActive !== false,
       } : {
@@ -844,8 +1038,14 @@ class Component extends DCLogic {
     const visibleSections = new Set(input.visibleSectionCodes);
     const visibleTypeCodes = input.visibleTypeCodes.filter(typeCode => {
       const type = this.state.adminTypes.find(item => item.code === typeCode);
-      return type && visibleSections.has(type.sectionCode);
+      return type && this.typeSectionCodes(type).some(sectionCode => visibleSections.has(sectionCode));
     });
+    const byType = Object.fromEntries(
+      Object.entries(input.permissions.byType || {}).filter(([typeCode]) => {
+        const type = this.state.adminTypes.find(item => item.code === typeCode);
+        return type && type.isActive !== false && this.typeSectionCodes(type).some(sectionCode => visibleSections.has(sectionCode));
+      }),
+    );
     try {
       await this.api(`/api/v1/registry/admin/role-policies${roleCode ? '/' + roleCode : ''}`, {
         method: roleCode ? 'PUT' : 'POST',
@@ -854,7 +1054,7 @@ class Component extends DCLogic {
           visibleSectionCodes: input.visibleSectionCodes,
           visibleTypeCodes: input.allTypes ? null : visibleTypeCodes,
           hiddenFields: input.hiddenFields,
-          permissions: input.permissions,
+          permissions: { ...input.permissions, byType },
           hideMoney: input.hideMoney,
           isActive: input.isActive,
         }),
@@ -890,7 +1090,10 @@ class Component extends DCLogic {
     if (this.state.adminAccessLoading) return;
     this.setState({ adminAccessLoading: true, adminAccessError: '', adminAccessSaved: false });
     try {
-      const payload = await this.api('/api/v1/registry/admin/user-roles');
+      const [payload, departmentPayload] = await Promise.all([
+        this.api('/api/v1/registry/admin/user-roles'),
+        this.api('/api/v1/registry/admin/department-roles'),
+      ]);
       const assignments = {};
       const bitrixAdminIds = new Set(
         (payload.users || []).filter(user => user.isBitrixAdmin).map(user => String(user.id)),
@@ -900,12 +1103,21 @@ class Component extends DCLogic {
           assignments[String(item.userId)] = item.roleCode;
         }
       });
+      const departmentAssignments = {};
+      (departmentPayload.items || []).forEach(item => {
+        departmentAssignments[String(item.departmentId)] = {
+          roleCode: item.roleCode,
+          priority: Number(item.priority) || 100,
+        };
+      });
       this.setState({
         adminUsers: payload.users || [],
         registryUsers: this.state.registryUsers.length
           ? this.state.registryUsers
           : (payload.users || []),
         adminUserRoles: assignments,
+        adminDepartments: departmentPayload.departments || [],
+        adminDepartmentRoles: departmentAssignments,
         adminAccessLoading: false,
       });
     } catch (error) {
@@ -925,6 +1137,39 @@ class Component extends DCLogic {
     this.setState({ adminUserRoles: assignments, adminAccessSaved: false, adminAccessError: '' });
   }
 
+  setAdminDepartmentRole(departmentId, roleCode) {
+    const assignments = { ...this.state.adminDepartmentRoles };
+    const key = String(departmentId);
+    if (roleCode) {
+      assignments[key] = {
+        roleCode,
+        priority: assignments[key] ? assignments[key].priority : 100,
+      };
+    } else {
+      delete assignments[key];
+    }
+    this.setState({
+      adminDepartmentRoles: assignments,
+      adminAccessSaved: false,
+      adminAccessError: '',
+    });
+  }
+
+  setAdminDepartmentPriority(departmentId, value) {
+    const key = String(departmentId);
+    const current = this.state.adminDepartmentRoles[key];
+    if (!current) return;
+    const priority = Math.max(0, Math.min(1_000_000, Number(value) || 0));
+    this.setState({
+      adminDepartmentRoles: {
+        ...this.state.adminDepartmentRoles,
+        [key]: { ...current, priority },
+      },
+      adminAccessSaved: false,
+      adminAccessError: '',
+    });
+  }
+
   async saveAdminAccess() {
     if (this.state.adminAccessSaving) return;
     const users = new Map((this.state.adminUsers || []).map(user => [String(user.id), user]));
@@ -935,12 +1180,25 @@ class Component extends DCLogic {
         userName: users.get(userId)?.name || `Пользователь #${userId}`,
         roleCode,
       }));
+    const departmentItems = Object.entries(this.state.adminDepartmentRoles)
+      .filter(([, assignment]) => !!assignment.roleCode)
+      .map(([departmentId, assignment]) => ({
+        departmentId: Number(departmentId),
+        roleCode: assignment.roleCode,
+        priority: Number(assignment.priority) || 0,
+      }));
     this.setState({ adminAccessSaving: true, adminAccessError: '', adminAccessSaved: false });
     try {
-      await this.api('/api/v1/registry/admin/user-roles', {
-        method: 'PUT',
-        body: JSON.stringify({ items }),
-      });
+      await Promise.all([
+        this.api('/api/v1/registry/admin/user-roles', {
+          method: 'PUT',
+          body: JSON.stringify({ items }),
+        }),
+        this.api('/api/v1/registry/admin/department-roles', {
+          method: 'PUT',
+          body: JSON.stringify({ items: departmentItems }),
+        }),
+      ]);
       this.setState({ adminAccessSaving: false, adminAccessSaved: true });
     } catch (error) {
       this.setState({
@@ -997,6 +1255,7 @@ class Component extends DCLogic {
     }
     this.placementContextType = null;
     this.placementEntity = null;
+    this.entityContext = null;
     if (code === 'LEFT_MENU') this.setState({ screen: 'registry' });
   }
 
@@ -1005,6 +1264,8 @@ class Component extends DCLogic {
     this.docs = [];
     this.documentsMeta = { total: 0, limit: 1000, offset: 0 };
     this.documentsSource = 'context_missing';
+    this.dealSyncContextKey = null;
+    this.setState({ dealSyncBusy: false, dealSyncMessage: '', dealSyncError: '' });
     this.forceUpdate();
   }
 
@@ -1064,6 +1325,20 @@ class Component extends DCLogic {
     savedViewError: '',
     rowMenuId: null,
     drawerId: null,
+    drawerHistoryOpen: false,
+    drawerAdditionalOpen: false,
+    drawerLinksOpen: false,
+    drawerStorageOpen: false,
+    expandedDocumentRelations: {},
+    relationEditorOpen: false,
+    relationEditorMode: 'child',
+    relationEditorSearch: '',
+    relationEditorCandidates: [],
+    relationEditorSelectedId: null,
+    relationEditorType: 'other',
+    relationEditorLoading: false,
+    relationEditorSaving: false,
+    relationEditorError: '',
     drawerEditing: false,
     drawerEditSaving: false,
     drawerEditError: '',
@@ -1074,11 +1349,32 @@ class Component extends DCLogic {
     drawerLinkError: '',
     cols: this.loadColumnPreferences(),
     filterOpen: false, colsOpen: false,
-    filters: { sections: {}, statuses: {}, type: 'all', responsible: 'all', cp: '', from: '', to: '' },
+    filters: { sections: {}, statuses: {}, type: 'all', responsible: 'all', cp: '', from: '', to: '', dynamic: {} },
     dragTargetKey: null,
+    bulkUploadOpen: false,
+    bulkUploadRows: [],
+    bulkUploadCommonSection: '',
+    bulkUploadCommonType: '',
+    bulkUploadCommonCompanyId: null,
+    bulkUploadCommonCompanyName: '',
+    bulkUploadCommonDealLinks: [],
+    bulkUploadCommonTaskLinks: [],
+    bulkUploadCommonTaskSearch: '',
+    bulkUploadCommonTaskResults: [],
+    bulkUploadCommonTaskLoading: false,
+    bulkUploadCommonDocumentStatus: '',
+    bulkUploadCommonResponsibleId: '',
+    bulkUploadCommonResponsibleName: '',
+    bulkUploadContextLinks: [],
+    bulkUploadBusy: false,
+    bulkUploadError: '',
+    bulkUploadDragActive: false,
+    bulkUploadHelpOpen: false,
     adminTab: 'sections',
     adminUsers: [],
     adminUserRoles: {},
+    adminDepartments: [],
+    adminDepartmentRoles: {},
     adminAccessLoading: false,
     adminAccessSaving: false,
     adminAccessError: '',
@@ -1087,6 +1383,7 @@ class Component extends DCLogic {
     adminDataError: '',
     adminSections: [],
     adminTypes: [],
+    adminFieldLibrary: [],
     adminLifecyclesData: [],
     adminPolicies: [],
     sectionModalOpen: false,
@@ -1103,12 +1400,24 @@ class Component extends DCLogic {
     expandedDeals: { '1234': true },
     collapsedGroups: {},
     companyView: 'deals',
+    dealTotalCurrency: 'RUB',
+    dealFinancialSummary: null,
+    dealFinancialLoading: false,
+    dealFinancialError: '',
+    dealFinancialErrorCode: '',
+    dealSyncBusy: false,
+    dealSyncMessage: '',
+    dealSyncError: '',
     typeModalOpen: false,
     helpOpen: false,
-    newType: { code: null, section: 'client', label: '', lifecycle: 'simple', description: '', sortOrder: 100, isActive: true, fields: [] },
+    newType: { code: null, sections: ['client'], label: '', lifecycle: 'simple', description: '', sortOrder: 100, isActive: true, numberFormat: '', numberAutoGenerate: false, numberUniquenessEnabled: false, contentRequired: true, fields: [] },
     wizardOpen: false,
     wizardError: '',
-    wz: { step: 1, sectionCode: null, typeLabel: null, number: '', date: '', amount: '', currency: 'RUB', counterparty: '', fieldVals: {}, links: [], file: null, externalLink: null, linkEditorOpen: false, linkName: '', linkUrl: '', linkError: '', supersedesId: null },
+    taskSearchResults: [],
+    taskSearchLoading: false,
+    internalLinkCopiedId: null,
+    deepLinkError: '',
+    wz: { step: 1, sectionCode: null, typeLabel: null, number: '', date: '', amount: '', currency: 'RUB', counterparty: '', counterpartyId: null, sourceCounterpartyName: '', dealStageId: '', dealStageName: '', comment: '', fieldVals: {}, links: [], taskLinks: [], taskSearch: '', file: null, externalLink: null, linkEditorOpen: false, linkName: '', linkUrl: '', linkError: '', supersedesId: null },
   };
 
   SECTIONS = [];
@@ -1119,6 +1428,11 @@ class Component extends DCLogic {
   serverPolicy = null;
   policyLoadError = null;
   registryInitializing = false;
+
+  typeSectionCodes(type) {
+    if (Array.isArray(type && type.sectionCodes) && type.sectionCodes.length) return type.sectionCodes;
+    return type && type.sectionCode ? [type.sectionCode] : [];
+  }
 
   async loadRegistryData() {
     await Promise.all([
@@ -1156,6 +1470,11 @@ class Component extends DCLogic {
 
   async loadContextDocuments() {
     if (!this.placementEntity) return;
+    const contextKey = `${this.placementEntity.entityType}:${this.placementEntity.entityId}`;
+    if (this.dealSyncContextKey !== contextKey) {
+      this.dealSyncContextKey = contextKey;
+      this.setState({ dealSyncBusy: false, dealSyncMessage: '', dealSyncError: '' });
+    }
     const requestId = (this.contextDocumentsRequestId || 0) + 1;
     this.contextDocumentsRequestId = requestId;
     const params = new URLSearchParams({
@@ -1172,9 +1491,86 @@ class Component extends DCLogic {
       this.documentsMeta = payload.meta || { total: this.docs.length, limit: 1000, offset: 0 };
       this.documentsSource = 'api';
       this.forceUpdate();
+      if (this.placementEntity.entityType === 'deal') {
+        await this.loadDealFinancialSummary(this.state.dealTotalCurrency);
+      } else {
+        this.setState({
+          dealFinancialSummary: null,
+          dealFinancialLoading: false,
+          dealFinancialError: '',
+          dealFinancialErrorCode: '',
+        });
+      }
     } catch (error) {
       this.documentsSource = 'error';
       console.error('Failed to load registry context documents', error);
+    }
+  }
+
+  async loadDealFinancialSummary(currency = this.state.dealTotalCurrency) {
+    if (!this.placementEntity || this.placementEntity.entityType !== 'deal') return;
+    const dealId = this.placementEntity.entityId;
+    const requestId = (this.dealFinancialRequestId || 0) + 1;
+    this.dealFinancialRequestId = requestId;
+    this.setState({
+      dealFinancialLoading: true,
+      dealFinancialError: '',
+      dealFinancialErrorCode: '',
+    });
+    try {
+      const payload = await this.api(
+        `/api/v1/registry/documents/deal/${dealId}/financial-summary?currency=${encodeURIComponent(currency)}`,
+      );
+      if (requestId !== this.dealFinancialRequestId) return;
+      this.setState({
+        dealFinancialSummary: payload,
+        dealFinancialLoading: false,
+        dealFinancialError: '',
+        dealFinancialErrorCode: '',
+      });
+    } catch (error) {
+      if (requestId !== this.dealFinancialRequestId) return;
+      this.setState({
+        dealFinancialSummary: null,
+        dealFinancialLoading: false,
+        dealFinancialError: error instanceof Error ? error.message : 'Не удалось рассчитать финансовый итог.',
+        dealFinancialErrorCode: error && error.code ? error.code : 'unknown',
+      });
+    }
+  }
+
+  setDealTotalCurrency(currency) {
+    this.setState({ dealTotalCurrency: currency });
+    void this.loadDealFinancialSummary(currency);
+  }
+
+  async syncBitrixDealDocuments() {
+    if (
+      this.state.dealSyncBusy
+      || !this.placementEntity
+      || this.placementEntity.entityType !== 'deal'
+    ) return;
+    const dealId = this.placementEntity.entityId;
+    this.setState({ dealSyncBusy: true, dealSyncMessage: '', dealSyncError: '' });
+    try {
+      const summary = await this.api(
+        `/api/v1/registry/documents/deal/${dealId}/sync-bitrix`,
+        { method: 'POST' },
+      );
+      this.setState({
+        dealSyncBusy: false,
+        dealSyncMessage: `Синхронизация завершена: создано ${summary.created}, обновлено ${summary.updated}, без изменений ${summary.unchanged}, дублей ${summary.duplicates}.`,
+        dealSyncError: '',
+      });
+      await this.loadContextDocuments();
+    } catch (error) {
+      this.setState({
+        dealSyncBusy: false,
+        dealSyncMessage: '',
+        dealSyncError: error instanceof Error
+          ? error.message
+          : 'Не удалось синхронизировать счета и коммерческие предложения.',
+      });
     }
   }
 
@@ -1249,13 +1645,20 @@ class Component extends DCLogic {
     const filenameMatch = /filename="?([^";]+)"?/i.exec(disposition);
     const filename = filenameMatch ? filenameMatch[1] : 'registry-documents.xlsx';
     const url = URL.createObjectURL(await response.blob());
-    const link = document.createElement('a');
+    let downloadDocument = document;
+    try {
+      if (window.parent && window.parent !== window && window.parent.location.origin === window.location.origin) {
+        downloadDocument = window.parent.document;
+      }
+    } catch {
+      downloadDocument = document;
+    }
+    const link = downloadDocument.createElement('a');
     link.href = url;
     link.download = filename;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
+    link.target = '_self';
     link.style.display = 'none';
-    document.body.appendChild(link);
+    downloadDocument.body.appendChild(link);
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -1271,13 +1674,25 @@ class Component extends DCLogic {
     });
   }
 
-  async uploadFileToDocument(documentId, file, replacesAttachmentId = null) {
+  chooseFiles() {
+    return new Promise(resolve => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.style.display = 'none';
+      input.addEventListener('change', () => resolve(Array.from(input.files || [])), { once: true });
+      input.click();
+    });
+  }
+
+  async uploadFileToDocument(documentId, file, replacesAttachmentId = null, fieldKey = null) {
     const initialized = await this.api(`/api/v1/registry/documents/${documentId}/attachments/file/init`, {
       method: 'POST',
       body: JSON.stringify({
         name: file.name,
         mimeType: file.type || undefined,
         sizeBytes: file.size,
+        ...(fieldKey ? { fieldKey } : {}),
         ...(replacesAttachmentId ? { replacesAttachmentId } : {}),
       }),
     });
@@ -1386,8 +1801,535 @@ class Component extends DCLogic {
       wizardOpen: true,
       wizardError: '',
       responsibleMenuOpen: null,
-      wz: { step: 1, sectionCode, typeLabel: null, number: '', date: '', amount: '', currency: 'RUB', counterparty: '', ...responsible, fieldVals: {}, links, file, externalLink: null, linkEditorOpen: false, linkName: '', linkUrl: '', linkError: '', supersedesId: null },
+      wz: { step: 1, sectionCode, typeLabel: null, number: '', date: '', amount: '', currency: 'RUB', ...this.wizardContextDefaults(), ...responsible, comment: '', fieldVals: {}, links, taskLinks: [], taskSearch: '', file, externalLink: null, linkEditorOpen: false, linkName: '', linkUrl: '', linkError: '', supersedesId: null },
     });
+  }
+
+  bulkDocumentTitle(file) {
+    const name = String(file && file.name || 'Документ').trim();
+    return name.replace(/\.[^.]+$/, '') || name;
+  }
+
+  bulkContextLinks(links = []) {
+    const result = new Map();
+    for (const link of [...this.creationContextLinks(), ...(Array.isArray(links) ? links : [])]) {
+      if (!link || (link.entityType !== 'deal' && link.entityType !== 'company')) continue;
+      result.set(`${link.entityType}:${link.entityId}`, link);
+    }
+    return [...result.values()];
+  }
+
+  bulkContextCompany(links = []) {
+    return this.bulkContextLinks(links).find(link => link.entityType === 'company') || null;
+  }
+
+  openBulkUpload(files = [], sectionCode = null, links = []) {
+    const contextLinks = this.bulkContextLinks(links);
+    const company = this.bulkContextCompany(contextLinks);
+    const responsible = this.defaultResponsibleSelection();
+    this.setState({
+      bulkUploadOpen: true,
+      bulkUploadRows: [],
+      bulkUploadCommonSection: sectionCode || '',
+      bulkUploadCommonType: '',
+      bulkUploadCommonCompanyId: company ? Number(company.entityId) : null,
+      bulkUploadCommonCompanyName: company ? company.entityTitle : '',
+      bulkUploadCommonDealLinks: contextLinks.filter(link => link.entityType === 'deal'),
+      bulkUploadCommonTaskLinks: [],
+      bulkUploadCommonTaskSearch: '',
+      bulkUploadCommonTaskResults: [],
+      bulkUploadCommonTaskLoading: false,
+      bulkUploadCommonDocumentStatus: '',
+      bulkUploadCommonResponsibleId: responsible.responsibleId || '',
+      bulkUploadCommonResponsibleName: responsible.responsibleName || '',
+      bulkUploadContextLinks: contextLinks,
+      bulkUploadBusy: false,
+      bulkUploadError: '',
+      bulkUploadDragActive: false,
+      bulkUploadHelpOpen: false,
+    });
+    requestAnimationFrame(() => this.appendBulkUploadFiles(files, {
+      sectionCode,
+      links: contextLinks,
+      company,
+      responsible,
+    }));
+  }
+
+  appendBulkUploadFiles(files, defaults = {}) {
+    const selected = Array.from(files || []).filter(file => file && file.name);
+    if (!selected.length) return;
+    const sectionCode = defaults.sectionCode !== undefined
+      ? defaults.sectionCode
+      : this.state.bulkUploadCommonSection;
+    const company = defaults.company !== undefined
+      ? defaults.company
+      : (this.state.bulkUploadCommonCompanyId ? {
+          entityId: this.state.bulkUploadCommonCompanyId,
+          entityTitle: this.state.bulkUploadCommonCompanyName,
+        } : null);
+    const responsible = defaults.responsible || {
+      responsibleId: this.state.bulkUploadCommonResponsibleId,
+      responsibleName: this.state.bulkUploadCommonResponsibleName,
+    };
+    const links = defaults.links !== undefined
+      ? defaults.links
+      : [
+          ...(this.state.bulkUploadContextLinks || []).filter(link => link.entityType !== 'deal'),
+          ...(this.state.bulkUploadCommonDealLinks || []),
+        ];
+    const commonTypeLabel = defaults.typeLabel !== undefined
+      ? defaults.typeLabel
+      : this.state.bulkUploadCommonType;
+    const type = sectionCode && commonTypeLabel
+      ? this.typeMeta(sectionCode, commonTypeLabel)
+      : null;
+    const statusOptions = this.bulkUploadStatusOptions(type);
+    const date = new Date().toISOString().slice(0, 10);
+    const deal = this.entityContext && this.entityContext.deal;
+    const rows = selected.map((file, index) => ({
+      id: `bulk-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
+      idempotencyKey: crypto.randomUUID(),
+      file,
+      title: this.bulkDocumentTitle(file),
+      number: '',
+      numberMode: type ? (type.numberAutoGenerate === true ? 'auto' : 'manual') : null,
+      sectionCode: sectionCode || '',
+      typeLabel: type ? commonTypeLabel : '',
+      documentDate: date,
+      amount: '',
+      currency: 'RUB',
+      counterpartyId: company ? Number(company.entityId) : null,
+      counterpartyName: company ? company.entityTitle : '',
+      dealStageId: deal && deal.stageId ? deal.stageId : '',
+      responsibleId: responsible.responsibleId || '',
+      responsibleName: responsible.responsibleName || '',
+      comment: '',
+      fieldVals: {},
+      links: Array.isArray(links) ? links : [],
+      taskLinks: [...(this.state.bulkUploadCommonTaskLinks || [])],
+      taskSearch: '',
+      taskResults: [],
+      taskSearchLoading: false,
+      documentStatus: statusOptions.some(option => option.code === this.state.bulkUploadCommonDocumentStatus)
+        ? this.state.bulkUploadCommonDocumentStatus
+        : (statusOptions[0] ? statusOptions[0].code : ''),
+      status: 'ready',
+      error: '',
+      documentId: null,
+    }));
+    this.setState({
+      bulkUploadRows: [...(this.state.bulkUploadRows || []), ...rows],
+      bulkUploadError: '',
+    });
+  }
+
+  updateBulkUploadRow(id, patch) {
+    this.setState({
+      bulkUploadRows: (this.state.bulkUploadRows || []).map(row =>
+        row.id === id ? { ...row, ...patch, error: patch.error ?? '' } : row),
+      bulkUploadError: '',
+    });
+  }
+
+  removeBulkUploadRow(id) {
+    if (this.state.bulkUploadBusy) return;
+    this.setState({
+      bulkUploadRows: (this.state.bulkUploadRows || []).filter(row => row.id !== id),
+      bulkUploadError: '',
+    });
+  }
+
+  bulkUploadStatusOptions(type) {
+    if (!type) return [];
+    const lifecycle = this.LIFECYCLE_BY_CODE[type.lifecycleCode];
+    if (!lifecycle || !lifecycle.config) return [];
+    const config = lifecycle.config;
+    const allowedCodes = new Set([config.initialStatus]);
+    const permissions = this.serverPolicy && this.serverPolicy.permissions;
+    const canTransition = !!permissions
+      && (permissions.transitionAny === true || permissions.transitionOwn === true)
+      && this.typePermissionAllowed(type.code, 'transition');
+    if (canTransition) {
+      for (const transition of config.transitions || []) {
+        if (transition.from !== config.initialStatus || transition.requiresAttachment) continue;
+        const roleCode = this.serverPolicy && this.serverPolicy.roleCode
+          ? this.serverPolicy.roleCode
+          : this.state.role;
+        if (transition.roles && !transition.roles.includes(roleCode)) continue;
+        if (transition.to === 'archived' && !this.canArchiveDocument({ typeCode: type.code })) continue;
+        allowedCodes.add(transition.to);
+      }
+    }
+    return (config.states || [])
+      .filter(state => allowedCodes.has(state.code))
+      .map(state => ({ code: state.code, label: state.label }));
+  }
+
+  async pickBulkUploadDeals(rowId = null) {
+    const row = rowId
+      ? (this.state.bulkUploadRows || []).find(item => item.id === rowId)
+      : null;
+    const links = row ? (row.links || []) : (this.state.bulkUploadCommonDealLinks || []);
+    try {
+      const selected = await this.requestCrmSelection(
+        links.filter(link => link.entityType === 'deal'),
+        ['deal'],
+        true,
+      );
+      const deals = selected.filter(link => link.entityType === 'deal');
+      if (rowId) {
+        this.updateBulkUploadRow(rowId, {
+          links: [...links.filter(link => link.entityType !== 'deal'), ...deals],
+          status: 'ready',
+        });
+      } else {
+        this.setState({ bulkUploadCommonDealLinks: deals, bulkUploadError: '' });
+      }
+    } catch (error) {
+      this.setState({
+        bulkUploadError: error instanceof Error
+          ? error.message
+          : 'Не удалось выбрать сделки Bitrix24.',
+      });
+    }
+  }
+
+  async searchBulkUploadTasks(value, rowId = null) {
+    const search = String(value || '').trim();
+    const requestKey = rowId || 'common';
+    if (!this.bulkTaskSearchRequestIds) this.bulkTaskSearchRequestIds = {};
+    const requestId = (this.bulkTaskSearchSequence || 0) + 1;
+    this.bulkTaskSearchSequence = requestId;
+    this.bulkTaskSearchRequestIds[requestKey] = requestId;
+    if (rowId) {
+      const row = (this.state.bulkUploadRows || []).find(item => item.id === rowId);
+      this.updateBulkUploadRow(rowId, {
+        taskSearch: value,
+        taskResults: search ? (row && row.taskResults ? row.taskResults : []) : [],
+        taskSearchLoading: !!search,
+      });
+    } else {
+      this.setState({
+        bulkUploadCommonTaskSearch: value,
+        bulkUploadCommonTaskResults: search ? this.state.bulkUploadCommonTaskResults : [],
+        bulkUploadCommonTaskLoading: !!search,
+      });
+    }
+    if (!search) return;
+    try {
+      const payload = await this.api(`/api/v1/registry/tasks?search=${encodeURIComponent(search)}&limit=20`);
+      if (this.bulkTaskSearchRequestIds[requestKey] !== requestId) return;
+      if (rowId) {
+        this.updateBulkUploadRow(rowId, { taskResults: payload.items || [], taskSearchLoading: false });
+      } else {
+        this.setState({ bulkUploadCommonTaskResults: payload.items || [], bulkUploadCommonTaskLoading: false });
+      }
+    } catch (error) {
+      if (this.bulkTaskSearchRequestIds[requestKey] !== requestId) return;
+      if (rowId) this.updateBulkUploadRow(rowId, { taskResults: [], taskSearchLoading: false });
+      else this.setState({ bulkUploadCommonTaskResults: [], bulkUploadCommonTaskLoading: false });
+      console.error('Failed to search Bitrix24 tasks for bulk upload', error);
+    }
+  }
+
+  selectBulkUploadTask(task, rowId = null) {
+    if (!task) return;
+    const taskLink = { taskId: Number(task.id), taskTitle: task.title };
+    if (rowId) {
+      this.updateBulkUploadRow(rowId, {
+        taskLinks: [taskLink],
+        taskSearch: '',
+        taskResults: [],
+        taskSearchLoading: false,
+        status: 'ready',
+      });
+    } else {
+      this.setState({
+        bulkUploadCommonTaskLinks: [taskLink],
+        bulkUploadCommonTaskSearch: '',
+        bulkUploadCommonTaskResults: [],
+        bulkUploadCommonTaskLoading: false,
+        bulkUploadError: '',
+      });
+    }
+  }
+
+  applyBulkUploadCommon() {
+    const sectionCode = this.state.bulkUploadCommonSection || '';
+    const typeLabel = this.state.bulkUploadCommonType || '';
+    const typeAllowed = typeLabel && (this.TYPES[sectionCode] || []).includes(typeLabel);
+    const commonType = typeAllowed ? this.typeMeta(sectionCode, typeLabel) : null;
+    const commonStatusOptions = this.bulkUploadStatusOptions(commonType);
+    const commonDocumentStatus = commonStatusOptions.some(
+      option => option.code === this.state.bulkUploadCommonDocumentStatus,
+    )
+      ? this.state.bulkUploadCommonDocumentStatus
+      : (commonStatusOptions[0] ? commonStatusOptions[0].code : '');
+    this.setState({
+      bulkUploadRows: (this.state.bulkUploadRows || []).map(row => {
+        if (row.status === 'success') return row;
+        const nextTypeLabel = typeAllowed ? typeLabel : (sectionCode ? '' : row.typeLabel);
+        const fieldsChanged = (sectionCode && sectionCode !== row.sectionCode)
+          || (typeAllowed && typeLabel !== row.typeLabel);
+        return {
+          ...row,
+          ...(sectionCode ? { sectionCode } : {}),
+          ...(typeAllowed ? { typeLabel } : (sectionCode ? { typeLabel: '' } : {})),
+          ...(fieldsChanged ? {
+            fieldVals: {},
+            number: '',
+            numberMode: commonType
+              ? (commonType.numberAutoGenerate === true ? 'auto' : 'manual')
+              : null,
+          } : {}),
+          ...(typeAllowed ? { documentStatus: commonDocumentStatus } : {}),
+          ...(this.state.bulkUploadCommonCompanyId ? {
+            counterpartyId: this.state.bulkUploadCommonCompanyId,
+            counterpartyName: this.state.bulkUploadCommonCompanyName,
+          } : {}),
+          ...(this.state.bulkUploadCommonResponsibleId ? {
+            responsibleId: this.state.bulkUploadCommonResponsibleId,
+            responsibleName: this.state.bulkUploadCommonResponsibleName,
+          } : {}),
+          links: [
+            ...(row.links || []).filter(link => link.entityType !== 'deal'),
+            ...(this.state.bulkUploadCommonDealLinks || []),
+          ],
+          taskLinks: [...(this.state.bulkUploadCommonTaskLinks || [])],
+          taskSearch: '',
+          taskResults: [],
+          typeLabel: nextTypeLabel,
+          status: 'ready',
+          error: '',
+        };
+      }),
+      bulkUploadError: '',
+    });
+  }
+
+  async pickBulkUploadCompany(rowId = null) {
+    const row = rowId
+      ? (this.state.bulkUploadRows || []).find(item => item.id === rowId)
+      : null;
+    const currentId = row ? row.counterpartyId : this.state.bulkUploadCommonCompanyId;
+    try {
+      const selected = await this.requestCrmSelection(
+        currentId ? [{
+          entityType: 'company',
+          entityId: currentId,
+          entityTitle: row ? row.counterpartyName : this.state.bulkUploadCommonCompanyName,
+        }] : [],
+        ['company'],
+        false,
+      );
+      const company = selected.find(item => item.entityType === 'company');
+      if (!company) return;
+      if (rowId) {
+        this.updateBulkUploadRow(rowId, {
+          counterpartyId: company.entityId,
+          counterpartyName: company.entityTitle,
+          status: 'ready',
+        });
+      } else {
+        this.setState({
+          bulkUploadCommonCompanyId: company.entityId,
+          bulkUploadCommonCompanyName: company.entityTitle,
+          bulkUploadError: '',
+        });
+      }
+    } catch (error) {
+      this.setState({
+        bulkUploadError: error instanceof Error
+          ? error.message
+          : 'Не удалось выбрать компанию Bitrix24.',
+      });
+    }
+  }
+
+  bulkUploadValidation(row) {
+    if (!row.sectionCode) return 'Выберите раздел.';
+    const type = this.typeMeta(row.sectionCode, row.typeLabel);
+    if (!type) return 'Выберите тип документа.';
+    if (!this.canCreateType(type)) return 'Для этого типа документов создание запрещено политикой роли.';
+    if (type.isFinancial && this.roleHidesMoney(type.code)) {
+      return 'Финансовый тип недоступен для роли со скрытыми суммами.';
+    }
+    if (!String(row.title || '').trim()) return 'Укажите название документа.';
+    const statusOptions = this.bulkUploadStatusOptions(type);
+    if (!row.documentStatus || !statusOptions.some(option => option.code === row.documentStatus)) {
+      return 'Выберите доступный статус документа.';
+    }
+    if (!this.toIsoDocumentDate(row.documentDate)) return 'Укажите дату документа.';
+    if (!Number(row.responsibleId)) return 'Выберите ответственного.';
+    if (row.counterpartyName && !Number(row.counterpartyId)) {
+      return 'Выберите компанию из справочника Bitrix24.';
+    }
+    const amount = String(row.amount || '').replace(/\s/g, '').replace(',', '.');
+    if (type.isFinancial && !amount) return 'Укажите сумму финансового документа.';
+    if (amount && !/^\d+(\.\d{1,2})?$/.test(amount)) return 'Укажите корректную сумму.';
+    if (amount && !/^[A-Z]{3}$/.test(String(row.currency || ''))) return 'Выберите валюту.';
+    for (const field of type.fields || []) {
+      const rawValue = (row.fieldVals || {})[field.key];
+      if (field.dataType === 'file') {
+        if (field.isRequired && !(rawValue instanceof File)) {
+          return `Добавьте файл в обязательное поле «${field.label}».`;
+        }
+        continue;
+      }
+      const normalized = this.normalizedDocumentFieldValue(field, rawValue);
+      if (field.isRequired && (normalized === null || normalized === '')) {
+        return `Заполните обязательное поле «${field.label}».`;
+      }
+      if (field.dataType === 'date' && rawValue && !normalized) {
+        return `Укажите корректную дату в поле «${field.label}».`;
+      }
+      if ((field.dataType === 'number' || field.dataType === 'money')
+        && normalized !== null && !/^-?\d+(\.\d+)?$/.test(normalized)) {
+        return `Укажите число в поле «${field.label}».`;
+      }
+    }
+    return '';
+  }
+
+  bulkUploadDocumentInput(row) {
+    const type = this.typeMeta(row.sectionCode, row.typeLabel);
+    const amount = String(row.amount || '').replace(/\s/g, '').replace(',', '.');
+    const fields = {};
+    for (const field of type.fields || []) {
+      const rawValue = (row.fieldVals || {})[field.key];
+      if (field.dataType === 'file') {
+        if (rawValue instanceof File) fields[field.key] = { pendingUpload: true, name: rawValue.name };
+      } else {
+        const normalized = this.normalizedDocumentFieldValue(field, rawValue);
+        if (normalized !== null) fields[field.key] = normalized;
+      }
+    }
+    const links = [...new Map((row.links || [])
+      .filter(link => link && (link.entityType === 'deal' || link.entityType === 'company'))
+      .map(link => [`${link.entityType}:${link.entityId}`, link])).values()];
+    return {
+      sectionCode: row.sectionCode,
+      typeCode: type.code,
+      number: row.numberMode === 'auto'
+        ? null
+        : (String(row.number || '').trim() || null),
+      title: String(row.title).trim(),
+      documentDate: this.toIsoDocumentDate(row.documentDate),
+      counterpartyId: row.counterpartyId || null,
+      counterpartyName: row.counterpartyName || null,
+      dealStageId: row.dealStageId || undefined,
+      status: row.documentStatus || undefined,
+      responsibleId: Number(row.responsibleId),
+      responsibleName: row.responsibleName || undefined,
+      comment: String(row.comment || '').trim() || undefined,
+      links,
+      taskLinks: row.taskLinks || [],
+      fields,
+      ...(!this.roleHidesMoney(type.code) ? {
+        amount: amount || null,
+        currency: amount ? row.currency : null,
+      } : {}),
+    };
+  }
+
+  async uploadBulkRowFiles(row, document) {
+    const attachments = Array.isArray(document.attachments) ? document.attachments : [];
+    const type = this.typeMeta(row.sectionCode, row.typeLabel);
+    for (const field of type.fields || []) {
+      const file = (row.fieldVals || {})[field.key];
+      if (!(file instanceof File)) continue;
+      if (attachments.some(attachment => attachment.fieldKey === field.key && attachment.isCurrent !== false)) continue;
+      attachments.push(await this.uploadFileToDocument(document.id, file, null, field.key));
+    }
+    if (!attachments.some(attachment => !attachment.fieldKey && attachment.kind === 'file' && attachment.isCurrent !== false)) {
+      attachments.push(await this.uploadFileToDocument(document.id, row.file));
+    }
+    return this.api(`/api/v1/registry/documents/${document.id}/finalize`, { method: 'POST' });
+  }
+
+  async createBulkUpload(rowIds = null) {
+    if (this.state.bulkUploadBusy) return;
+    const selectedIds = rowIds ? new Set(rowIds) : null;
+    const candidates = (this.state.bulkUploadRows || []).filter(row =>
+      row.status !== 'success' && (!selectedIds || selectedIds.has(row.id)));
+    if (!candidates.length) return;
+    const invalidRows = candidates.filter(row => this.bulkUploadValidation(row));
+    if (invalidRows.length) {
+      this.setState({
+        bulkUploadRows: (this.state.bulkUploadRows || []).map(row => {
+          if (selectedIds && !selectedIds.has(row.id)) return row;
+          const error = this.bulkUploadValidation(row);
+          return error ? { ...row, status: 'error', error } : row;
+        }),
+        bulkUploadError: 'Исправьте поля, отмеченные в строках.',
+      });
+      return;
+    }
+    this.setState({
+      bulkUploadBusy: true,
+      bulkUploadError: '',
+      bulkUploadRows: (this.state.bulkUploadRows || []).map(row =>
+        candidates.some(candidate => candidate.id === row.id)
+          ? { ...row, status: 'uploading', error: '' }
+          : row),
+    });
+    let prepared;
+    try {
+      prepared = await this.api('/api/v1/registry/documents/bulk/upload', {
+        method: 'POST',
+        body: JSON.stringify({
+          items: candidates.map(row => ({
+            clientRowId: row.id,
+            idempotencyKey: row.idempotencyKey,
+            document: this.bulkUploadDocumentInput(row),
+          })),
+        }),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Не удалось подготовить пакет документов.';
+      this.setState({
+        bulkUploadBusy: false,
+        bulkUploadError: message,
+        bulkUploadRows: (this.state.bulkUploadRows || []).map(row =>
+          candidates.some(candidate => candidate.id === row.id)
+            ? { ...row, status: 'error', error: message }
+            : row),
+      });
+      return;
+    }
+
+    const preparedById = new Map((prepared.items || []).map(item => [item.clientRowId, item]));
+    for (const candidate of candidates) {
+      const item = preparedById.get(candidate.id);
+      if (!item || item.status !== 'ready' || !item.document) {
+        this.updateBulkUploadRow(candidate.id, {
+          status: 'error',
+          error: item && item.error && item.error.message
+            ? item.error.message
+            : 'Сервер не подготовил строку массовой загрузки.',
+        });
+        continue;
+      }
+      try {
+        const created = await this.uploadBulkRowFiles(candidate, item.document);
+        this.updateBulkUploadRow(candidate.id, {
+          status: 'success',
+          documentId: created.id,
+          error: '',
+        });
+      } catch (error) {
+        await this.api(`/api/v1/registry/documents/${item.document.id}/abandon`, { method: 'POST' })
+          .catch(cleanupError => console.error('Failed to compensate incomplete bulk document', cleanupError));
+        this.updateBulkUploadRow(candidate.id, {
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Не удалось загрузить файл.',
+        });
+      }
+    }
+    this.setState({ bulkUploadBusy: false });
+    if (this.placementEntity) await this.loadContextDocuments();
+    else await Promise.all([this.loadDocuments(), this.loadDocumentOptions()]);
   }
 
   openSupersedingWizard(document) {
@@ -1418,6 +2360,11 @@ class Component extends DCLogic {
           entityId: Number(link.entityId),
           entityTitle: link.title,
         })),
+        taskLinks: (document.taskLinks || []).map(link => ({
+          taskId: Number(link.taskId),
+          taskTitle: link.taskTitle,
+        })),
+        taskSearch: '',
         file: null,
         externalLink: null,
         linkEditorOpen: false,
@@ -1451,6 +2398,32 @@ class Component extends DCLogic {
     const target = event.target && event.target.nodeType === 1
       ? event.target
       : event.target && event.target.parentElement;
+    const bulkZone = target && target.closest
+      ? target.closest('#bulk-drop-zone-v2')
+      : null;
+    if (bulkZone && this.state.bulkUploadOpen) {
+      if (event.type === 'dragenter' || event.type === 'dragover' || event.type === 'drop') {
+        event.preventDefault();
+      }
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+      if (event.type === 'dragenter' || event.type === 'dragover') {
+        if (!this.state.bulkUploadDragActive) this.setState({ bulkUploadDragActive: true });
+        return;
+      }
+      if (event.type === 'dragleave') {
+        const related = event.relatedTarget;
+        if (related && bulkZone.contains(related)) return;
+        this.setState({ bulkUploadDragActive: false });
+        return;
+      }
+      event.stopPropagation();
+      const files = event.dataTransfer && event.dataTransfer.files
+        ? Array.from(event.dataTransfer.files)
+        : [];
+      this.setState({ bulkUploadDragActive: false });
+      this.appendBulkUploadFiles(files);
+      return;
+    }
     const zone = target && target.closest
       ? target.closest('[data-registry-drop-zone="true"]')
       : null;
@@ -1484,11 +2457,11 @@ class Component extends DCLogic {
     }
 
     event.stopPropagation();
-    const file = event.dataTransfer && event.dataTransfer.files
-      ? event.dataTransfer.files[0]
-      : null;
+    const files = event.dataTransfer && event.dataTransfer.files
+      ? Array.from(event.dataTransfer.files)
+      : [];
     this.setState({ dragTargetKey: null });
-    if (!file) return;
+    if (!files.length) return;
 
     const sectionCode = zone.getAttribute('data-section-code');
     const dealId = zone.getAttribute('data-deal-id');
@@ -1508,7 +2481,8 @@ class Component extends DCLogic {
         entityTitle: zone.getAttribute('data-company-title') || '',
       });
     }
-    this.openWizardForFile(file, sectionCode, links);
+    if (files.length > 1) this.openBulkUpload(files, sectionCode, links);
+    else this.openWizardForFile(files[0], sectionCode, links);
   }
 
   handleFileDragOver(event, targetKey = null) {
@@ -1532,11 +2506,12 @@ class Component extends DCLogic {
     if (!event || !event.dataTransfer) return;
     event.preventDefault();
     event.stopPropagation();
-    const file = event.dataTransfer.files && event.dataTransfer.files[0];
+    const files = Array.from(event.dataTransfer.files || []);
     if (targetKey && this.state.dragTargetKey === targetKey) {
       this.setState({ dragTargetKey: null });
     }
-    this.openWizardForFile(file, sectionCode, links);
+    if (files.length > 1) this.openBulkUpload(files, sectionCode, links);
+    else this.openWizardForFile(files[0], sectionCode, links);
   }
 
   async loadCatalogs() {
@@ -1638,6 +2613,9 @@ class Component extends DCLogic {
     const to = this.toIsoDocumentDate(filters.to);
     if (from) params.set('from', from);
     if (to) params.set('to', to);
+    const fieldFilters = Object.fromEntries(Object.entries(filters.dynamic || {})
+      .filter(([, value]) => value !== '' && value !== null && value !== undefined));
+    if (Object.keys(fieldFilters).length) params.set('fieldFilters', JSON.stringify(fieldFilters));
     params.set('limit', String(this.documentPageSize));
     params.set('offset', String(this.state.registryPage * this.documentPageSize));
     return params;
@@ -1647,7 +2625,10 @@ class Component extends DCLogic {
     const params = this.documentQueryParams();
     params.delete('limit');
     params.delete('offset');
-    params.set('columns', Object.keys(this.state.cols).filter(key => this.state.cols[key]).join(','));
+    const dynamicColumnKeys = new Set(this.activeDynamicColumns().map(field => `field:${field.key}`));
+    params.set('columns', Object.keys(this.state.cols)
+      .filter(key => this.state.cols[key] && (!key.startsWith('field:') || dynamicColumnKeys.has(key)))
+      .join(','));
     try {
       await this.download(`/api/v1/registry/documents/export.xlsx?${params.toString()}`);
     } catch (error) {
@@ -1768,9 +2749,85 @@ class Component extends DCLogic {
       document_supersede_reverted: 'Создание новой редакции отменено',
       responsible_changed: 'Ответственный изменён',
       link_added: 'Привязка добавлена', link_removed: 'Привязка удалена',
+      relation_parent_added: 'Указан основной документ',
+      relation_parent_changed: 'Основной документ изменён',
+      relation_parent_removed: 'Связь с основным документом удалена',
+      relation_child_added: 'Добавлен зависимый документ',
+      relation_child_removed: 'Зависимый документ отвязан',
+      bitrix_document_imported: 'Карточка импортирована из Bitrix24',
+      bitrix_document_synchronized: 'Карточка обновлена из Bitrix24',
+      archive_notifications_dispatched: 'Отправлены уведомления об архивировании',
+      restore_notifications_dispatched: 'Отправлены уведомления о восстановлении',
       crm_entity_title_updated: 'Название CRM-сущности обновлено',
       crm_entity_deleted: 'CRM-сущность удалена',
     }[event] || event;
+  }
+
+  historyDetail(entry) {
+    const before = entry && entry.before && typeof entry.before === 'object' ? entry.before : {};
+    const after = entry && entry.after && typeof entry.after === 'object' ? entry.after : {};
+    const metadata = entry && entry.metadata && typeof entry.metadata === 'object' ? entry.metadata : {};
+    const statusLabel = code => (this.STATUS[code] && this.STATUS[code].label) || code || '—';
+    const recipients = Array.isArray(metadata.notificationRecipientIds)
+      ? metadata.notificationRecipientIds.map(id => `#${id}`).join(', ')
+      : '';
+    if (entry.event === 'archive_notifications_dispatched' || entry.event === 'restore_notifications_dispatched') {
+      const deliveries = Array.isArray(metadata.deliveries)
+        ? metadata.deliveries.map(item => `#${item.userId}: ${item.status === 'sent' ? 'доставлено' : (item.status === 'failed' ? 'ошибка' : 'нет сессии')}`).join(' · ')
+        : '';
+      return [recipients ? `Получатели: ${recipients}` : '', deliveries].filter(Boolean).join(' · ');
+    }
+    if (entry.event === 'document_deleted' || entry.event === 'document_restored') {
+      return recipients ? `Получатели уведомления: ${recipients}` : '';
+    }
+    if (entry.event === 'status_changed') {
+      return `${statusLabel(before.status)} → ${statusLabel(after.status)}${metadata.comment ? ` · ${metadata.comment}` : ''}`;
+    }
+    if (entry.event === 'responsible_changed') {
+      const oldValue = before.responsibleName || (before.responsibleId ? `#${before.responsibleId}` : '—');
+      const newValue = after.responsibleName || (after.responsibleId ? `#${after.responsibleId}` : '—');
+      return `${oldValue} → ${newValue}`;
+    }
+    if (entry.event === 'attachment_added' || entry.event === 'attachment_replaced' || entry.event === 'attachment_deleted') {
+      const attachment = entry.event === 'attachment_deleted' ? before : after;
+      return [attachment.name, attachment.version ? `версия ${attachment.version}` : '', attachment.sizeBytes ? `${Math.ceil(Number(attachment.sizeBytes) / 1024)} КБ` : ''].filter(Boolean).join(' · ');
+    }
+    if (entry.event === 'link_added' || entry.event === 'link_removed') {
+      const link = entry.event === 'link_removed' ? before : after;
+      return [link.entityType === 'deal' ? 'Сделка' : 'Компания', link.entityTitle].filter(Boolean).join(' · ');
+    }
+    if (entry.event === 'bitrix_document_imported' || entry.event === 'bitrix_document_synchronized') {
+      const source = after.source === 'bitrix_quote' ? 'Коммерческое предложение' : 'Счёт';
+      return `${source} Bitrix24 · ID ${after.externalId || '—'}`;
+    }
+    if (entry.event === 'document_updated') {
+      const labels = {
+        number: 'Номер', title: 'Название', documentDate: 'Дата', counterpartyName: 'Компания',
+        dealStageId: 'Стадия сделки', responsibleName: 'Ответственный', comment: 'Комментарий',
+      };
+      const changes = Object.keys(after)
+        .filter(key => !['updatedAt', 'updatedBy', 'fields'].includes(key) && String(before[key] ?? '') !== String(after[key] ?? ''))
+        .slice(0, 4)
+        .map(key => `${labels[key] || key}: ${String(before[key] ?? '—')} → ${String(after[key] ?? '—')}`);
+      return changes.join(' · ');
+    }
+    return '';
+  }
+
+  relationTypeLabel(type) {
+    return {
+      addendum: 'Доп. соглашение',
+      appendix: 'Приложение',
+      other: 'Связанный документ',
+    }[type] || 'Связанный документ';
+  }
+
+  relationTypeForDocument(document) {
+    const code = String(document && document.typeCode || '').toLowerCase();
+    const label = String(document && (document.type || document.typeLabel) || '').toLowerCase();
+    if (code.includes('addendum') || label.includes('соглаш')) return 'addendum';
+    if (code.includes('appendix') || label.includes('прилож')) return 'appendix';
+    return 'other';
   }
 
   formatDynamicField(field) {
@@ -1797,8 +2854,22 @@ class Component extends DCLogic {
             : `${attachment.sizeBytes ? Math.ceil(attachment.sizeBytes / 1024) + ' КБ · ' : ''}v${attachment.version || 1}`,
           url: attachment.url || null,
           kind: attachment.kind,
+          version: attachment.version || 1,
           isCurrent: attachment.isCurrent !== false,
           replacesAttachmentId: attachment.replacesAttachmentId || null,
+          fieldKey: attachment.fieldKey || null,
+          storageCopies: Array.isArray(attachment.storageCopies)
+            ? attachment.storageCopies.map(copy => ({
+                id: copy.id,
+                dealId: Number(copy.dealId),
+                dealTitle: copy.dealTitle,
+                diskFileId: Number(copy.diskFileId),
+                diskFolderId: Number(copy.diskFolderId),
+                storagePath: copy.storagePath,
+                url: copy.url || null,
+                createdAt: copy.createdAt || null,
+              }))
+            : [],
         }))
       : (previous.atts || []);
     const links = Array.isArray(item.links)
@@ -1810,6 +2881,13 @@ class Component extends DCLogic {
           entityId: link.entityId,
         }))
       : (previous.links || []);
+    const taskLinks = Array.isArray(item.taskLinks)
+      ? item.taskLinks.map(link => ({
+          id: link.id,
+          taskId: Number(link.taskId),
+          taskTitle: link.taskTitle,
+        }))
+      : (previous.taskLinks || []);
     const dealLink = links.find(link => link.entityType === 'deal');
     const dynamicFields = Array.isArray(item.fields)
       ? item.fields.map(field => ({
@@ -1821,12 +2899,39 @@ class Component extends DCLogic {
         }))
       : (previous.dynamicFields || []);
     const history = Array.isArray(item.history)
-      ? item.history.map(entry => ({
+      ? item.history.map(entry => {
+        const detail = this.historyDetail(entry);
+        return {
           what: this.historyLabel(entry.event),
-          who: entry.actorId ? `Пользователь #${entry.actorId}` : 'Система',
+          who: entry.actorName
+            || (entry.actorId ? this.responsibleNameById(entry.actorId) : '')
+            || (entry.actorId ? `Пользователь #${entry.actorId}` : 'Система'),
           when: this.formatHistoryDate(entry.createdAt),
-        }))
+          detail,
+          hasDetail: !!detail,
+        };
+      })
       : (previous.history || []);
+    const mapRelation = relation => ({
+      id: relation.id,
+      num: relation.number || '—',
+      title: relation.title,
+      status: relation.status,
+      section: relation.section && relation.section.code,
+      sectionLabel: relation.section && relation.section.name,
+      sectionColor: relation.section && relation.section.color,
+      typeCode: relation.type && relation.type.code,
+      typeLabel: relation.type && relation.type.name,
+      relationType: relation.relationType || 'other',
+    });
+    const relations = item.relations
+      ? {
+          parent: item.relations.parent ? mapRelation(item.relations.parent) : null,
+          children: Array.isArray(item.relations.children)
+            ? item.relations.children.map(mapRelation)
+            : [],
+        }
+      : (previous.relations || { parent: null, children: [] });
     const storedResponsibleName = item.responsibleName
       && !/^Пользователь #\d+$/.test(item.responsibleName)
       ? item.responsibleName
@@ -1869,10 +2974,18 @@ class Component extends DCLogic {
       supersedesId: item.supersedesId || null,
       deletedAt: item.deletedAt || null,
       deletedBy: item.deletedBy || null,
+      externalSource: item.externalSource || null,
+      externalEntityTypeId: item.externalEntityTypeId ? Number(item.externalEntityTypeId) : null,
+      externalEntityId: item.externalEntityId ? Number(item.externalEntityId) : null,
+      externalStatus: item.externalStatus || '',
+      externalUpdatedAt: item.externalUpdatedAt || null,
+      externalSyncedAt: item.externalSyncedAt || null,
       atts: attachments,
       links,
+      taskLinks,
       dynamicFields,
       history,
+      relations,
       deal: !!dealLink,
       dealRef: dealLink ? String(dealLink.entityId) : null,
     };
@@ -1885,7 +2998,78 @@ class Component extends DCLogic {
     const userId = Number(policy.userId);
     const own = Number(document.createdBy) === userId
       || Number(document.responsibleId) === userId;
+    const scopeAllowed = !!permissions.editAny || (!!permissions.editOwn && own);
+    return scopeAllowed && this.typePermissionAllowed(document.typeCode, 'edit');
+  }
+
+  typePermissionOverride(typeCode, key) {
+    const permissions = this.serverPolicy && this.serverPolicy.permissions;
+    if (!permissions || !typeCode) return undefined;
+    return permissions.byType && permissions.byType[typeCode]
+      ? permissions.byType[typeCode][key]
+      : undefined;
+  }
+
+  typePermissionAllowed(typeCode, key) {
+    return this.typePermissionOverride(typeCode, key) !== false;
+  }
+
+  typePermissionGranted(typeCode, key, fallback) {
+    const override = this.typePermissionOverride(typeCode, key);
+    return override === undefined ? !!fallback : override === true;
+  }
+
+  canCreateType(type) {
+    const permissions = this.serverPolicy && this.serverPolicy.permissions;
+    return !!(type && permissions && this.typePermissionGranted(
+      type.code,
+      'create',
+      permissions.create === true,
+    ));
+  }
+
+  canTransitionDocument(document) {
+    const policy = this.serverPolicy;
+    const permissions = policy && policy.permissions;
+    if (!document || !policy || !permissions) return false;
+    const userId = Number(policy.userId);
+    const own = Number(document.createdBy) === userId
+      || Number(document.responsibleId) === userId;
+    const scopeAllowed = !!permissions.transitionAny || (!!permissions.transitionOwn && own);
+    return scopeAllowed && this.typePermissionAllowed(document.typeCode, 'transition');
+  }
+
+  canModifyDocumentContent(document) {
+    return this.canEditDocumentScope(document)
+      && this.typePermissionAllowed(document.typeCode, 'content');
+  }
+
+  canEditDocumentScope(document) {
+    const policy = this.serverPolicy;
+    const permissions = policy && policy.permissions;
+    if (!document || !policy || !permissions) return false;
+    const userId = Number(policy.userId);
+    const own = Number(document.createdBy) === userId
+      || Number(document.responsibleId) === userId;
     return !!permissions.editAny || (!!permissions.editOwn && own);
+  }
+
+  canArchiveDocument(document) {
+    const permissions = this.serverPolicy && this.serverPolicy.permissions;
+    return !!(document && permissions && this.typePermissionGranted(
+      document.typeCode,
+      'archive',
+      permissions.softDelete === true,
+    ));
+  }
+
+  canRestoreDocument(document) {
+    const permissions = this.serverPolicy && this.serverPolicy.permissions;
+    return !!(document && permissions && this.typePermissionGranted(
+      document.typeCode,
+      'restore',
+      permissions.restore === true,
+    ));
   }
 
   documentEditFieldValue(field, document) {
@@ -1911,6 +3095,7 @@ class Component extends DCLogic {
       currency: document.currency || 'RUB',
       legalEntityName: document.legalEntityNameRaw || '',
       counterpartyName: document.counterpartyNameRaw || '',
+      counterpartyId: document.counterpartyId || null,
       dealStageId: document.dealStageIdRaw || '',
       responsibleId: document.responsibleId ? String(document.responsibleId) : '',
       comment: document.comment || '',
@@ -1976,7 +3161,8 @@ class Component extends DCLogic {
   async saveDocumentEdit() {
     const id = this.state.drawerId;
     const edit = this.state.drawerEdit;
-    const current = this.docs.find(document => document.id === id);
+    const current = this.docs.find(document => document.id === id)
+      || (this.drawerDocument && this.drawerDocument.id === id ? this.drawerDocument : null);
     if (!id || !edit || !current || this.state.drawerEditSaving) return;
 
     const title = String(edit.title || '').trim();
@@ -2011,6 +3197,7 @@ class Component extends DCLogic {
     const typeFields = type && type.fields ? type.fields : [];
     const fields = {};
     for (const field of typeFields) {
+      if (field.dataType === 'file') continue;
       const rawValue = (edit.fieldVals || {})[field.key];
       const normalized = this.normalizedDocumentFieldValue(field, rawValue);
       if (field.isRequired && (normalized === null || normalized === '')) {
@@ -2033,21 +3220,13 @@ class Component extends DCLogic {
       ? this.state.registryUsers
       : (this.documentOptions.responsibles || []))
       .find(item => Number(item.id) === responsibleId);
-    const legalEntityName = String(edit.legalEntityName || '').trim();
     const counterpartyName = String(edit.counterpartyName || '').trim();
     const payload = {
       title,
       number: String(edit.number || '').trim() || null,
       documentDate,
-      legalEntityId: legalEntityName === current.legalEntityNameRaw
-        ? current.legalEntityId
-        : null,
-      legalEntityName: legalEntityName || null,
-      counterpartyId: counterpartyName === current.counterpartyNameRaw
-        ? current.counterpartyId
-        : null,
+      counterpartyId: edit.counterpartyId || null,
       counterpartyName: counterpartyName || null,
-      dealStageId: String(edit.dealStageId || '').trim() || null,
       comment: String(edit.comment || '').trim() || null,
       responsibleId,
       responsibleName: responsible
@@ -2067,7 +3246,9 @@ class Component extends DCLogic {
         body: JSON.stringify(payload),
       });
       const index = this.docs.findIndex(document => document.id === id);
-      if (index !== -1) this.docs[index] = this.toDocument(response, current);
+      const updated = this.toDocument(response, current);
+      this.drawerDocument = updated;
+      if (index !== -1) this.docs[index] = updated;
       this.setState({
         drawerEditing: false,
         drawerEditSaving: false,
@@ -2084,7 +3265,7 @@ class Component extends DCLogic {
     }
   }
 
-  async openDocument(id, startEditing = false) {
+  async openDocument(id, startEditing = false, surfaceError = false) {
     const requestId = (this.documentOpenRequestId || 0) + 1;
     this.documentOpenRequestId = requestId;
     this.setState({
@@ -2095,23 +3276,169 @@ class Component extends DCLogic {
       const payload = await this.api(`/api/v1/registry/documents/${id}${deletedQuery}`);
       if (requestId !== this.documentOpenRequestId) return;
       const index = this.docs.findIndex(document => document.id === id);
-      if (index !== -1) {
-        this.docs[index] = this.toDocument(payload, this.docs[index]);
-        const document = this.docs[index];
-        const editing = startEditing && this.canEditDocument(document);
-        this.setState({
-          drawerId: id,
-          drawerEditing: editing,
-          drawerEditSaving: false,
-          drawerEditError: '',
-          drawerEdit: editing ? this.createDocumentEditState(document) : null,
-          drawerLinkOpen: false,
-          responsibleMenuOpen: null,
-        });
-      }
+      const previous = index === -1
+        ? (this.drawerDocument && this.drawerDocument.id === id ? this.drawerDocument : {})
+        : this.docs[index];
+      const document = this.toDocument(payload, previous);
+      this.drawerDocument = document;
+      if (index !== -1) this.docs[index] = document;
+      const editing = startEditing && this.canEditDocument(document);
+      this.setState({
+        drawerId: id,
+        drawerHistoryOpen: false,
+        drawerAdditionalOpen: false,
+        drawerLinksOpen: false,
+        drawerStorageOpen: false,
+        drawerEditing: editing,
+        drawerEditSaving: false,
+        drawerEditError: '',
+        drawerEdit: editing ? this.createDocumentEditState(document) : null,
+        drawerLinkOpen: false,
+        responsibleMenuOpen: null,
+        deepLinkError: '',
+      });
     } catch (error) {
       if (requestId !== this.documentOpenRequestId) return;
       console.error('Failed to load registry document', error);
+      if (surfaceError) {
+        this.setState({ deepLinkError: error instanceof Error
+          ? error.message
+          : 'Документ по ссылке недоступен.' });
+      }
+    }
+  }
+
+  openRelationEditor(mode) {
+    if (!this.state.drawerId) return;
+    const current = this.docs.find(document => document.id === this.state.drawerId)
+      || (this.drawerDocument && this.drawerDocument.id === this.state.drawerId
+        ? this.drawerDocument
+        : null);
+    this.setState({
+      relationEditorOpen: true,
+      relationEditorMode: mode,
+      relationEditorSearch: '',
+      relationEditorCandidates: [],
+      relationEditorSelectedId: null,
+      relationEditorType: mode === 'parent' ? this.relationTypeForDocument(current) : 'other',
+      relationEditorLoading: true,
+      relationEditorSaving: false,
+      relationEditorError: '',
+    });
+    void this.loadRelationCandidates('');
+  }
+
+  closeRelationEditor() {
+    if (this.relationSearchTimer) clearTimeout(this.relationSearchTimer);
+    this.setState({
+      relationEditorOpen: false,
+      relationEditorSearch: '',
+      relationEditorCandidates: [],
+      relationEditorSelectedId: null,
+      relationEditorLoading: false,
+      relationEditorSaving: false,
+      relationEditorError: '',
+    });
+  }
+
+  updateRelationSearch(value) {
+    this.setState({
+      relationEditorSearch: value,
+      relationEditorSelectedId: null,
+      relationEditorError: '',
+    });
+    if (this.relationSearchTimer) clearTimeout(this.relationSearchTimer);
+    this.relationSearchTimer = setTimeout(() => {
+      this.relationSearchTimer = null;
+      void this.loadRelationCandidates(value);
+    }, 250);
+  }
+
+  async loadRelationCandidates(search) {
+    const requestId = (this.relationSearchRequestId || 0) + 1;
+    this.relationSearchRequestId = requestId;
+    this.setState({ relationEditorLoading: true, relationEditorError: '' });
+    try {
+      const params = new URLSearchParams({ limit: '20', offset: '0' });
+      const normalized = String(search || '').trim();
+      if (normalized) params.set('search', normalized);
+      const payload = await this.api(`/api/v1/registry/documents?${params.toString()}`);
+      if (requestId !== this.relationSearchRequestId || !this.state.relationEditorOpen) return;
+      const currentId = this.state.drawerId;
+      const candidates = (payload.items || [])
+        .filter(item => item.id !== currentId)
+        .map(item => this.toDocument(item));
+      this.setState({ relationEditorCandidates: candidates, relationEditorLoading: false });
+    } catch (error) {
+      if (requestId !== this.relationSearchRequestId) return;
+      this.setState({
+        relationEditorLoading: false,
+        relationEditorError: error instanceof Error
+          ? error.message
+          : 'Не удалось найти документы.',
+      });
+    }
+  }
+
+  selectRelationCandidate(document) {
+    const child = this.state.relationEditorMode === 'child'
+      ? document
+      : (this.docs.find(item => item.id === this.state.drawerId)
+        || (this.drawerDocument && this.drawerDocument.id === this.state.drawerId
+          ? this.drawerDocument
+          : null));
+    this.setState({
+      relationEditorSelectedId: document.id,
+      relationEditorType: this.relationTypeForDocument(child),
+      relationEditorError: '',
+    });
+  }
+
+  async saveRelation() {
+    const currentId = this.state.drawerId;
+    const selectedId = this.state.relationEditorSelectedId;
+    if (!currentId || !selectedId || this.state.relationEditorSaving) return;
+    const childDocumentId = this.state.relationEditorMode === 'child' ? selectedId : currentId;
+    const parentDocumentId = this.state.relationEditorMode === 'child' ? currentId : selectedId;
+    this.setState({ relationEditorSaving: true, relationEditorError: '' });
+    try {
+      await this.api(`/api/v1/registry/documents/${childDocumentId}/relations/parent`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          parentDocumentId,
+          relationType: this.state.relationEditorType,
+        }),
+      });
+      this.closeRelationEditor();
+      await this.loadDocuments();
+      await this.openDocument(currentId);
+    } catch (error) {
+      this.setState({
+        relationEditorSaving: false,
+        relationEditorError: error instanceof Error
+          ? error.message
+          : 'Не удалось сохранить связь документов.',
+      });
+    }
+  }
+
+  async removeDocumentRelation(childDocumentId, title) {
+    const currentId = this.state.drawerId;
+    if (!currentId) return;
+    const confirmed = await this.requestConfirmation({
+      title: 'Удалить связь документов?',
+      message: `Документ «${title}» останется в реестре, будет удалена только связь с основным документом.`,
+      confirmLabel: 'Удалить связь',
+    });
+    if (!confirmed) return;
+    try {
+      await this.api(`/api/v1/registry/documents/${childDocumentId}/relations/parent`, {
+        method: 'DELETE',
+      });
+      await this.loadDocuments();
+      await this.openDocument(currentId);
+    } catch (error) {
+      console.error('Failed to remove document relation', error);
     }
   }
 
@@ -2122,10 +3449,13 @@ class Component extends DCLogic {
         body: JSON.stringify({ status }),
       });
       const index = this.docs.findIndex(document => document.id === id);
-      if (index !== -1) {
-        this.docs[index] = this.toDocument(payload, this.docs[index]);
-        this.forceUpdate();
-      }
+      const current = index !== -1
+        ? this.docs[index]
+        : (this.drawerDocument && this.drawerDocument.id === id ? this.drawerDocument : {});
+      const updated = this.toDocument(payload, current);
+      if (index !== -1) this.docs[index] = updated;
+      if (this.state.drawerId === id) this.drawerDocument = updated;
+      this.forceUpdate();
       if (status === 'archived') {
         this.setState({ drawerId: null, rowMenuId: null, sel: {} });
         await Promise.all([this.loadDocuments(), this.loadDocumentOptions()]);
@@ -2159,8 +3489,14 @@ class Component extends DCLogic {
       if (!Number.isSafeInteger(responsibleId) || responsibleId <= 0) {
         missing.push('Ответственный');
       }
+      if (wz.counterparty && !this.positiveEntityId(wz.counterpartyId)) {
+        invalid.push('Компания-контрагент — выберите компанию из результатов Bitrix24');
+      }
+      if (type && type.contentRequired !== false && !wz.file && !wz.externalLink) {
+        missing.push('Содержимое: файл или HTTPS-ссылка');
+      }
 
-      if (type && type.isFinancial && !this.roleHidesMoney()) {
+      if (type && type.isFinancial && !this.roleHidesMoney(type.code)) {
         const amount = String(wz.amount || '').replace(/\s/g, '').replace(',', '.');
         if (!amount) missing.push('Сумма');
         else if (!/^\d+(\.\d{1,2})?$/.test(amount)) {
@@ -2173,6 +3509,10 @@ class Component extends DCLogic {
 
       for (const field of type && type.fields ? type.fields : []) {
         const rawValue = (wz.fieldVals || {})[field.key];
+        if (field.dataType === 'file') {
+          if (field.isRequired && !(rawValue instanceof File)) missing.push(field.label);
+          continue;
+        }
         const value = rawValue === null || rawValue === undefined
           ? ''
           : String(rawValue).trim();
@@ -2263,8 +3603,10 @@ class Component extends DCLogic {
     return error instanceof Error ? error.message : 'Не удалось создать документ.';
   }
 
-  roleHidesMoney() {
+  roleHidesMoney(typeCode = null) {
     if (this.serverPolicy) {
+      const override = typeCode ? this.typePermissionOverride(typeCode, 'finance') : undefined;
+      if (override !== undefined) return !override;
       return !!this.serverPolicy.hideMoney
         || (this.serverPolicy.hiddenFields || []).includes('amount')
         || (this.serverPolicy.hiddenFields || []).includes('currency');
@@ -2290,7 +3632,10 @@ class Component extends DCLogic {
 
   async createDocumentFromWizard(wz) {
     const type = this.typeMeta(wz.sectionCode, wz.typeLabel);
-    if (!type) return;
+    if (!type || !this.canCreateType(type)) {
+      this.setState({ wizardError: 'Для этого типа документов создание запрещено политикой роли.' });
+      return;
+    }
     const validation = this.wizardStepValidation(wz, type, 2);
     if (!validation.valid) {
       this.setState({
@@ -2304,6 +3649,12 @@ class Component extends DCLogic {
     Object.entries(wz.fieldVals || {}).forEach(([key, value]) => {
       const field = typeFieldByKey.get(key);
       if (!field || value === '') return;
+      if (field.dataType === 'file') {
+        if (value instanceof File) {
+          fields[key] = { pendingUpload: true, name: value.name };
+        }
+        return;
+      }
       if (field.dataType === 'date') fields[key] = this.toIsoDocumentDate(value);
       else if (field.dataType === 'number' || field.dataType === 'money') fields[key] = String(value).replace(/\s/g, '').replace(',', '.');
       else if (field.dataType === 'boolean') fields[key] = value === true || value === 'Да';
@@ -2319,19 +3670,16 @@ class Component extends DCLogic {
         : wz.typeLabel + (wz.counterparty ? ' · ' + wz.counterparty : ''),
       documentDate: this.toIsoDocumentDate(wz.date),
       supersedesId: wz.supersedesId || undefined,
-      legalEntityId: wz.legalEntityId || undefined,
-      legalEntityName: wz.legalEntityName || undefined,
-      counterpartyId: wz.counterpartyId && wz.counterparty === wz.sourceCounterpartyName
-        ? wz.counterpartyId
-        : undefined,
+      counterpartyId: wz.counterpartyId || null,
       counterpartyName: wz.counterparty || null,
       dealStageId: wz.dealStageId || undefined,
       comment: wz.comment || undefined,
       responsibleId: wz.responsibleId ? Number(wz.responsibleId) : undefined,
       responsibleName: wz.responsibleName || undefined,
       links: this.wizardDocumentLinks(wz),
+      taskLinks: wz.taskLinks || [],
       fields,
-      ...(!this.roleHidesMoney() ? {
+      ...(!this.roleHidesMoney(type.code) ? {
         amount: normalizedAmount || null,
         currency: normalizedAmount ? wz.currency : null,
       } : {}),
@@ -2342,24 +3690,27 @@ class Component extends DCLogic {
         method: 'POST',
         body: JSON.stringify(input),
       });
-      if (wz.file) {
-        try {
+      try {
+        const dynamicFiles = (type.fields || [])
+          .map(field => ({ field, file: (wz.fieldVals || {})[field.key] }))
+          .filter(item => item.field.dataType === 'file' && item.file instanceof File);
+        for (const item of dynamicFiles) {
+          await this.uploadFileToDocument(payload.id, item.file, null, item.field.key);
+        }
+        if (wz.file) {
           const attachment = await this.uploadFileToDocument(payload.id, wz.file);
           payload = { ...payload, attachments: [...(payload.attachments || []), attachment] };
-        } catch (uploadError) {
-          await this.api(`/api/v1/registry/documents/${payload.id}/abandon`, { method: 'POST' })
-            .catch(cleanupError => console.error('Failed to abandon incomplete registry document', cleanupError));
-          throw uploadError;
-        }
-      } else if (wz.externalLink) {
-        try {
+        } else if (wz.externalLink) {
           const attachment = await this.createExternalLink(payload.id, wz.externalLink);
           payload = { ...payload, attachments: [...(payload.attachments || []), attachment] };
-        } catch (linkError) {
-          await this.api(`/api/v1/registry/documents/${payload.id}/abandon`, { method: 'POST' })
-            .catch(cleanupError => console.error('Failed to abandon incomplete registry document', cleanupError));
-          throw linkError;
         }
+        payload = await this.api(`/api/v1/registry/documents/${payload.id}/finalize`, {
+          method: 'POST',
+        });
+      } catch (contentError) {
+        await this.api(`/api/v1/registry/documents/${payload.id}/abandon`, { method: 'POST' })
+          .catch(cleanupError => console.error('Failed to abandon incomplete registry document', cleanupError));
+        throw contentError;
       }
       const document = this.toDocument(payload);
       this.docs = [document, ...this.docs.filter(item => item.id !== document.id)];
@@ -2377,6 +3728,8 @@ class Component extends DCLogic {
         'required_document_fields_missing',
         'invalid_document_field_value',
         'financial_fields_required',
+        'counterparty_company_selection_required',
+        'document_content_required',
       ].includes(error && error.code);
       this.setState({
         wz: validationError ? { ...wz, step: 2 } : wz,
@@ -2451,8 +3804,27 @@ class Component extends DCLogic {
   TRAINING = [
     ['Работа с документами', 'Создание, редактирование, статусы, вложения и новые редакции документов.', 'Статья', '📄'],
     ['Поиск и представления', 'Фильтры, колонки, личные и общие представления, экспорт текущего набора.', 'Статья', '📄'],
+    ['Массовая загрузка и drag-and-drop', 'Загрузка нескольких файлов, выбор раздела и типа, удаление строки, исправление ошибок и повтор.', 'Статья', '📄'],
+    ['Файлы, версии и архив', 'Замена файлов, история версий, хранение копий по сделкам, архивирование и восстановление.', 'Статья', '📄'],
     ['Документы в сделке и компании', 'Работа с реестром во вкладках карточек сделки и компании Bitrix24.', 'Видео', '▶'],
     ['Настройка реестра', 'Разделы, типы документов, жизненные циклы, роли и назначение пользователей.', 'Видео', '▶'],
+  ];
+
+  FUTURE_TRAINING = [
+    {
+      audience: 'Пользовательская инструкция',
+      title: 'Работа с документами',
+      description: 'Добавление документа из полного реестра, сделки и компании Bitrix24: одиночная и массовая загрузка.',
+      status: 'Будет выпущена после стабилизации интерфейса',
+      icon: 'П',
+    },
+    {
+      audience: 'Административная инструкция',
+      title: 'Настройка реестра',
+      description: 'Разделы, типы и поля документов, обязательность, колонки, статусы, роли и права доступа.',
+      status: 'Будет выпущена после стабилизации интерфейса',
+      icon: 'А',
+    },
   ];
 
   buildMatrix(docs, keyPrefix) {
@@ -2495,6 +3867,25 @@ class Component extends DCLogic {
     return this.docs.filter(d => vis.includes(d.section));
   }
 
+  selectedRegistryType() {
+    const typeCode = this.state.filters.type;
+    if (!typeCode || typeCode === 'all') return null;
+    for (const types of Object.values(this.TYPE_META || {})) {
+      const found = Object.values(types || {}).find(type => type.code === typeCode);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  availableDynamicFields() {
+    const type = this.selectedRegistryType();
+    return type && Array.isArray(type.fields) ? type.fields : [];
+  }
+
+  activeDynamicColumns() {
+    return this.availableDynamicFields().filter(field => this.state.cols[`field:${field.key}`]);
+  }
+
   gridColsStr() {
     const c = this.state.cols;
     let s = '44px minmax(200px,1.6fr)';
@@ -2504,6 +3895,7 @@ class Component extends DCLogic {
     if (c.amount) s += ' 100px';
     if (c.docDate) s += ' 90px';
     if (c.responsible) s += ' 120px';
+    this.activeDynamicColumns().forEach(() => { s += ' 150px'; });
     s += ' 36px';
     return s;
   }
@@ -2541,8 +3933,37 @@ class Component extends DCLogic {
         l: item.name,
       })),
     );
-    const activeCount = Object.keys(F.sections).filter(k => F.sections[k]).length + Object.keys(F.statuses).filter(k => F.statuses[k]).length + (F.type !== 'all' ? 1 : 0) + (F.responsible !== 'all' ? 1 : 0) + (F.cp.trim() ? 1 : 0) + (F.from.trim() || F.to.trim() ? 1 : 0);
-    const colDefs = [['section', 'Раздел'], ['counterparty', 'Контрагент'], ['status', 'Статус'], ['amount', 'Сумма'], ['docDate', 'Дата'], ['responsible', 'Ответственный']];
+    const dynamicFields = this.availableDynamicFields();
+    const dynamicFilterRows = dynamicFields
+      .filter(field => field.dataType !== 'file')
+      .map(field => {
+        const isSelect = field.dataType === 'select' || field.dataType === 'boolean';
+        const options = field.dataType === 'boolean'
+          ? [{ value: 'true', label: 'Да' }, { value: 'false', label: 'Нет' }]
+          : (field.options || []).map(value => ({ value: String(value), label: String(value) }));
+        const current = (F.dynamic || {})[field.key];
+        return {
+          label: field.label,
+          isSelect,
+          isInput: !isSelect,
+          inputType: field.dataType === 'date' ? 'date' : 'text',
+          value: current === true ? 'true' : current === false ? 'false' : (current || ''),
+          options,
+          onInput: event => {
+            const raw = event.target.value;
+            const value = field.dataType === 'boolean'
+              ? (raw === '' ? '' : raw === 'true')
+              : raw;
+            setF({ dynamic: { ...(F.dynamic || {}), [field.key]: value } }, 250);
+          },
+        };
+      });
+    const activeCount = Object.keys(F.sections).filter(k => F.sections[k]).length + Object.keys(F.statuses).filter(k => F.statuses[k]).length + (F.type !== 'all' ? 1 : 0) + (F.responsible !== 'all' ? 1 : 0) + (F.cp.trim() ? 1 : 0) + (F.from.trim() || F.to.trim() ? 1 : 0) + Object.values(F.dynamic || {}).filter(value => value !== '').length;
+    const colDefs = [
+      ['section', 'Раздел'], ['counterparty', 'Контрагент'], ['status', 'Статус'],
+      ['amount', 'Сумма'], ['docDate', 'Дата'], ['responsible', 'Ответственный'],
+      ...dynamicFields.map(field => [`field:${field.key}`, field.label]),
+    ];
     const columnToggles = colDefs.map(([k, label]) => { const on = !!C[k];
       return { label, mark: on ? '✓' : '', onToggle: () => {
         const cols = { ...this.state.cols, [k]: !this.state.cols[k] };
@@ -2559,11 +3980,14 @@ class Component extends DCLogic {
       filterBtnStyle: btn(S.filterOpen || activeCount > 0), colsBtnStyle: btn(S.colsOpen),
       filterBadge: activeCount > 0 ? ' · ' + activeCount : '',
       filterStatusChips, filterSectionChips, filterTypeOptions, filterRespOptions,
+      dynamicFilterRows,
+      dynamicFiltersVisible: dynamicFilterRows.length > 0,
       filterType: F.type, filterResp: F.responsible, filterCp: F.cp, filterFrom: F.from, filterTo: F.to,
-      setFilterType: (e) => setF({ type: e.target.value }), setFilterResp: (e) => setF({ responsible: e.target.value }),
+      setFilterType: (e) => setF({ type: e.target.value, dynamic: {} }), setFilterResp: (e) => setF({ responsible: e.target.value }),
       setFilterCp: (e) => setF({ cp: e.target.value }, 250), setFilterFrom: (e) => setF({ from: e.target.value }, 250), setFilterTo: (e) => setF({ to: e.target.value }, 250),
-      resetFilters: () => setF({ sections: {}, statuses: {}, type: 'all', responsible: 'all', cp: '', from: '', to: '' }),
+      resetFilters: () => setF({ sections: {}, statuses: {}, type: 'all', responsible: 'all', cp: '', from: '', to: '', dynamic: {} }),
       columnToggles,
+      dynamicColumnHeaders: this.activeDynamicColumns().map(field => ({ label: field.label })),
       colSection: C.section, colCounterparty: C.counterparty, colStatus: C.status, colAmount: C.amount, colDocDate: C.docDate, colResponsible: C.responsible,
       headerGridStyle: `position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: ${this.gridColsStr()}; background: #fff; box-shadow: inset 0 -1px 0 #ededed; color: #a1a1aa; font-size: 10.5px;`,
     };
@@ -2579,10 +4003,25 @@ class Component extends DCLogic {
     const sel = !!this.state.sel[d.id];
     const archiveMode = this.state.screen === 'archive';
     const canEdit = !archiveMode && this.canEditDocument(d);
-    const canDelete = !archiveMode && !!(this.serverPolicy && this.serverPolicy.permissions && this.serverPolicy.permissions.softDelete);
-    const canRestore = archiveMode && !!d.deletedAt && !!(this.serverPolicy && this.serverPolicy.permissions && this.serverPolicy.permissions.restore);
+    const canDelete = !archiveMode && this.canArchiveDocument(d);
+    const canRestore = archiveMode && !!d.deletedAt && this.canRestoreDocument(d);
     const selectable = !archiveMode || !!d.deletedAt;
     const menuOpen = this.state.rowMenuId === d.id;
+    const relations = d.relations || { parent: null, children: [] };
+    const relatedItems = [
+      ...(relations.parent ? [{ ...relations.parent, directionLabel: 'Основной документ' }] : []),
+      ...relations.children.map(item => ({
+        ...item,
+        directionLabel: this.relationTypeLabel(item.relationType),
+      })),
+    ].map(item => ({
+      ...item,
+      onOpen: event => {
+        if (event && event.stopPropagation) event.stopPropagation();
+        void this.openDocument(item.id);
+      },
+    }));
+    const relationsExpanded = !!this.state.expandedDocumentRelations[d.id];
     return {
       id: d.id, num: d.num, title: d.title, counterparty: d.counterparty || '—',
       dealRefLabel: d.dealRef ? '#' + d.dealRef : '—',
@@ -2590,8 +4029,28 @@ class Component extends DCLogic {
       sectionLabel: sec.label, sectionC: sec.c, sectionBg: sec.bg,
       statusLabel: st.label, statusC: st.c, statusBg: st.bg,
       amountStr: this.fmtAmount(d),
+      dynamicCells: this.activeDynamicColumns().map(field => {
+        const value = (d.dynamicFields || []).find(item => item.key === field.key);
+        return { value: value ? value.value : '—' };
+      }),
       attachIcon: d.atts.length ? (d.atts.some(item => item.icon === '📎') ? '📎' : '🔗') : '○',
       canEdit, canDelete, canRestore, hasActions: canEdit || canDelete || canRestore, menuOpen,
+      hasRelations: relatedItems.length > 0,
+      relationsExpanded,
+      relationsExpandedAria: relationsExpanded ? 'true' : 'false',
+      relatedItems,
+      relationCount: relatedItems.length,
+      relationToggleMark: relationsExpanded ? 'Свернуть ↑' : 'Показать ↓',
+      onToggleRelations: event => {
+        if (event && event.preventDefault) event.preventDefault();
+        if (event && event.stopPropagation) event.stopPropagation();
+        this.setState({
+          expandedDocumentRelations: {
+            ...this.state.expandedDocumentRelations,
+            [d.id]: !relationsExpanded,
+          },
+        });
+      },
       onOpen: () => { void this.openDocument(d.id); },
       onToggleMenu: (event) => {
         if (event && event.preventDefault) event.preventDefault();
@@ -2644,16 +4103,36 @@ class Component extends DCLogic {
     const sidebarSections = this.SECTIONS.filter(s => this.visibleSections().includes(s.code)).map(s => {
       const count = documentOptions.sections[s.code] || 0;
       const active = !!S.filters.sections[s.code];
+      const dropKey = `registry_section_${s.code}`;
+      const dropActive = S.dragTargetKey === dropKey;
       return {
         code: s.code, label: s.label, c: s.c, count,
+        dropKey,
+        dropHint: dropActive ? 'Отпустите файлы' : '',
         onPick: () => { const ss = { ...S.filters.sections }; if (ss[s.code]) delete ss[s.code]; else ss[s.code] = true; this.updateRegistryFilters({ sections: ss }); },
-        onDragOver: (event) => this.handleFileDragOver(event),
-        onDrop: (event) => this.handleSectionFileDrop(event, s.code),
-        style: `display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:${active ? '#eef2ff' : 'transparent'};color:${active ? '#4f46e5' : '#52525b'};font-weight:${active ? '600' : '400'};border:none;border-radius:7px;padding:7px 9px;font-size:12.5px;cursor:pointer;`,
+        onDragEnter: event => this.handleFileDragOver(event, dropKey),
+        onDragOver: event => this.handleFileDragOver(event, dropKey),
+        onDragLeave: event => this.handleFileDragLeave(event, dropKey),
+        onDrop: event => this.handleSectionFileDrop(event, s.code, [], dropKey),
+        style: `display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:${dropActive ? s.bg : (active ? '#eef2ff' : 'transparent')};color:${dropActive ? s.c : (active ? '#4f46e5' : '#52525b')};font-weight:${dropActive || active ? '600' : '400'};border:1px solid ${dropActive ? s.c : 'transparent'};border-radius:7px;padding:7px 9px;font-size:12.5px;cursor:pointer;transition:border-color .18s,background .18s,color .18s;`,
       };
     });
 
     const rows = this.filteredRows().map(d => this.enrich(d));
+    const relationEditorCandidates = (S.relationEditorCandidates || []).map(candidate => {
+      const selected = candidate.id === S.relationEditorSelectedId;
+      const section = this.SECTIONS.find(item => item.code === candidate.section);
+      return {
+        ...candidate,
+        sectionColor: section ? section.c : '#a1a1aa',
+        selectedAria: selected ? 'true' : 'false',
+        selectedMark: selected ? 'Выбран ✓' : '',
+        onPick: () => this.selectRelationCandidate(candidate),
+        style: `width:100%;display:flex;align-items:center;gap:9px;margin-bottom:5px;padding:9px 11px;border:1px solid ${selected ? '#8b5cf6' : '#e4e4e7'};border-radius:8px;background:${selected ? '#f5f3ff' : '#fff'};color:#3f3f46;text-align:left;cursor:pointer;`,
+      };
+    });
+    const relationEditorCanSave = !!S.relationEditorSelectedId
+      && !S.relationEditorSaving;
     const registryUsers = (S.registryUsers && S.registryUsers.length)
       ? S.registryUsers
       : (S.adminUsers && S.adminUsers.length)
@@ -2678,6 +4157,15 @@ class Component extends DCLogic {
     const permissions = this.serverPolicy && this.serverPolicy.permissions
       ? this.serverPolicy.permissions
       : {};
+    const selectedDocuments = this.docs.filter(document => S.sel[document.id]);
+    const canExportRegistry = permissions.export === true
+      || Object.values(permissions.byType || {}).some(item => item.export === true);
+    const canCreateAnyDocument = this.SECTIONS.some(section =>
+      (this.TYPES[section.code] || []).some(label => {
+        const type = this.typeMeta(section.code, label);
+        return type && this.canCreateType(type)
+          && (!type.isFinancial || !this.roleHidesMoney(type.code));
+      }));
 
     const mkView = (key, label, count) => ({
       label, count,
@@ -2709,14 +4197,21 @@ class Component extends DCLogic {
     const embeddedGroups = this.SECTIONS.filter(s => this.visibleSections().includes(s.code)).map(s => {
       const ds = dealDocs.filter(d => d.section === s.code);
       const gkey = 'deal_' + s.code;
+      const dropKey = 'deal_drop_' + s.code;
       const open = !S.collapsedGroups[gkey];
+      const dropActive = S.dragTargetKey === dropKey;
       return {
         code: s.code, label: s.label, c: s.c, count: ds.length + ' док.', docs: ds.map(d => this.enrich(d)),
+        dropKey,
+        dropHint: dropActive ? 'Отпустите файлы для загрузки' : '',
         open, caret: open ? '▾' : '▸', onToggle: () => this.toggleGroup(gkey),
-        onDragOver: event => this.handleFileDragOver(event),
-        onDrop: event => this.handleSectionFileDrop(event, s.code),
+        onDragEnter: event => this.handleFileDragOver(event, dropKey),
+        onDragOver: event => this.handleFileDragOver(event, dropKey),
+        onDragLeave: event => this.handleFileDragLeave(event, dropKey),
+        onDrop: event => this.handleSectionFileDrop(event, s.code, [], dropKey),
+        style: `border:1px solid ${dropActive ? s.c : '#ededed'};border-radius:10px;overflow:hidden;background:${dropActive ? s.bg : '#fff'};transition:border-color .18s,background .18s;`,
       };
-    }).filter(g => g.docs.length > 0);
+    });
 
     const dm = this.buildMatrix(dealDocs, 'deal_');
     const dealStages = dm.stages;
@@ -2756,6 +4251,7 @@ class Component extends DCLogic {
           companyId: companyContextLink ? companyContextLink.entityId : '',
           companyTitle: companyContextLink ? companyContextLink.entityTitle : '',
           dropKey,
+          dropHint: dropActive ? 'Отпустите файлы для загрузки' : '',
           open, caret: open ? '▾' : '▸', onToggle: () => this.toggleGroup(gkey),
           onDragEnter: event => this.handleFileDragOver(event, dropKey),
           onDragOver: event => this.handleFileDragOver(event, dropKey),
@@ -2766,7 +4262,7 @@ class Component extends DCLogic {
           ], dropKey),
           style: `border:1px solid ${dropActive ? s.c : '#ededed'};border-radius:10px;overflow:hidden;background:${dropActive ? s.bg : '#fff'};transition:border-color .12s,background .12s;`,
         };
-      }).filter(g => isLocalCompanyDemo ? g.code === 'supplier' : g.docs.length > 0);
+      }).filter(g => !isLocalCompanyDemo || g.code === 'supplier');
       const expanded = isLocalCompanyDemo
         ? S.expandedDeals[dl.id] !== false
         : !!S.expandedDeals[dl.id];
@@ -2823,6 +4319,56 @@ class Component extends DCLogic {
     const dealStageName = dealContext ? dealContext.stageName : 'Не указана';
     const dealStageColor = dealContext ? dealContext.stageColor : '#d97706';
     const dealContextLabel = `привязаны к сделке #${dealId}${dealCompanyName ? ' и к ' + dealCompanyName + ' (через компанию Bitrix24)' : ''}`;
+    const financialSummary = S.dealFinancialSummary;
+    const financialNumber = (value, digits = 2) => Number(value || 0).toLocaleString('ru-RU', {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+    const dealCalcRows = financialSummary && Array.isArray(financialSummary.details)
+      ? financialSummary.details.map(item => ({
+          title: item.title,
+          number: item.number || '—',
+          original: item.emptyAmount
+            ? '0'
+            : `${financialNumber(item.originalAmount)} ${item.originalCurrency}`,
+          rate: item.emptyAmount
+            ? '—'
+            : `1 ${item.originalCurrency} = ${financialNumber(item.conversionRate, 4)} ${financialSummary.targetCurrency}`,
+          rateDate: item.rateDate ? this.formatDocumentDate(item.rateDate) : '—',
+          result: `${financialNumber(item.convertedAmount)} ${financialSummary.targetCurrency}`,
+          zeroLabel: item.emptyAmount ? 'Нет суммы → 0' : '',
+        }))
+      : [];
+    const dealFinancialDenied = S.dealFinancialErrorCode === 'deal_financial_summary_access_denied';
+    const dealFinancialFailed = !!S.dealFinancialError && !dealFinancialDenied;
+    const dealImportedDocs = dealDocs
+      .filter(item => item.externalSource === 'bitrix_smart_invoice' || item.externalSource === 'bitrix_quote')
+      .map(item => {
+        const sourceLabel = item.externalSource === 'bitrix_smart_invoice'
+          ? 'Счёт Bitrix24'
+          : 'Коммерческое предложение Bitrix24';
+        return {
+          id: item.id,
+          title: item.title,
+          sourceLabel,
+          externalIdLabel: `ID ${item.externalEntityId || '—'}`,
+          number: item.num,
+          amount: this.fmtAmount(item),
+          status: item.externalStatus || 'Статус не указан',
+          updated: item.externalUpdatedAt
+            ? this.formatHistoryDate(item.externalUpdatedAt)
+            : 'Дата изменения не указана',
+          onOpen: () => { void this.openDocument(item.id); },
+        };
+      });
+    const invoiceType = this.typeMeta('client', 'Счёт');
+    const quoteType = this.typeMeta('client', 'Коммерческое предложение');
+    const dealSyncAllowed = !!invoiceType && !!quoteType
+      && this.canCreateType(invoiceType)
+      && this.canCreateType(quoteType)
+      && !this.roleHidesMoney(invoiceType.code)
+      && !this.roleHidesMoney(quoteType.code);
+    const dealSyncButtonStyle = `border:1px solid ${dealSyncAllowed && !S.dealSyncBusy ? '#93c5fd' : '#d4d4d8'};border-radius:8px;padding:7px 11px;background:${dealSyncAllowed && !S.dealSyncBusy ? '#fff' : '#f4f4f5'};color:${dealSyncAllowed && !S.dealSyncBusy ? '#1d4ed8' : '#a1a1aa'};font-size:11.5px;font-weight:650;cursor:${dealSyncAllowed && !S.dealSyncBusy ? 'pointer' : 'default'};white-space:nowrap;`;
     const cvSeg = (on) => `border:none;border-radius:6px;padding:5px 13px;font-size:12px;font-weight:600;cursor:pointer;background:${on ? '#fff' : 'transparent'};color:${on ? '#18181b' : '#71717a'};box-shadow:${on ? '0 1px 2px rgba(0,0,0,.08)' : 'none'};`;
     const matrixLegend = this.MATRIX_LEGEND.map(([code, label]) => {
       const m = this.MATRIX_STATUS[code];
@@ -2831,12 +4377,17 @@ class Component extends DCLogic {
 
     let doc = null;
     if (S.drawerId) {
-      const dd = this.docs.find(x => x.id === S.drawerId);
+      const dd = this.docs.find(x => x.id === S.drawerId)
+        || (this.drawerDocument && this.drawerDocument.id === S.drawerId
+          ? this.drawerDocument
+          : null);
       if (dd) {
         const sec = this.SECTIONS.find(s => s.code === dd.section);
         const type = this.typeMeta(dd.section, dd.type);
         const edit = S.drawerEdit || this.createDocumentEditState(dd);
-        const editFields = (type && type.fields ? type.fields : []).map(field => {
+        const editFields = (type && type.fields ? type.fields : [])
+          .filter(field => field.dataType !== 'file')
+          .map(field => {
           const isSelect = field.dataType === 'select' || field.dataType === 'boolean';
           return {
             key: field.key,
@@ -2872,8 +4423,42 @@ class Component extends DCLogic {
           });
         }
         const documentReadOnly = archiveMode || dd.status === 'archived' || !!dd.deletedAt;
-        const canModifyContent = !documentReadOnly && this.canEditDocument(dd);
-        const statusOptions = (documentReadOnly ? [] : this.availableStatusOptions(dd)).map(code => {
+        const canEdit = !documentReadOnly && this.canEditDocument(dd);
+        const canModifyContent = !documentReadOnly && this.canModifyDocumentContent(dd);
+        const canTransition = !documentReadOnly && this.canTransitionDocument(dd);
+        const documentRelations = dd.relations || { parent: null, children: [] };
+        const relationItem = (relation, directionLabel, childDocumentId) => ({
+          ...relation,
+          directionLabel,
+          typeShown: relation.typeLabel || this.relationTypeLabel(relation.relationType),
+          onOpen: () => { void this.openDocument(relation.id); },
+          canRemove: canEdit,
+          onRemove: () => { void this.removeDocumentRelation(childDocumentId, relation.title); },
+        });
+        const parentRelation = documentRelations.parent
+          ? relationItem(documentRelations.parent, 'Основной документ', dd.id)
+          : null;
+        const childRelations = documentRelations.children.map(relation =>
+          relationItem(
+            relation,
+            this.relationTypeLabel(relation.relationType),
+            relation.id,
+          ));
+        const storageCopies = dd.atts
+          .filter(attachment => attachment.kind === 'file' && attachment.isCurrent)
+          .flatMap(attachment => (attachment.storageCopies || []).map(copy => ({
+            ...copy,
+            attachmentName: attachment.name,
+            attachmentVersion: attachment.version,
+            canOpen: !!copy.url,
+            onOpen: () => {
+              const url = this.normalizeExternalLink(copy.url);
+              if (url) window.open(url, '_blank', 'noopener,noreferrer');
+            },
+          })));
+        const statusOptions = (!canTransition ? [] : this.availableStatusOptions(dd))
+          .filter(code => code !== 'archived' || this.canArchiveDocument(dd))
+          .map(code => {
           const meta = this.STATUS[code] || { label: code, c: '#71717a', bg: '#f4f4f5' }; const active = dd.status === code;
           return { code, label: meta.label, onSet: () => { if (!active) void this.transitionDocument(dd.id, code); },
             style: `border:1px solid ${active ? meta.c : '#e4e4e7'};background:${active ? meta.bg : '#fff'};color:${active ? meta.c : '#71717a'};border-radius:7px;padding:4px 10px;font-size:11px;font-weight:500;cursor:pointer;` };
@@ -2886,31 +4471,83 @@ class Component extends DCLogic {
           legalEntity: dd.legalEntity, counterparty: dd.counterparty || '—', responsible: dd.responsible,
           dealStage: dd.dealStageIdRaw || '—', comment: dd.comment || '—',
           moneyVisible: !dd.moneyHidden,
-          canEdit: canModifyContent,
+          counterpartyLinked: !!dd.counterpartyId,
+          counterpartyMissing: !dd.counterpartyId,
+          onOpenCompany: () => { if (dd.counterpartyId) void this.openCompany(dd.counterpartyId); },
+          onCopyInternalLink: () => { void this.copyInternalDocumentLink(dd.id); },
+          internalLinkLabel: S.internalLinkCopiedId === dd.id ? 'Ссылка скопирована' : 'Скопировать ссылку',
+          canEdit,
           onEdit: () => this.beginDocumentEdit(dd),
-          canSupersede: canModifyContent,
+          canSupersede: canEdit && canModifyContent
+            && this.canArchiveDocument(dd)
+            && this.canCreateType({ code: dd.typeCode }),
           onSupersede: () => this.openSupersedingWizard(dd),
-          canRestore: archiveMode && !!dd.deletedAt && !!permissions.restore,
+          canRestore: archiveMode && !!dd.deletedAt && this.canRestoreDocument(dd),
           onRestore: () => { void this.restoreDocument(dd.id); },
           edit,
           editFields,
           editHasFields: editFields.length > 0,
           responsibleOptions,
           canModifyContent,
-          attCount: dd.atts.length, linkCount: dd.links.length,
-          attachments: dd.atts.map(attachment => ({
+          attCount: dd.atts.filter(attachment => attachment.isCurrent).length,
+          linkCount: dd.links.length + (dd.taskLinks || []).length,
+          attachments: dd.atts.filter(attachment => attachment.isCurrent).map(attachment => ({
             ...attachment,
-            meta: `${attachment.meta}${attachment.isCurrent ? '' : ' · предыдущая версия'}`,
+            meta: attachment.meta,
             canReplace: canModifyContent && attachment.kind === 'file' && attachment.isCurrent,
             canDelete: canModifyContent,
             onOpen: () => { void this.openAttachment(dd.id, attachment.id); },
             onReplace: () => { void this.replaceDocumentAttachment(dd.id, attachment.id); },
             onDelete: () => { void this.deleteAttachment(dd.id, attachment.id); },
           })),
-          links: dd.links,
+          links: [
+            ...dd.links.map(link => ({ ...link, onOpen: () => undefined })),
+            ...(dd.taskLinks || []).map(link => ({
+              type: 'Задача',
+              title: link.taskTitle,
+              onOpen: () => { void this.openTask(link.taskId); },
+            })),
+          ],
           onManageLinks: () => { void this.manageDocumentLinks(dd.id, dd.links); },
+          hasParentRelation: !!parentRelation,
+          parentRelationActionLabel: parentRelation ? 'Сменить основной документ' : '＋ Указать основной документ',
+          parentRelation,
+          childRelations,
+          hasChildRelations: childRelations.length > 0,
+          relationCount: childRelations.length + (parentRelation ? 1 : 0),
+          canManageRelations: canEdit,
+          onAddParentRelation: () => this.openRelationEditor('parent'),
+          onAddChildRelation: () => this.openRelationEditor('child'),
           fields: dd.dynamicFields,
+          hasAdditional: dd.dynamicFields.length > 0 || !!String(dd.comment || '').trim(),
+          additionalCount: dd.dynamicFields.length + (String(dd.comment || '').trim() ? 1 : 0),
+          additionalOpen: S.drawerAdditionalOpen,
+          additionalExpanded: S.drawerAdditionalOpen ? 'true' : 'false',
+          additionalOpenMark: S.drawerAdditionalOpen ? 'Свернуть ↑' : 'Открыть ↓',
+          onToggleAdditional: () => this.setState({ drawerAdditionalOpen: !S.drawerAdditionalOpen }),
+          hasStorageCopies: storageCopies.length > 0,
+          storageCopies,
+          storageCopyCount: storageCopies.length,
+          storageOpen: S.drawerStorageOpen,
+          storageExpanded: S.drawerStorageOpen ? 'true' : 'false',
+          storageOpenMark: S.drawerStorageOpen ? 'Свернуть ↑' : 'Показать пути ↓',
+          onToggleStorage: () => this.setState({ drawerStorageOpen: !S.drawerStorageOpen }),
+          linksOpen: S.drawerLinksOpen,
+          linksExpanded: S.drawerLinksOpen ? 'true' : 'false',
+          linksOpenMark: S.drawerLinksOpen ? 'Свернуть ↑' : 'Открыть ↓',
+          onToggleLinks: () => this.setState({ drawerLinksOpen: !S.drawerLinksOpen }),
+          versions: dd.atts
+            .filter(attachment => attachment.kind === 'file')
+            .map(attachment => ({
+              ...attachment,
+              currentLabel: attachment.isCurrent ? 'Текущая' : 'Предыдущая',
+              currentStyle: `padding:2px 7px;border-radius:10px;background:${attachment.isCurrent ? '#e7f5ec' : '#f4f4f5'};color:${attachment.isCurrent ? '#15803d' : '#71717a'};font-size:9.5px;font-weight:600;`,
+              onOpen: () => { void this.openAttachment(dd.id, attachment.id); },
+            })),
+          versionCount: dd.atts.filter(attachment => attachment.kind === 'file').length,
           history: dd.history,
+          historyCount: dd.history.length,
+          onHistory: () => this.setState({ drawerHistoryOpen: true }),
           statusOptions,
         };
       }
@@ -2921,35 +4558,56 @@ class Component extends DCLogic {
     const dataTypeLabels = { text: 'Текст', number: 'Число', date: 'Дата', money: 'Сумма', select: 'Список', boolean: 'Да/Нет', file: 'Файл' };
     const wizardTypeFields = (wzTypeMeta && wzTypeMeta.fields ? wzTypeMeta.fields : []).map(field => {
       const isSelect = field.dataType === 'select' || field.dataType === 'boolean';
+      const isFile = field.dataType === 'file';
       const options = field.dataType === 'boolean' ? ['Да', 'Нет'] : (field.options || []);
+      const rawValue = (wz.fieldVals || {})[field.key];
       return {
         name: field.label,
         requiredMark: field.isRequired ? ' *' : '',
         dtype: dataTypeLabels[field.dataType] || field.dataType,
         isSelect,
-        isText: !isSelect,
+        isFile,
+        isText: !isSelect && !isFile,
         inputType: field.dataType === 'date' ? 'date' : 'text',
         options,
-        value: (wz.fieldVals || {})[field.key] || '',
-        valueShown: (wz.fieldVals || {})[field.key]
+        value: rawValue || '',
+        fileLabel: rawValue instanceof File ? `📎 ${rawValue.name}` : '⬆ Выбрать файл',
+        valueShown: rawValue
           ? (field.dataType === 'date'
-              ? this.formatDocumentDate((wz.fieldVals || {})[field.key])
-              : (wz.fieldVals || {})[field.key])
+              ? this.formatDocumentDate(rawValue)
+              : (isFile && rawValue instanceof File ? rawValue.name : rawValue))
           : '—',
         onInput: (e) => this.setState({
           wz: { ...wz, fieldVals: { ...(wz.fieldVals || {}), [field.key]: e.target.value } },
           wizardError: '',
         }),
+        onPickFile: async () => {
+          const file = await this.chooseFile();
+          if (!file) return;
+          this.setState({
+            wz: {
+              ...this.state.wz,
+              fieldVals: { ...(this.state.wz.fieldVals || {}), [field.key]: file },
+            },
+            wizardError: '',
+          });
+        },
       };
     });
-    const wizardSections = this.SECTIONS.map(s => ({
+    const wizardSections = this.SECTIONS.filter(section =>
+      (this.TYPES[section.code] || []).some(label => {
+        const type = this.typeMeta(section.code, label);
+        return type && this.canCreateType(type)
+          && (!type.isFinancial || !this.roleHidesMoney(type.code));
+      }))
+      .map(s => ({
       label: s.label, c: s.c, onPick: () => this.setState({
         wz: { ...wz, sectionCode: s.code, typeLabel: null },
         wizardError: '',
       }),
       style: `text-align:left;background:${wz.sectionCode === s.code ? '#eef2ff' : '#fff'};border:1.5px solid ${wz.sectionCode === s.code ? '#4f46e5' : '#ededed'};border-radius:9px;padding:11px 12px;cursor:pointer;`,
     }));
-    const wizardMoneyVisible = !this.roleHidesMoney();
+    const wizardMoneyVisible = !this.roleHidesMoney(wzTypeMeta && wzTypeMeta.code);
     const wizardResponsibleSource = S.registryUsers.length
       ? S.registryUsers
       : (documentOptions.responsibles || []);
@@ -2984,7 +4642,8 @@ class Component extends DCLogic {
     const wizardTypes = wz.sectionCode ? this.TYPES[wz.sectionCode]
       .filter(t => {
         const type = this.typeMeta(wz.sectionCode, t);
-        return wizardMoneyVisible || !type || !type.isFinancial;
+        return type && this.canCreateType(type)
+          && (!type.isFinancial || !this.roleHidesMoney(type.code));
       })
       .map(t => ({
         label: t, onPick: () => this.setState({
@@ -3006,6 +4665,228 @@ class Component extends DCLogic {
         ? 'display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:#eef2ff;color:#4f46e5;font-size:11.5px;font-weight:500;'
         : 'display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:#f4f4f5;color:#52525b;font-size:11.5px;font-weight:500;',
     }));
+    const wizardTasks = (wz.taskLinks || []).map(task => ({
+      taskId: task.taskId,
+      label: `Задача #${task.taskId} «${task.taskTitle}»`,
+      onRemove: () => this.removeWizardTask(task.taskId),
+    }));
+    const wizardTaskResults = (S.taskSearchResults || []).map(task => ({
+      label: `#${task.id} · ${task.title}`,
+      onPick: () => this.selectWizardTask(task),
+    }));
+
+    const bulkUploadSectionOptions = this.SECTIONS.filter(section =>
+      (this.TYPES[section.code] || []).some(label => {
+        const type = this.typeMeta(section.code, label);
+        return type && this.canCreateType(type)
+          && (!type.isFinancial || !this.roleHidesMoney(type.code));
+      }))
+      .map(section => ({ code: section.code, label: section.label }));
+    const bulkUploadCommonTypeOptions = S.bulkUploadCommonSection
+      ? (this.TYPES[S.bulkUploadCommonSection] || [])
+          .map(label => this.typeMeta(S.bulkUploadCommonSection, label))
+          .filter(type => type && this.canCreateType(type)
+            && (!type.isFinancial || !this.roleHidesMoney(type.code)))
+          .map(type => ({ label: type.name }))
+      : [];
+    const bulkUploadCommonType = S.bulkUploadCommonSection && S.bulkUploadCommonType
+      ? this.typeMeta(S.bulkUploadCommonSection, S.bulkUploadCommonType)
+      : null;
+    const bulkUploadCommonStatusOptions = this.bulkUploadStatusOptions(bulkUploadCommonType);
+    const bulkDealLabel = links => {
+      const deals = (links || []).filter(link => link.entityType === 'deal');
+      if (!deals.length) return 'Выбрать сделки Bitrix24';
+      if (deals.length === 1) return `Сделка #${deals[0].entityId} · ${deals[0].entityTitle}`;
+      return `${deals.length} сделки(ок) выбрано`;
+    };
+    const bulkUploadCommonTaskResults = (S.bulkUploadCommonTaskResults || []).map(task => ({
+      value: String(task.id),
+      label: `#${task.id} · ${task.title}`,
+    }));
+    const bulkResponsibleSource = S.registryUsers.length
+      ? S.registryUsers
+      : (documentOptions.responsibles || []);
+    const bulkUploadResponsibleOptions = bulkResponsibleSource.map(item => ({
+      value: String(item.id),
+      label: item.name || `Пользователь #${item.id}`,
+    }));
+    if (S.bulkUploadCommonResponsibleId
+      && !bulkUploadResponsibleOptions.some(item => item.value === String(S.bulkUploadCommonResponsibleId))) {
+      bulkUploadResponsibleOptions.unshift({
+        value: String(S.bulkUploadCommonResponsibleId),
+        label: S.bulkUploadCommonResponsibleName || `Пользователь #${S.bulkUploadCommonResponsibleId}`,
+      });
+    }
+    const bulkUploadRows = (S.bulkUploadRows || []).map(row => {
+      const validation = this.bulkUploadValidation(row);
+      const type = this.typeMeta(row.sectionCode, row.typeLabel);
+      const numberAutomatic = !!type
+        && type.numberAutoGenerate === true
+        && row.numberMode !== 'manual';
+      const numberManual = !!type && !numberAutomatic;
+      const documentStatusOptions = this.bulkUploadStatusOptions(type);
+      const typeOptions = row.sectionCode
+        ? (this.TYPES[row.sectionCode] || [])
+            .map(label => this.typeMeta(row.sectionCode, label))
+            .filter(item => item && this.canCreateType(item)
+              && (!item.isFinancial || !this.roleHidesMoney(item.code)))
+            .map(item => ({ label: item.name }))
+        : [];
+      const typeFields = (type && type.fields ? type.fields : []).map(field => {
+        const isSelect = field.dataType === 'select' || field.dataType === 'boolean';
+        const isFile = field.dataType === 'file';
+        const options = field.dataType === 'boolean' ? ['Да', 'Нет'] : (field.options || []);
+        const rawValue = (row.fieldVals || {})[field.key];
+        return {
+          label: field.label,
+          requiredMark: field.isRequired ? ' *' : '',
+          isSelect,
+          isFile,
+          isInput: !isSelect && !isFile,
+          inputType: field.dataType === 'date' ? 'date' : 'text',
+          options,
+          value: isFile ? '' : (rawValue || ''),
+          fileLabel: rawValue instanceof File ? `📎 ${rawValue.name}` : '⬆ Выбрать файл',
+          onInput: event => this.updateBulkUploadRow(row.id, {
+            fieldVals: { ...(row.fieldVals || {}), [field.key]: event.target.value },
+            status: 'ready',
+          }),
+          onPickFile: async () => {
+            const file = await this.chooseFile();
+            if (!file) return;
+            const current = (this.state.bulkUploadRows || []).find(item => item.id === row.id);
+            if (!current) return;
+            this.updateBulkUploadRow(row.id, {
+              fieldVals: { ...(current.fieldVals || {}), [field.key]: file },
+              status: 'ready',
+            });
+          },
+        };
+      });
+      const status = row.status || 'ready';
+      const statusLabel = status === 'success'
+        ? '✓ Документ создан'
+        : (status === 'uploading'
+            ? 'Загрузка…'
+            : (status === 'error'
+                ? 'Требуется исправление'
+                : (validation || 'Готов к загрузке')));
+      const statusColor = status === 'success'
+        ? '#15803d'
+        : (status === 'error' ? '#b91c1c' : (status === 'uploading' ? '#6d28d9' : (validation ? '#b45309' : '#52525b')));
+      const statusBackground = status === 'success'
+        ? '#e7f5ec'
+        : (status === 'error' ? '#fef2f2' : (status === 'uploading' ? '#f3e8ff' : (validation ? '#fff7ed' : '#f4f4f5')));
+      const responsible = bulkUploadResponsibleOptions.find(item => item.value === String(row.responsibleId));
+      if (!responsible && row.responsibleId) {
+        bulkUploadResponsibleOptions.push({
+          value: String(row.responsibleId),
+          label: row.responsibleName || `Пользователь #${row.responsibleId}`,
+        });
+      }
+      return {
+        ...row,
+        fileName: row.file.name,
+        fileSize: row.file.size >= 1024 * 1024
+          ? `${(row.file.size / (1024 * 1024)).toFixed(1)} МБ`
+          : `${Math.max(1, Math.ceil(row.file.size / 1024))} КБ`,
+        typeOptions,
+        typeFields,
+        hasTypeFields: typeFields.length > 0,
+        numberPending: !type,
+        numberAutomatic,
+        numberManual,
+        numberModeCode: !type ? 'pending' : (numberAutomatic ? 'auto' : 'manual'),
+        numberAutoShown: type && type.numberFormat
+          ? `Будет присвоен автоматически · ${type.numberFormat}`
+          : 'Будет присвоен автоматически',
+        numberHeading: numberManual
+          ? (type && type.numberAutoGenerate === true ? 'Номер · вручную' : 'Номер · ручной ввод')
+          : 'Номер',
+        numberManualPlaceholder: type && type.numberFormat
+          ? `Формат: ${type.numberFormat}`
+          : 'Введите номер при необходимости',
+        canUseAutomaticNumber: !!type && type.numberAutoGenerate === true,
+        counterpartyShown: row.counterpartyName || 'Выберите компанию Bitrix24',
+        dealShown: bulkDealLabel(row.links),
+        taskShown: row.taskLinks && row.taskLinks.length
+          ? `#${row.taskLinks[0].taskId} · ${row.taskLinks[0].taskTitle}`
+          : 'Задача не выбрана',
+        hasTask: !!(row.taskLinks && row.taskLinks.length),
+        taskSearch: row.taskSearch || '',
+        taskSearchLoadingLabel: row.taskSearchLoading ? 'Поиск…' : 'Найти существующую задачу',
+        taskResults: (row.taskResults || []).map(task => ({
+          value: String(task.id),
+          label: `#${task.id} · ${task.title}`,
+        })),
+        hasTaskResults: !!(row.taskResults && row.taskResults.length),
+        documentStatus: row.documentStatus || '',
+        documentStatusOptions,
+        statusDisabled: !type,
+        statusLabel,
+        statusStyle: `display:inline-block;max-width:100%;padding:4px 8px;border-radius:12px;background:${statusBackground};color:${statusColor};font-size:10.5px;line-height:1.35;overflow-wrap:anywhere;`,
+        hasError: status === 'error' && !!(row.error || validation),
+        errorShown: row.error || validation,
+        canRetry: status === 'error',
+        onRetry: () => { void this.createBulkUpload([row.id]); },
+        onRemove: () => this.removeBulkUploadRow(row.id),
+        onSection: event => this.updateBulkUploadRow(row.id, {
+          sectionCode: event.target.value,
+          typeLabel: '',
+          fieldVals: {},
+          number: '',
+          numberMode: null,
+          documentStatus: '',
+          status: 'ready',
+        }),
+        onType: event => {
+          const typeLabel = event.target.value;
+          const selectedType = this.typeMeta(row.sectionCode, typeLabel);
+          const selectedStatusOptions = this.bulkUploadStatusOptions(selectedType);
+          this.updateBulkUploadRow(row.id, {
+            typeLabel,
+            fieldVals: {},
+            number: '',
+            numberMode: selectedType
+              ? (selectedType.numberAutoGenerate === true ? 'auto' : 'manual')
+              : null,
+            documentStatus: selectedStatusOptions[0] ? selectedStatusOptions[0].code : '',
+            status: 'ready',
+          });
+        },
+        onTitle: event => this.updateBulkUploadRow(row.id, { title: event.target.value, status: 'ready' }),
+        onNumber: event => this.updateBulkUploadRow(row.id, { number: event.target.value, numberMode: 'manual', status: 'ready' }),
+        useManualNumber: () => this.updateBulkUploadRow(row.id, { number: '', numberMode: 'manual', status: 'ready' }),
+        useAutomaticNumber: () => this.updateBulkUploadRow(row.id, { number: '', numberMode: 'auto', status: 'ready' }),
+        onDate: event => this.updateBulkUploadRow(row.id, { documentDate: event.target.value, status: 'ready' }),
+        onAmount: event => this.updateBulkUploadRow(row.id, { amount: event.target.value, status: 'ready' }),
+        onCurrency: event => this.updateBulkUploadRow(row.id, { currency: event.target.value, status: 'ready' }),
+        onCompany: () => { void this.pickBulkUploadCompany(row.id); },
+        onDeals: () => { void this.pickBulkUploadDeals(row.id); },
+        onTaskSearch: event => { void this.searchBulkUploadTasks(event.target.value, row.id); },
+        onTaskResult: event => {
+          const task = (row.taskResults || []).find(item => String(item.id) === event.target.value);
+          this.selectBulkUploadTask(task, row.id);
+        },
+        clearTask: () => this.updateBulkUploadRow(row.id, {
+          taskLinks: [], taskSearch: '', taskResults: [], taskSearchLoading: false, status: 'ready',
+        }),
+        onDocumentStatus: event => this.updateBulkUploadRow(row.id, {
+          documentStatus: event.target.value,
+          status: 'ready',
+        }),
+        onResponsible: event => {
+          const option = bulkUploadResponsibleOptions.find(item => item.value === event.target.value);
+          this.updateBulkUploadRow(row.id, {
+            responsibleId: event.target.value,
+            responsibleName: option ? option.label : '',
+            status: 'ready',
+          });
+        },
+        onComment: event => this.updateBulkUploadRow(row.id, { comment: event.target.value, status: 'ready' }),
+      };
+    });
+    const bulkUploadPendingCount = bulkUploadRows.filter(row => row.status !== 'success').length;
 
     const isAdmin = S.screen === 'admin';
     const adminAllowed = !!(
@@ -3014,7 +4895,7 @@ class Component extends DCLogic {
       && this.serverPolicy.permissions.administer
     );
     const adminTabsDef = [
-      ['sections', 'Разделы'], ['types', 'Типы документов'], ['lifecycles', 'Жизненные циклы'], ['roles', 'Роли и доступ'],
+      ['sections', 'Разделы'], ['types', 'Типы документов'], ['lifecycles', 'Жизненные циклы'], ['roles', 'Роли и доступ'], ['training', 'Обучение'],
     ];
     const adminTabs = adminTabsDef.map(([key, label]) => ({
       label,
@@ -3043,11 +4924,11 @@ class Component extends DCLogic {
       const lifecycle = (S.adminLifecyclesData || []).find(item => item.code === type.lifecycleCode);
       return {
         code: type.code,
-        section: type.sectionName,
+        section: (type.sectionNames && type.sectionNames.length) ? type.sectionNames.join(', ') : type.sectionName,
         c: type.sectionColor || '#64748b',
         label: type.name,
         lifecycle: lifecycle ? lifecycle.name : 'Не назначен',
-        content: `${(type.fields || []).length} полей${type.isActive === false ? ' · отключён' : ''}`,
+        content: `${type.contentRequired === false ? 'можно позже' : 'файл / ссылка'} · ${(type.fields || []).length} полей${type.isActive === false ? ' · отключён' : ''}`,
         onEdit: () => this.openTypeEditor(type),
       };
     });
@@ -3100,13 +4981,31 @@ class Component extends DCLogic {
         onRole: event => this.setAdminUserRole(user.id, event.target.value),
       };
     });
+    const adminDepartmentRows = (S.adminDepartments || []).map(department => {
+      const assignment = S.adminDepartmentRoles[String(department.id)] || null;
+      return {
+        id: department.id,
+        name: department.name,
+        path: department.path || department.name,
+        roleCode: assignment ? assignment.roleCode : '',
+        priority: assignment ? String(assignment.priority) : '100',
+        roleOptions: adminRoleOptions,
+        hasRole: !!assignment,
+        onRole: event => this.setAdminDepartmentRole(department.id, event.target.value),
+        onPriority: event => this.setAdminDepartmentPriority(department.id, event.target.value),
+      };
+    });
 
     const trainingItems = this.TRAINING.map(([title, desc, kind, icon]) => ({ title, desc, kind, icon }));
+    const futureTrainingItems = this.FUTURE_TRAINING.map(item => ({ ...item }));
 
     const nt = S.newType;
     const dataTypes = ['Текст', 'Число', 'Дата', 'Сумма', 'Список', 'Да/Нет', 'Файл'];
     const newTypeFields = nt.fields.map((f, i) => ({
       name: f.name, dtype: f.dtype,
+      typeDisabled: !!f.lockedSource,
+      typeStyle: `padding:7px 9px;border:1px solid ${f.lockedSource ? '#e4e4e7' : '#e4e4e7'};border-radius:7px;font-size:12.5px;background:${f.lockedSource ? '#f4f4f5' : '#fff'};color:${f.lockedSource ? '#71717a' : '#18181b'};cursor:${f.lockedSource ? 'not-allowed' : 'pointer'};`,
+      typeHint: f.lockedSource ? 'Тип задан библиотекой полей и не может быть изменён' : '',
       reqStyle: `width:18px;height:18px;border-radius:5px;border:1.5px solid ${f.required ? '#4f46e5' : '#d4d4d8'};background:${f.required ? '#4f46e5' : '#fff'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;flex:none;`,
       reqMark: f.required ? '✓' : '',
       onName: (e) => this.ntField(i, 'name', e.target.value),
@@ -3114,7 +5013,11 @@ class Component extends DCLogic {
       onReq: () => this.ntField(i, 'required', !f.required),
       onRemove: () => this.ntRemoveField(i),
     }));
-    const libraryChips = [['Срок оплаты', 'Дата'], ['Условия оплаты', 'Список'], ['Базис поставки', 'Список'], ['Ставка НДС', 'Список'], ['№ ГТД', 'Текст'], ['Срок поставки', 'Дата'], ['Предмет договора', 'Текст'], ['Период оказания услуг', 'Текст']].map(([name, dtype]) => ({ name, onAdd: () => this.ntAddField(name, dtype) }));
+    const dataTypeByCode = { text: 'Текст', number: 'Число', date: 'Дата', money: 'Сумма', select: 'Список', boolean: 'Да/Нет', file: 'Файл' };
+    const libraryChips = (S.adminFieldLibrary || []).map(field => ({
+      name: field.name,
+      onAdd: () => this.ntAddField(field.name, dataTypeByCode[field.dataType] || 'Текст', field.key),
+    }));
     const sectionEdit = S.sectionEdit || { name: '', description: '', color: '#64748b', sortOrder: 100, isActive: true };
     const lifecycleEdit = S.lifecycleEdit || { name: '', isActive: true, initialStatus: 'draft', states: [], transitions: [] };
     const lifecycleStateRows = lifecycleEdit.states.map((state, index) => ({
@@ -3159,12 +5062,65 @@ class Component extends DCLogic {
     const toggleInList = (items, value) => items.includes(value) ? items.filter(item => item !== value) : [...items, value];
     const roleSectionOptions = adminSectionSource.filter(section => section.isActive !== false).map(section => ({
       code: section.code, label: section.name, checked: roleEdit.visibleSectionCodes.includes(section.code), mark: roleEdit.visibleSectionCodes.includes(section.code) ? '✓' : '',
-      onToggle: () => this.setState({ roleEdit: { ...roleEdit, visibleSectionCodes: toggleInList(roleEdit.visibleSectionCodes, section.code) } }),
+      onToggle: () => {
+        const visibleSectionCodes = toggleInList(roleEdit.visibleSectionCodes, section.code);
+        const allowedTypeCodes = new Set((S.adminTypes || [])
+          .filter(type => this.typeSectionCodes(type).some(sectionCode => visibleSectionCodes.includes(sectionCode)))
+          .map(type => type.code));
+        const byType = Object.fromEntries(Object.entries(roleEdit.permissions.byType || {})
+          .filter(([typeCode]) => allowedTypeCodes.has(typeCode)));
+        this.setState({
+          roleEdit: {
+            ...roleEdit,
+            visibleSectionCodes,
+            visibleTypeCodes: roleEdit.visibleTypeCodes.filter(typeCode => allowedTypeCodes.has(typeCode)),
+            permissions: { ...roleEdit.permissions, byType },
+          },
+        });
+      },
     }));
-    const roleTypeOptions = (S.adminTypes || []).filter(type => type.isActive !== false && roleEdit.visibleSectionCodes.includes(type.sectionCode)).map(type => ({
-      code: type.code, label: `${type.sectionName} · ${type.name}`, checked: roleEdit.visibleTypeCodes.includes(type.code), mark: roleEdit.visibleTypeCodes.includes(type.code) ? '✓' : '',
-      onToggle: () => this.setState({ roleEdit: { ...roleEdit, visibleTypeCodes: toggleInList(roleEdit.visibleTypeCodes, type.code) } }),
-    }));
+    const roleTypeDefaults = type => ({
+      view: roleEdit.allTypes || roleEdit.visibleTypeCodes.includes(type.code),
+      create: roleEdit.permissions.create === true,
+      edit: roleEdit.permissions.editAny === true || roleEdit.permissions.editOwn === true,
+      transition: roleEdit.permissions.transitionAny === true || roleEdit.permissions.transitionOwn === true,
+      content: roleEdit.permissions.editAny === true || roleEdit.permissions.editOwn === true,
+      archive: roleEdit.permissions.softDelete === true,
+      restore: roleEdit.permissions.restore === true,
+      export: roleEdit.permissions.export === true,
+      finance: roleEdit.hideMoney !== true
+        && !roleEdit.hiddenFields.includes('amount')
+        && !roleEdit.hiddenFields.includes('currency'),
+    });
+    const roleTypeOptions = (S.adminTypes || [])
+      .filter(type => type.isActive !== false && this.typeSectionCodes(type).some(sectionCode => roleEdit.visibleSectionCodes.includes(sectionCode)))
+      .map(type => {
+        const checked = roleEdit.visibleTypeCodes.includes(type.code);
+        return {
+          code: type.code,
+          label: `${(type.sectionNames && type.sectionNames.length) ? type.sectionNames.join(', ') : type.sectionName} · ${type.name}`,
+          checked,
+          mark: checked ? '✓' : '',
+          onToggle: () => {
+            const nextChecked = !checked;
+            const currentByType = roleEdit.permissions.byType || {};
+            const current = { ...roleTypeDefaults(type), ...(currentByType[type.code] || {}) };
+            this.setState({
+              roleEdit: {
+                ...roleEdit,
+                visibleTypeCodes: toggleInList(roleEdit.visibleTypeCodes, type.code),
+                permissions: {
+                  ...roleEdit.permissions,
+                  byType: {
+                    ...currentByType,
+                    [type.code]: { ...current, view: nextChecked },
+                  },
+                },
+              },
+            });
+          },
+        };
+      });
     const fieldOptionsByKey = new Map([['amount', 'Сумма'], ['currency', 'Валюта']]);
     (S.adminTypes || []).forEach(type => (type.fields || []).forEach(field => fieldOptionsByKey.set(field.key, field.name)));
     const roleFieldOptions = [...fieldOptionsByKey].map(([key, label]) => ({
@@ -3178,6 +5134,59 @@ class Component extends DCLogic {
       key, label, checked: roleEdit.permissions[key] === true, mark: roleEdit.permissions[key] === true ? '✓' : '',
       onToggle: () => this.setState({ roleEdit: { ...roleEdit, permissions: { ...roleEdit.permissions, [key]: !roleEdit.permissions[key] } } }),
       }));
+    const typePermissionLabels = [
+      ['view', 'Просмотр'],
+      ['create', 'Создание'],
+      ['edit', 'Правка'],
+      ['transition', 'Статусы'],
+      ['content', 'Файлы'],
+      ['archive', 'Архив'],
+      ['restore', 'Восст.'],
+      ['export', 'Экспорт'],
+      ['finance', 'Финансы'],
+    ];
+    const roleTypePolicyRows = S.editingRoleCode === 'admin' ? [] : (S.adminTypes || [])
+      .filter(type => type.isActive !== false && this.typeSectionCodes(type).some(sectionCode => roleEdit.visibleSectionCodes.includes(sectionCode)))
+      .map(type => {
+        const defaults = roleTypeDefaults(type);
+        const currentByType = roleEdit.permissions.byType || {};
+        const current = { ...defaults, ...(currentByType[type.code] || {}) };
+        return {
+          code: type.code,
+          name: type.name,
+          sectionName: (type.sectionNames && type.sectionNames.length) ? type.sectionNames.join(', ') : type.sectionName,
+          actions: typePermissionLabels.map(([key, label]) => {
+            const checked = current[key] === true;
+            return {
+              key,
+              label,
+              mark: checked ? '✓' : '',
+              style: `min-height:34px;padding:6px 7px;border:1px solid ${checked ? '#a5b4fc' : '#e4e4e7'};border-radius:7px;background:${checked ? '#eef2ff' : '#fff'};color:${checked ? '#4338ca' : '#71717a'};font-size:10.5px;text-align:left;cursor:pointer;`,
+              onToggle: () => {
+                const nextChecked = !checked;
+                const visibleTypeCodes = key === 'view' && !roleEdit.allTypes
+                  ? (nextChecked
+                      ? [...new Set([...roleEdit.visibleTypeCodes, type.code])]
+                      : roleEdit.visibleTypeCodes.filter(typeCode => typeCode !== type.code))
+                  : roleEdit.visibleTypeCodes;
+                this.setState({
+                  roleEdit: {
+                    ...roleEdit,
+                    visibleTypeCodes,
+                    permissions: {
+                      ...roleEdit.permissions,
+                      byType: {
+                        ...currentByType,
+                        [type.code]: { ...current, [key]: nextChecked },
+                      },
+                    },
+                  },
+                });
+              },
+            };
+          }),
+        };
+      });
 
     return {
       // nav
@@ -3195,7 +5204,7 @@ class Component extends DCLogic {
           sel: {},
           rowMenuId: null,
           drawerId: null,
-          filters: { sections: {}, statuses: {}, type: 'all', responsible: 'all', cp: '', from: '', to: '' },
+          filters: { sections: {}, statuses: {}, type: 'all', responsible: 'all', cp: '', from: '', to: '', dynamic: {} },
         });
         this.scheduleDocumentsReload();
       },
@@ -3208,7 +5217,7 @@ class Component extends DCLogic {
           sel: {},
           rowMenuId: null,
           drawerId: null,
-          filters: { sections: {}, statuses: {}, type: 'all', responsible: 'all', cp: '', from: '', to: '' },
+          filters: { sections: {}, statuses: {}, type: 'all', responsible: 'all', cp: '', from: '', to: '', dynamic: {} },
         });
         this.scheduleDocumentsReload();
       },
@@ -3301,16 +5310,29 @@ class Component extends DCLogic {
       roleTypeOptions,
       roleFieldOptions,
       rolePermissionOptions,
+      roleTypePolicyRows,
+      roleTypeMatrixVisible: roleTypePolicyRows.length > 0,
       setRoleName: event => this.setState({ roleEdit: { ...roleEdit, roleName: event.target.value } }),
       toggleRoleActive: () => this.setState({ roleEdit: { ...roleEdit, isActive: !roleEdit.isActive } }),
       toggleRoleHideMoney: () => this.setState({ roleEdit: { ...roleEdit, hideMoney: !roleEdit.hideMoney } }),
-      toggleRoleAllTypes: () => this.setState({ roleEdit: { ...roleEdit, allTypes: !roleEdit.allTypes } }),
+      toggleRoleAllTypes: () => {
+        const allTypes = !roleEdit.allTypes;
+        const visibleTypeCodes = allTypes
+          ? roleEdit.visibleTypeCodes
+          : (S.adminTypes || [])
+              .filter(type => type.isActive !== false && this.typeSectionCodes(type).some(sectionCode => roleEdit.visibleSectionCodes.includes(sectionCode)))
+              .filter(type => (roleEdit.permissions.byType || {})[type.code]?.view !== false)
+              .map(type => type.code);
+        this.setState({ roleEdit: { ...roleEdit, allTypes, visibleTypeCodes } });
+      },
       saveRolePolicy: () => { void this.saveRolePolicy(); },
       deleteRolePolicy: () => { void this.deleteRolePolicy(); },
       adminEditError: S.adminEditError,
       adminEditHasError: !!S.adminEditError,
       adminUserRows,
+      adminDepartmentRows,
       adminUsersEmpty: !S.adminAccessLoading && adminUserRows.length === 0,
+      adminDepartmentsEmpty: !S.adminAccessLoading && adminDepartmentRows.length === 0,
       adminAccessLoading: S.adminAccessLoading,
       adminAccessSaving: S.adminAccessSaving,
       adminAccessError: S.adminAccessError,
@@ -3323,7 +5345,9 @@ class Component extends DCLogic {
       typeTotal: adminTypeRows.length,
       admSections: S.adminTab === 'sections', admTypes: S.adminTab === 'types',
       admLifecycles: S.adminTab === 'lifecycles', admRoles: S.adminTab === 'roles',
+      admTraining: S.adminTab === 'training',
       trainingItems,
+      futureTrainingItems,
       helpOpen: S.helpOpen,
       openHelp: () => this.setState({ helpOpen: true }),
       closeHelp: () => this.setState({ helpOpen: false }),
@@ -3333,30 +5357,56 @@ class Component extends DCLogic {
       typeModalTitle: nt.code ? 'Редактирование типа документа' : 'Новый тип документа',
       ntCreateLabel: nt.code ? 'Сохранить тип' : 'Создать тип',
       ntCreate: () => { void this.saveDocumentType(nt); },
-      ntSection: nt.section, ntLabel: nt.label, ntLifecycle: nt.lifecycle, ntFieldCount: nt.fields.length,
+      ntLabel: nt.label, ntLifecycle: nt.lifecycle, ntFieldCount: nt.fields.length,
       ntDescription: this.textValue(nt.description),
+      ntNumberFormat: this.textValue(nt.numberFormat),
+      ntNumberAuto: nt.numberAutoGenerate === true,
+      ntNumberAutoLabel: nt.numberAutoGenerate === true ? 'Да' : 'Нет',
+      ntNumberUnique: nt.numberUniquenessEnabled === true,
+      ntNumberUniqueLabel: nt.numberUniquenessEnabled === true ? 'Да' : 'Нет',
+      ntContentRequired: nt.contentRequired !== false,
+      ntContentRequiredLabel: nt.contentRequired !== false ? 'Файл или ссылка обязательны' : 'Можно добавить позже',
       ntSortOrder: String(nt.sortOrder || 100),
       ntActive: nt.isActive !== false,
       ntActiveLabel: nt.isActive !== false ? 'Да' : 'Нет',
       ntCanDeactivate: !!nt.code,
       ntCanDelete: !!nt.code,
-      ntSetSection: (e) => this.setState({ newType: { ...nt, section: e.target.value } }),
       ntSetLabel: (e) => this.setState({ newType: { ...nt, label: e.target.value } }),
       ntSetLifecycle: (e) => this.setState({ newType: { ...nt, lifecycle: e.target.value } }),
       ntSetDescription: (e) => this.setState({ newType: { ...nt, description: e.target.value } }),
+      ntSetNumberFormat: (e) => this.setState({ newType: { ...nt, numberFormat: e.target.value } }),
+      ntToggleNumberAuto: () => this.setState({ newType: { ...nt, numberAutoGenerate: !nt.numberAutoGenerate } }),
+      ntToggleNumberUnique: () => this.setState({ newType: { ...nt, numberUniquenessEnabled: !nt.numberUniquenessEnabled } }),
+      ntToggleContentRequired: () => this.setState({ newType: { ...nt, contentRequired: nt.contentRequired === false } }),
       ntSetSortOrder: (e) => this.setState({ newType: { ...nt, sortOrder: e.target.value } }),
       ntToggleActive: () => this.setState({ newType: { ...nt, isActive: !nt.isActive } }),
       deleteDocumentType: () => { void this.deleteDocumentType(); },
       ntAddBlank: () => this.ntAddField('', 'Текст'),
       newTypeFields, libraryChips, dataTypes,
-      ntSectionOptions: adminSectionSource.filter(section => section.isActive !== false).map(section => ({ code: section.code, label: section.name })),
+      ntSectionOptions: adminSectionSource.filter(section => section.isActive !== false).map(section => {
+        const selected = (nt.sections || []).includes(section.code);
+        return {
+          code: section.code,
+          label: section.name,
+          mark: selected ? '✓' : '',
+          style: `padding:7px 10px;border:1px solid ${selected ? '#a5b4fc' : '#e4e4e7'};border-radius:7px;background:${selected ? '#eef2ff' : '#fff'};color:${selected ? '#4338ca' : '#52525b'};font-size:11.5px;cursor:pointer;`,
+          onToggle: () => {
+            const sections = selected
+              ? (nt.sections || []).filter(sectionCode => sectionCode !== section.code)
+              : [...(nt.sections || []), section.code];
+            if (sections.length) this.setState({ newType: { ...nt, sections } });
+          },
+        };
+      }),
       ntLifecycleOptions: (S.adminLifecyclesData || []).filter(lifecycle => lifecycle.isActive !== false).map(lifecycle => ({ code: lifecycle.code, label: lifecycle.name })),
-      ntCreateStyle: `background:${nt.label.trim() ? '#4f46e5' : '#c7c5ef'};color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:12.5px;font-weight:600;cursor:${nt.label.trim() ? 'pointer' : 'not-allowed'};`,
+      ntCreateStyle: `background:${nt.label.trim() && (nt.sections || []).length ? '#4f46e5' : '#c7c5ef'};color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:12.5px;font-weight:600;cursor:${nt.label.trim() && (nt.sections || []).length ? 'pointer' : 'not-allowed'};`,
       role: S.role, roleLabel: role.label, roleHint: role.hint,
       registryLoading: S.registryLoading,
       registryLoadFailed,
       registryReady: S.registryReady && !S.registryLoading,
       registryLoadError: S.registryLoadError,
+      deepLinkError: S.deepLinkError,
+      deepLinkHasError: !!S.deepLinkError,
       retryRegistry: () => { void this.initializeRegistry(); },
       accessDenied: S.accessDenied,
       accessGranted: !S.accessDenied,
@@ -3389,6 +5439,8 @@ class Component extends DCLogic {
       filterResultLabel: this.documentsMeta.total + ' найдено',
       savedViews, rows, rowCount: rows.length, isEmpty: rows.length === 0,
       filteredTotal: this.documentsMeta.total,
+      canExportRegistry,
+      canCreateAnyDocument,
       exportRegistry: () => { void this.exportRegistry(); },
       savedViewEditorOpen: S.savedViewEditorOpen,
       savedViewName: S.savedViewName,
@@ -3422,9 +5474,15 @@ class Component extends DCLogic {
       bulkBusy: S.bulkBusy,
       bulkHasError: !!S.bulkError,
       bulkError: S.bulkError,
-      canBulkAssign: !archiveMode && !!(permissions.editAny || permissions.editOwn),
-      canBulkDelete: !archiveMode && !!permissions.softDelete,
-      canBulkRestore: archiveMode && !!permissions.restore,
+      canBulkAssign: !archiveMode
+        && selectedDocuments.length > 0
+        && selectedDocuments.every(document => this.canEditDocument(document)),
+      canBulkDelete: !archiveMode
+        && selectedDocuments.length > 0
+        && selectedDocuments.every(document => this.canArchiveDocument(document)),
+      canBulkRestore: archiveMode
+        && selectedDocuments.length > 0
+        && selectedDocuments.every(document => this.canRestoreDocument(document)),
       openBulkAssign: () => this.setState({
         bulkAssignOpen: !S.bulkAssignOpen,
         bulkError: '',
@@ -3440,15 +5498,71 @@ class Component extends DCLogic {
       embeddedGroups, dealSigned: dealDocs.filter(d => d.status === 'signed' || d.status === 'active').length,
       dealReview: dealDocs.filter(d => d.status === 'on_review' || d.status === 'awaiting').length,
       dealDraft: dealDocs.filter(d => d.status === 'draft').length,
+      dealFinancialLoading: S.dealFinancialLoading,
+      dealFinancialVisible: !!financialSummary && !S.dealFinancialLoading,
+      dealFinancialDenied,
+      dealFinancialFailed,
+      dealFinancialError: S.dealFinancialError,
+      dealTotalCurrency: S.dealTotalCurrency,
+      dealTotalLabel: financialSummary
+        ? `${financialNumber(financialSummary.total)} ${financialSummary.targetCurrency}`
+        : `0,00 ${S.dealTotalCurrency}`,
+      dealCalcRows,
+      dealFinancialDocumentCount: financialSummary ? financialSummary.documentCount : 0,
+      setDealTotalCurrency: event => this.setDealTotalCurrency(event.target.value),
+      retryDealFinancial: () => { void this.loadDealFinancialSummary(S.dealTotalCurrency); },
+      dealImportedDocs,
+      dealImportedCount: dealImportedDocs.length,
+      dealImportedEmpty: dealImportedDocs.length === 0,
+      dealSyncAllowed,
+      dealSyncDenied: !dealSyncAllowed,
+      dealSyncBusy: S.dealSyncBusy,
+      dealSyncButtonLabel: S.dealSyncBusy ? '↻ Синхронизация…' : '↻ Синхронизировать',
+      dealSyncButtonStyle,
+      dealSyncHasMessage: !!S.dealSyncMessage,
+      dealSyncMessage: S.dealSyncMessage,
+      dealSyncHasError: !!S.dealSyncError,
+      dealSyncError: S.dealSyncError,
+      syncBitrixDealDocuments: () => { if (dealSyncAllowed) void this.syncBitrixDealDocuments(); },
       drawerOpen: !!doc,
+      drawerHistoryOpen: !!doc && S.drawerHistoryOpen,
+      relationEditorOpen: !!doc && S.relationEditorOpen,
+      relationEditorTitle: S.relationEditorMode === 'parent'
+        ? 'Выбрать основной документ'
+        : 'Добавить зависимый документ',
+      relationEditorHint: S.relationEditorMode === 'parent'
+        ? 'Связь появится в обеих карточках; текущий документ станет зависимым.'
+        : 'Выберите существующий документ. Он появится в этой карточке как зависимый.',
+      relationEditorSearch: S.relationEditorSearch,
+      relationEditorCandidates,
+      relationEditorLoading: S.relationEditorLoading,
+      relationEditorEmpty: !S.relationEditorLoading && relationEditorCandidates.length === 0,
+      relationEditorType: S.relationEditorType,
+      relationEditorError: S.relationEditorError,
+      relationEditorHasError: !!S.relationEditorError,
+      relationEditorSaveLabel: S.relationEditorSaving ? 'Сохранение…' : 'Сохранить связь',
+      relationEditorSaveStyle: `padding:8px 14px;border:1px solid ${relationEditorCanSave ? '#4f46e5' : '#c7c5ef'};border-radius:8px;background:${relationEditorCanSave ? '#4f46e5' : '#c7c5ef'};color:#fff;font-size:11.5px;font-weight:600;cursor:${relationEditorCanSave ? 'pointer' : 'default'};`,
+      closeRelationEditor: () => this.closeRelationEditor(),
+      setRelationEditorSearch: event => this.updateRelationSearch(event.target.value),
+      setRelationEditorType: event => this.setState({ relationEditorType: event.target.value, relationEditorError: '' }),
+      saveRelation: () => { if (relationEditorCanSave) void this.saveRelation(); },
       drawerViewing: !!doc && !S.drawerEditing,
       drawerEditing: !!doc && S.drawerEditing,
       doc,
       closeDoc: () => {
         this.documentOpenRequestId = (this.documentOpenRequestId || 0) + 1;
+        this.drawerDocument = null;
         this.setState({
           rowMenuId: null,
           drawerId: null,
+          drawerHistoryOpen: false,
+          drawerAdditionalOpen: false,
+          drawerLinksOpen: false,
+          drawerStorageOpen: false,
+          relationEditorOpen: false,
+          relationEditorCandidates: [],
+          relationEditorSelectedId: null,
+          relationEditorError: '',
           drawerEditing: false,
           drawerEditSaving: false,
           drawerEditError: '',
@@ -3460,6 +5574,7 @@ class Component extends DCLogic {
           drawerLinkError: '',
         });
       },
+      closeDrawerHistory: () => this.setState({ drawerHistoryOpen: false }),
       cancelDocumentEdit: () => this.cancelDocumentEdit(),
       saveDocumentEdit: () => { void this.saveDocumentEdit(); },
       drawerEditSaving: S.drawerEditSaving,
@@ -3473,7 +5588,7 @@ class Component extends DCLogic {
       drawerEditAmount: doc ? doc.edit.amount : '',
       drawerEditCurrency: doc ? doc.edit.currency : 'RUB',
       drawerEditLegalEntity: doc ? doc.edit.legalEntityName : '',
-      drawerEditCounterparty: doc ? doc.edit.counterpartyName : '',
+      drawerEditCounterparty: doc ? (doc.edit.counterpartyName || 'Выберите компанию') : 'Выберите компанию',
       drawerEditDealStage: doc ? doc.edit.dealStageId : '',
       drawerEditResponsible: doc ? doc.edit.responsibleId : '',
       drawerEditComment: doc ? doc.edit.comment : '',
@@ -3492,7 +5607,11 @@ class Component extends DCLogic {
       setDrawerEditAmount: event => this.updateDocumentEdit('amount', event.target.value),
       setDrawerEditCurrency: event => this.updateDocumentEdit('currency', event.target.value),
       setDrawerEditLegalEntity: event => this.updateDocumentEdit('legalEntityName', event.target.value),
-      setDrawerEditCounterparty: event => this.updateDocumentEdit('counterpartyName', event.target.value),
+      pickDrawerCompany: () => { void this.pickDrawerCompany(); },
+      clearDrawerCompany: () => {
+        if (!S.drawerEdit) return;
+        this.setState({ drawerEdit: { ...S.drawerEdit, counterpartyId: null, counterpartyName: '' } });
+      },
       setDrawerEditDealStage: event => this.updateDocumentEdit('dealStageId', event.target.value),
       toggleDrawerEditResponsible: () => this.setState({
         responsibleMenuOpen: S.responsibleMenuOpen === 'edit' ? null : 'edit',
@@ -3510,6 +5629,131 @@ class Component extends DCLogic {
       setDrawerLinkName: (event) => this.setState({ drawerLinkName: event.target.value }),
       setDrawerLinkUrl: (event) => this.setState({ drawerLinkUrl: event.target.value, drawerLinkError: '' }),
       statusOptions: doc ? doc.statusOptions : [],
+      bulkUploadOpen: S.bulkUploadOpen,
+      openBulkUpload: () => this.openBulkUpload(),
+      closeBulkUpload: () => {
+        if (!S.bulkUploadBusy) this.setState({
+          bulkUploadOpen: false,
+          bulkUploadRows: [],
+          bulkUploadBusy: false,
+          bulkUploadError: '',
+          bulkUploadDragActive: false,
+          bulkUploadHelpOpen: false,
+        });
+      },
+      bulkUploadRows,
+      bulkUploadHasRows: bulkUploadRows.length > 0,
+      bulkUploadIsEmpty: bulkUploadRows.length === 0,
+      bulkUploadCount: `${bulkUploadRows.length} файл(ов)`,
+      bulkUploadSectionOptions,
+      bulkUploadCommonTypeOptions,
+      bulkUploadResponsibleOptions,
+      bulkUploadCommonSection: S.bulkUploadCommonSection,
+      bulkUploadCommonType: S.bulkUploadCommonType,
+      bulkUploadCommonCompanyName: S.bulkUploadCommonCompanyName || 'Выберите компанию Bitrix24',
+      bulkUploadCommonDealShown: bulkDealLabel(S.bulkUploadCommonDealLinks),
+      bulkUploadCommonTaskShown: S.bulkUploadCommonTaskLinks && S.bulkUploadCommonTaskLinks.length
+        ? `#${S.bulkUploadCommonTaskLinks[0].taskId} · ${S.bulkUploadCommonTaskLinks[0].taskTitle}`
+        : 'Задача не выбрана',
+      bulkUploadCommonHasTask: !!(S.bulkUploadCommonTaskLinks && S.bulkUploadCommonTaskLinks.length),
+      bulkUploadCommonTaskSearch: S.bulkUploadCommonTaskSearch || '',
+      bulkUploadCommonTaskSearchLoadingLabel: S.bulkUploadCommonTaskLoading ? 'Поиск…' : 'Найти существующую задачу',
+      bulkUploadCommonTaskResults,
+      bulkUploadCommonHasTaskResults: bulkUploadCommonTaskResults.length > 0,
+      bulkUploadCommonDocumentStatus: S.bulkUploadCommonDocumentStatus || '',
+      bulkUploadCommonStatusOptions,
+      bulkUploadCommonStatusDisabled: !bulkUploadCommonType,
+      bulkUploadCommonResponsibleId: String(S.bulkUploadCommonResponsibleId || ''),
+      bulkUploadHelpOpen: S.bulkUploadHelpOpen,
+      bulkUploadHelpExpanded: S.bulkUploadHelpOpen ? 'true' : 'false',
+      toggleBulkUploadHelp: () => this.setState({ bulkUploadHelpOpen: !S.bulkUploadHelpOpen }),
+      setBulkUploadCommonSection: event => this.setState({
+        bulkUploadCommonSection: event.target.value,
+        bulkUploadCommonType: '',
+        bulkUploadCommonDocumentStatus: '',
+        bulkUploadError: '',
+      }),
+      setBulkUploadCommonType: event => {
+        const typeLabel = event.target.value;
+        const type = this.typeMeta(S.bulkUploadCommonSection, typeLabel);
+        const options = this.bulkUploadStatusOptions(type);
+        this.setState({
+          bulkUploadCommonType: typeLabel,
+          bulkUploadCommonDocumentStatus: options[0] ? options[0].code : '',
+          bulkUploadError: '',
+        });
+      },
+      pickBulkUploadCompany: () => { void this.pickBulkUploadCompany(); },
+      pickBulkUploadDeals: () => { void this.pickBulkUploadDeals(); },
+      setBulkUploadCommonTaskSearch: event => { void this.searchBulkUploadTasks(event.target.value); },
+      selectBulkUploadCommonTask: event => {
+        const task = (S.bulkUploadCommonTaskResults || [])
+          .find(item => String(item.id) === event.target.value);
+        this.selectBulkUploadTask(task);
+      },
+      clearBulkUploadCommonTask: () => this.setState({
+        bulkUploadCommonTaskLinks: [],
+        bulkUploadCommonTaskSearch: '',
+        bulkUploadCommonTaskResults: [],
+        bulkUploadCommonTaskLoading: false,
+        bulkUploadError: '',
+      }),
+      setBulkUploadCommonDocumentStatus: event => this.setState({
+        bulkUploadCommonDocumentStatus: event.target.value,
+        bulkUploadError: '',
+      }),
+      setBulkUploadCommonResponsible: event => {
+        const option = bulkUploadResponsibleOptions.find(item => item.value === event.target.value);
+        this.setState({
+          bulkUploadCommonResponsibleId: event.target.value,
+          bulkUploadCommonResponsibleName: option ? option.label : '',
+          bulkUploadError: '',
+        });
+      },
+      applyBulkUploadCommon: () => this.applyBulkUploadCommon(),
+      pickBulkUploadFiles: async () => {
+        const files = await this.chooseFiles();
+        this.appendBulkUploadFiles(files);
+      },
+      bulkUploadDragEnter: event => {
+        if (event) event.preventDefault();
+        this.setState({ bulkUploadDragActive: true });
+      },
+      bulkUploadDragOver: event => {
+        if (!event) return;
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+        if (!this.state.bulkUploadDragActive) this.setState({ bulkUploadDragActive: true });
+      },
+      bulkUploadDragLeave: event => {
+        if (event && event.currentTarget && event.relatedTarget
+          && event.currentTarget.contains(event.relatedTarget)) return;
+        this.setState({ bulkUploadDragActive: false });
+      },
+      bulkUploadDrop: event => {
+        if (!event || !event.dataTransfer) return;
+        event.preventDefault();
+        event.stopPropagation();
+        this.setState({ bulkUploadDragActive: false });
+        this.appendBulkUploadFiles(event.dataTransfer.files);
+      },
+      bulkUploadDropStyle: `display:flex;align-items:center;gap:12px;min-width:0;padding:${S.bulkUploadDragActive ? '18px' : '14px'};border:2px dashed ${S.bulkUploadDragActive ? '#6d28d9' : '#c7d2fe'};border-radius:10px;background:${S.bulkUploadDragActive ? '#f3e8ff' : '#f8faff'};transition:background .12s,border-color .12s,padding .12s;`,
+      bulkUploadDropLabel: S.bulkUploadDragActive
+        ? 'Отпустите файлы для загрузки'
+        : 'Перетащите файлы сюда',
+      bulkUploadHasError: !!S.bulkUploadError,
+      bulkUploadError: S.bulkUploadError,
+      bulkUploadPrimaryLabel: S.bulkUploadBusy
+        ? 'Загрузка…'
+        : (bulkUploadRows.length > 0 && bulkUploadPendingCount === 0 ? 'Готово' : 'Загрузить документы'),
+      applyBulkUpload: () => {
+        if (S.bulkUploadBusy) return;
+        if (bulkUploadRows.length > 0 && bulkUploadPendingCount === 0) {
+          this.setState({ bulkUploadOpen: false, bulkUploadRows: [], bulkUploadError: '' });
+          return;
+        }
+        void this.createBulkUpload();
+      },
       wizardOpen: S.wizardOpen,
       openWizard: () => this.setState({
         wizardOpen: true,
@@ -3523,10 +5767,13 @@ class Component extends DCLogic {
           date: '',
           amount: '',
           currency: 'RUB',
-          counterparty: '',
+          ...this.wizardContextDefaults(),
           ...this.defaultResponsibleSelection(),
+          comment: '',
           fieldVals: {},
           links: [],
+          taskLinks: [],
+          taskSearch: '',
           file: null,
           externalLink: null,
           linkEditorOpen: false,
@@ -3540,10 +5787,35 @@ class Component extends DCLogic {
       wizardTitle: wz.supersedesId ? 'Новая редакция документа' : 'Новый документ',
       wizardError: S.wizardError,
       wizardHasError: !!S.wizardError,
-      wizardSteps, wizardSections, wizardTypes, wizardLinks,
+      wizardSteps, wizardSections, wizardTypes, wizardLinks, wizardTasks, wizardTaskResults,
       wizardMoneyVisible,
       wzManageLinks: () => { void this.manageWizardLinks(); },
+      wzPickCompany: () => { void this.pickWizardCompany(); },
+      wzClearCompany: () => this.setState({
+        wz: { ...wz, counterparty: '', counterpartyId: null, sourceCounterpartyName: '' },
+        wizardError: '',
+      }),
+      wzCompanySelected: !!wz.counterpartyId,
+      wzDealStageShown: wz.dealStageName || wz.dealStageId || 'Не указана',
+      wzComment: wz.comment || '',
+      wzSetComment: event => this.setState({ wz: { ...wz, comment: event.target.value } }),
+      wzTaskSearch: wz.taskSearch || '',
+      wzTaskSearchLoading: S.taskSearchLoading,
+      wzTaskSearchLoadingLabel: S.taskSearchLoading ? 'Поиск…' : 'Введите название или номер задачи',
+      wzHasTaskResults: wizardTaskResults.length > 0,
+      wzSearchTasks: event => { void this.searchWizardTasks(event.target.value); },
       wizardTypeFields, wzHasTypeFields: wizardTypeFields.length > 0,
+      wzNumberPlaceholder: wzTypeMeta && wzTypeMeta.numberFormat
+        ? wzTypeMeta.numberFormat
+        : 'Введите номер',
+      wzNumberHint: wzTypeMeta && wzTypeMeta.numberAutoGenerate
+        ? `Оставьте пустым для автоматической нумерации${wzTypeMeta.numberFormat ? ` по формату ${wzTypeMeta.numberFormat}` : ''}. Ручной ввод также доступен.`
+        : (wzTypeMeta && wzTypeMeta.numberFormat ? `Формат: ${wzTypeMeta.numberFormat}` : ''),
+      wzNumberHasHint: !!(wzTypeMeta && (wzTypeMeta.numberAutoGenerate || wzTypeMeta.numberFormat)),
+      wzContentOptional: !!(wzTypeMeta && wzTypeMeta.contentRequired === false),
+      wzContentRequirementLabel: wzTypeMeta && wzTypeMeta.contentRequired === false
+        ? 'Содержимое можно добавить позже'
+        : 'Добавьте файл или HTTPS-ссылку *',
       wzStep1: wz.step === 1, wzStep2: wz.step === 2, wzStep3: wz.step === 3,
       wzHasSection: !!wz.sectionCode,
       wzTypeLabel: wz.typeLabel || '—', wzSectionLabel: wzSec ? wzSec.label : '—',
@@ -3571,7 +5843,6 @@ class Component extends DCLogic {
       wzSetDate: (e) => this.setState({ wz: { ...wz, date: e.target.value }, wizardError: '' }),
       wzSetAmount: (e) => this.setState({ wz: { ...wz, amount: e.target.value }, wizardError: '' }),
       wzSetCurrency: (e) => this.setState({ wz: { ...wz, currency: e.target.value }, wizardError: '' }),
-      wzSetCounterparty: (e) => this.setState({ wz: { ...wz, counterparty: e.target.value }, wizardError: '' }),
       wzPickFile: async () => { const file = await this.chooseFile(); if (file) this.setState({ wz: { ...this.state.wz, file, externalLink: null, linkEditorOpen: false, linkName: '', linkUrl: '', linkError: '' } }); },
       wzOpenLink: () => this.setState({ wz: { ...wz, file: null, linkEditorOpen: true, linkName: wz.externalLink ? wz.externalLink.name || '' : '', linkUrl: wz.externalLink ? wz.externalLink.url : '', linkError: '' } }),
       wzSetLinkName: (event) => this.setState({ wz: { ...wz, linkName: event.target.value } }),
@@ -3609,8 +5880,31 @@ class Component extends DCLogic {
   toggleGroup(key) { const c = { ...this.state.collapsedGroups }; if (c[key]) delete c[key]; else c[key] = true; this.setState({ collapsedGroups: c }); }
   openGroup(key) { const c = { ...this.state.collapsedGroups }; delete c[key]; this.setState({ collapsedGroups: c }); }
 
-  ntField(i, key, val) { const nt = { ...this.state.newType, fields: this.state.newType.fields.map((f, j) => j === i ? { ...f, [key]: val } : f) }; this.setState({ newType: nt }); }
-  ntAddField(name, dtype) { const nt = { ...this.state.newType, fields: [...this.state.newType.fields, { name: name || '', dtype: dtype || 'Текст', required: false }] }; this.setState({ newType: nt }); }
+  ntField(i, key, val) {
+    const typeLabels = { text: 'Текст', number: 'Число', date: 'Дата', money: 'Сумма', select: 'Список', boolean: 'Да/Нет', file: 'Файл' };
+    const fields = this.state.newType.fields.map((field, index) => {
+      if (index !== i) return field;
+      if (key !== 'name') return field.lockedSource && key === 'dtype' ? field : { ...field, [key]: val };
+      const normalized = String(val || '').trim().toLocaleLowerCase('ru');
+      const libraryField = (this.state.adminFieldLibrary || []).find(item =>
+        String(item.name || '').trim().toLocaleLowerCase('ru') === normalized,
+      );
+      if (libraryField) {
+        return {
+          ...field,
+          name: val,
+          key: libraryField.key,
+          dtype: typeLabels[libraryField.dataType] || 'Текст',
+          lockedSource: field.lockedSource === 'existing' ? 'existing' : 'library',
+        };
+      }
+      if (field.lockedSource === 'existing') return { ...field, name: val };
+      const { key: _key, lockedSource: _lockedSource, ...editable } = field;
+      return { ...editable, name: val };
+    });
+    this.setState({ newType: { ...this.state.newType, fields } });
+  }
+  ntAddField(name, dtype, key = null) { const nt = { ...this.state.newType, fields: [...this.state.newType.fields, { ...(key ? { key, lockedSource: 'library' } : {}), name: name || '', dtype: dtype || 'Текст', required: false }] }; this.setState({ newType: nt }); }
   ntRemoveField(i) { const nt = { ...this.state.newType, fields: this.state.newType.fields.filter((_, j) => j !== i) }; this.setState({ newType: nt }); }
 
   navStyle(active) {

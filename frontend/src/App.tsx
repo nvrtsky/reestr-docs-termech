@@ -5,7 +5,7 @@ import {
   getRegistryBitrixContext,
   validateRegistryBitrixApplication,
 } from './bitrix-context';
-import { selectCrmEntities } from './bitrix-crm-selector';
+import { openBitrixPath, selectCrmEntities } from './bitrix-crm-selector';
 
 export function App() {
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -52,7 +52,10 @@ export function App() {
       if (event.data?.type === 'registry-bitrix-select-crm-request') {
         const requestId = event.data.requestId;
         const value = event.data.value || { deal: [], company: [] };
-        void selectCrmEntities(value)
+        const entityTypes = Array.isArray(event.data.entityTypes)
+          ? event.data.entityTypes.filter((item: unknown) => item === 'deal' || item === 'company')
+          : ['deal', 'company'];
+        void selectCrmEntities(value, entityTypes, event.data.multiple !== false)
           .then((items) => frameRef.current?.contentWindow?.postMessage(
             { type: 'registry-bitrix-select-crm-response', requestId, items },
             window.location.origin,
@@ -62,6 +65,23 @@ export function App() {
               type: 'registry-bitrix-select-crm-response',
               requestId,
               error: error instanceof Error ? error.message : 'Bitrix24 CRM selector failed.',
+            },
+            window.location.origin,
+          ));
+        return;
+      }
+      if (event.data?.type === 'registry-bitrix-open-path-request') {
+        const requestId = event.data.requestId;
+        void openBitrixPath(String(event.data.path || ''))
+          .then(() => frameRef.current?.contentWindow?.postMessage(
+            { type: 'registry-bitrix-open-path-response', requestId },
+            window.location.origin,
+          ))
+          .catch((error: unknown) => frameRef.current?.contentWindow?.postMessage(
+            {
+              type: 'registry-bitrix-open-path-response',
+              requestId,
+              error: error instanceof Error ? error.message : 'Bitrix24 could not open the page.',
             },
             window.location.origin,
           ));
@@ -90,7 +110,7 @@ export function App() {
     <iframe
       ref={frameRef}
       className="legacy-registry"
-      src={`${import.meta.env.BASE_URL}legacy/index.html?v=${__LEGACY_APP_VERSION__}`}
+      src={`${import.meta.env.BASE_URL}legacy/index.html${window.location.search || '?'}${window.location.search ? '&' : ''}v=${__LEGACY_APP_VERSION__}`}
       title="Реестр документов"
       onLoad={() => void sendContext(false)}
     />

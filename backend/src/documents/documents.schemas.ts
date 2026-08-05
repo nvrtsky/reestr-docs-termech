@@ -12,6 +12,25 @@ const commaSeparated = z
       : [],
   );
 
+const fieldFilters = z.string().max(8_000).optional().transform((value, context) => {
+  if (!value) return {} as Record<string, string | number | boolean>;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error();
+    const entries = Object.entries(parsed as Record<string, unknown>);
+    if (entries.length > 20 || entries.some(([key, item]) =>
+      !/^[a-z0-9_:-]{1,200}$/i.test(key)
+      || !['string', 'number', 'boolean'].includes(typeof item)
+      || (typeof item === 'string' && item.length > 500))) {
+      throw new Error();
+    }
+    return Object.fromEntries(entries) as Record<string, string | number | boolean>;
+  } catch {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid dynamic field filters.' });
+    return z.NEVER;
+  }
+});
+
 export const documentListQuerySchema = z.object({
   search: z.string().trim().max(200).optional(),
   view: z.enum(['all', 'mine', 'work', 'draft']).default('all'),
@@ -23,6 +42,7 @@ export const documentListQuerySchema = z.object({
   counterparty: z.string().trim().max(200).optional(),
   from: z.string().date().optional(),
   to: z.string().date().optional(),
+  fieldFilters,
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -30,14 +50,14 @@ export const documentListQuerySchema = z.object({
 export type DocumentListQuery = z.infer<typeof documentListQuerySchema>;
 
 const exportColumns = z
-  .string().max(200)
+  .string().max(8_000)
   .optional()
   .transform((value) => value === undefined
     ? undefined
     : value.split(',').map((item) => item.trim()).filter(Boolean))
   .refine(
     (value) => value === undefined || (
-      value.length <= 6
+      value.length <= 50
       && value.every((item) => [
         'section',
         'counterparty',
@@ -45,7 +65,7 @@ const exportColumns = z
         'amount',
         'docDate',
         'responsible',
-      ].includes(item))
+      ].includes(item) || /^field:[a-z0-9_:-]{1,200}$/i.test(item))
     ),
     'Invalid export columns.',
   );
@@ -58,7 +78,17 @@ export const documentExportQuerySchema = documentListQuerySchema.omit({
 export type DocumentExportQuery = z.infer<typeof documentExportQuerySchema>;
 
 export const documentIdSchema = z.string().uuid();
+export const dealIdSchema = z.coerce.number().int().positive();
+export const dealFinancialSummaryQuerySchema = z.object({
+  currency: z.enum(['RUB', 'USD', 'EUR', 'CNY']).default('RUB'),
+});
 export const documentLinkIdSchema = z.string().uuid();
+export const setParentRelationSchema = z.object({
+  parentDocumentId: documentIdSchema,
+  relationType: z.enum(['addendum', 'appendix', 'other']),
+});
+export type SetParentRelationInput = z.infer<typeof setParentRelationSchema>;
+export const taskLinkIdSchema = z.string().uuid();
 export const documentDetailsQuerySchema = z.object({
   deleted: z.enum(['exclude', 'only']).default('exclude'),
 });
@@ -80,6 +110,18 @@ export const addDocumentLinkSchema = z.object({
 
 export type AddDocumentLinkInput = z.infer<typeof addDocumentLinkSchema>;
 
+export const taskSearchQuerySchema = z.object({
+  search: z.string().trim().max(200).default(''),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export const addTaskLinkSchema = z.object({
+  taskId: z.number().int().positive(),
+  taskTitle: z.string().trim().min(1).max(500).optional(),
+});
+
+export type AddTaskLinkInput = z.infer<typeof addTaskLinkSchema>;
+
 const optionalText = z.string().trim().max(1000).nullable().optional();
 const money = z
   .union([z.string(), z.number()])
@@ -99,6 +141,7 @@ export const createDocumentSchema = z.object({
   counterpartyId: z.number().int().positive().nullable().optional(),
   counterpartyName: optionalText,
   dealStageId: optionalText,
+  status: z.string().trim().min(1).max(100).optional(),
   comment: optionalText,
   responsibleId: z.coerce.number().int().positive().optional(),
   responsibleName: optionalText,
@@ -114,13 +157,32 @@ export const createDocumentSchema = z.object({
     )
     .max(50)
     .default([]),
+  taskLinks: z.array(addTaskLinkSchema).max(20).default([]),
   fields: z.record(z.unknown()).default({}),
 });
 
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;
 
+export const bulkUploadDocumentsSchema = z.object({
+  items: z.array(z.object({
+    clientRowId: z.string().trim().min(1).max(100),
+    idempotencyKey: z.string().uuid(),
+    document: createDocumentSchema,
+  })).min(1).max(50)
+    .refine(
+      (items) => new Set(items.map((item) => item.clientRowId)).size === items.length,
+      'Идентификаторы строк массовой загрузки не должны повторяться.',
+    )
+    .refine(
+      (items) => new Set(items.map((item) => item.idempotencyKey)).size === items.length,
+      'Ключи идемпотентности массовой загрузки не должны повторяться.',
+    ),
+});
+
+export type BulkUploadDocumentsInput = z.infer<typeof bulkUploadDocumentsSchema>;
+
 export const updateDocumentSchema = createDocumentSchema
-  .omit({ sectionCode: true, typeCode: true, links: true, supersedesId: true })
+  .omit({ sectionCode: true, typeCode: true, status: true, links: true, taskLinks: true, supersedesId: true })
   .partial()
   .extend({ fields: z.record(z.unknown()).optional() })
   .refine((value) => Object.keys(value).length > 0, {

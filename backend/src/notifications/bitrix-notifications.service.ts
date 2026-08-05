@@ -9,6 +9,11 @@ interface NotificationDocument {
   responsibleId: number;
 }
 
+export interface NotificationDelivery {
+  userId: number;
+  status: 'sent' | 'failed' | 'skipped_no_session';
+}
+
 export class BitrixNotificationsService {
   constructor(private readonly bitrix: BitrixApiClient) {}
 
@@ -41,13 +46,36 @@ export class BitrixNotificationsService {
     );
   }
 
+  async archiveChanged(
+    context: RegistryContext,
+    document: NotificationDocument,
+    action: 'archived' | 'restored',
+    recipientIds: number[],
+  ): Promise<NotificationDelivery[]> {
+    const actionLabel = action === 'archived' ? 'архивирован' : 'восстановлен из архива';
+    const eventNonce = Date.now().toString(36);
+    const recipients = [...new Set(recipientIds)]
+      .filter((userId) => Number.isSafeInteger(userId) && userId > 0)
+      .sort((left, right) => left - right);
+    const deliveries: NotificationDelivery[] = [];
+    for (const userId of recipients) {
+      deliveries.push(await this.send(
+        context,
+        userId,
+        `registry-archive-${document.id}-${action}-${eventNonce}-${userId}`,
+        `[B]Реестр документов[/B]\nДокумент «${this.label(document)}» ${actionLabel}. Действие выполнил пользователь #${context.userId}.`,
+      ));
+    }
+    return deliveries;
+  }
+
   private async send(
     context: RegistryContext,
     userId: number,
     tag: string,
     message: string,
-  ) {
-    if (!context.bitrix) return;
+  ): Promise<NotificationDelivery> {
+    if (!context.bitrix) return { userId, status: 'skipped_no_session' };
     try {
       await this.bitrix.call<number | false>(
         context.bitrix.domain,
@@ -60,6 +88,7 @@ export class BitrixNotificationsService {
           TAG: tag.slice(0, 255),
         },
       );
+      return { userId, status: 'sent' };
     } catch (error) {
       logger.warn(
         {
@@ -70,6 +99,7 @@ export class BitrixNotificationsService {
         },
         'Could not deliver Bitrix24 registry notification',
       );
+      return { userId, status: 'failed' };
     }
   }
 

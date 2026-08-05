@@ -21,12 +21,16 @@ const savedViewFiltersSchema = z.object({
   counterparty: z.string().trim().max(1_000).default(''),
   from: z.string().date().nullable().default(null),
   to: z.string().date().nullable().default(null),
+  fieldFilters: z.record(z.union([z.string().max(500), z.number(), z.boolean()])).default({}),
 });
 
 export const createSavedViewSchema = z.object({
   name: z.string().trim().min(1).max(100),
   filters: savedViewFiltersSchema,
-  columns: z.array(z.enum(savedViewColumns)).max(savedViewColumns.length),
+  columns: z.array(z.string().max(206).refine((value) =>
+    (savedViewColumns as readonly string[]).includes(value)
+    || /^field:[a-z0-9_:-]{1,200}$/i.test(value),
+  )).max(50),
   isShared: z.boolean().default(false),
 });
 
