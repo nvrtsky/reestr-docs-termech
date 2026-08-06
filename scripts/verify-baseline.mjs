@@ -1221,6 +1221,8 @@ const roleEvidence = await evaluate(`(() => {
   const text = doc.body.innerText;
   const salesCard = doc.querySelector('[data-role-policy="sales"]');
   const adminCard = doc.querySelector('[data-role-policy="admin"]');
+  const orderedRoleCodes = [...doc.querySelectorAll('[data-role-policy]')]
+    .map(card => card.getAttribute('data-role-policy'));
   const dialog = doc.querySelector('[role="dialog"]');
   const nameInput = [...(dialog?.querySelectorAll('input') || [])]
     .find(input => input.closest('label')?.innerText.includes('Название роли'));
@@ -1229,6 +1231,11 @@ const roleEvidence = await evaluate(`(() => {
     typePermissionMatrix: text.includes('Права по типам документов'),
     systemBadges: salesCard?.innerText.includes('Системная роль')
       && adminCard?.innerText.includes('Системная роль'),
+    systemRolesFirst: orderedRoleCodes[0] === 'admin' && orderedRoleCodes[1] === 'sales',
+    salesSummaryDynamic: salesCard?.innerText.includes('Разделы: Клиентские, Внутренние')
+      && salesCard?.innerText.includes('все типы выбранных разделов')
+      && salesCard?.innerText.includes('суммы скрыты')
+      && !salesCard?.innerText.includes('для защиты маржи'),
     salesRuleVisible: dialog?.innerText.includes('Неизменяемое системное правило')
       && dialog?.innerText.includes('После закрытия всех связанных сделок'),
     salesIdentityLocked: nameInput?.disabled === true,
@@ -1697,6 +1704,8 @@ const evidence = await evaluate(`(() => {
     departmentMapping: ${JSON.stringify(roleEvidence.departmentMapping)},
     typePermissionMatrix: ${JSON.stringify(roleEvidence.typePermissionMatrix)},
     systemRoleBadges: ${JSON.stringify(roleEvidence.systemBadges)},
+    systemRolesOrdered: ${JSON.stringify(roleEvidence.systemRolesFirst)},
+    rolePolicySummaryDynamic: ${JSON.stringify(roleEvidence.salesSummaryDynamic)},
     salesMandatoryRuleVisible: ${JSON.stringify(roleEvidence.salesRuleVisible)},
     salesSystemRoleProtected: ${JSON.stringify(roleEvidence.salesIdentityLocked && roleEvidence.salesDeleteHidden)},
     administratorRoleReadOnly: ${JSON.stringify(roleEvidence.adminMarkedReadOnly && administratorRoleReadOnlyEvidence)},

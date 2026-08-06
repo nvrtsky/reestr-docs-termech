@@ -1200,6 +1200,43 @@ class Component extends DCLogic {
     return { ...fallback, ...(server || {}) };
   }
 
+  rolePolicySummary(policy, sections = []) {
+    if (!policy || policy.roleCode === 'admin') {
+      return 'Полный доступ ко всем разделам, типам, полям и настройкам реестра.';
+    }
+
+    const visibleSectionCodes = Array.isArray(policy.visibleSectionCodes)
+      ? policy.visibleSectionCodes
+      : [];
+    const visibleSectionSet = new Set(visibleSectionCodes);
+    const activeSections = sections.filter(section => section.isActive !== false);
+    const sectionNames = visibleSectionCodes.map(code => {
+      const section = sections.find(item => item.code === code);
+      return section ? (section.name || section.label || code) : code;
+    });
+    const allActiveSectionsVisible = activeSections.length > 0
+      && activeSections.every(section => visibleSectionSet.has(section.code));
+    const sectionSummary = !sectionNames.length
+      ? 'Разделы не назначены'
+      : (allActiveSectionsVisible ? 'Все разделы' : `Разделы: ${sectionNames.join(', ')}`);
+
+    const visibleTypeCodes = policy.visibleTypeCodes;
+    const typeSummary = visibleTypeCodes === null || visibleTypeCodes === undefined
+      ? 'все типы выбранных разделов'
+      : (visibleTypeCodes.length
+          ? `выбрано типов документов: ${visibleTypeCodes.length}`
+          : 'типы документов не назначены');
+    const moneyHidden = this.rolePolicyHidesMoney(policy);
+
+    return `${sectionSummary}; ${typeSummary}; суммы ${moneyHidden ? 'скрыты' : 'видны'}.`;
+  }
+
+  rolePolicyHidesMoney(policy) {
+    return !!policy && (policy.hideMoney === true
+      || (policy.hiddenFields || []).includes('amount')
+      || (policy.hiddenFields || []).includes('currency'));
+  }
+
   openRoleEditor(role = null) {
     const roleCapabilities = this.rolePolicyCapabilities(role);
     if (role && !roleCapabilities.canEditPolicy) return;
@@ -4250,11 +4287,11 @@ class Component extends DCLogic {
   };
 
   ROLES = {
-    sales: { label: 'Менеджер продаж', sections: ['client', 'internal'], hideMoney: true, hint: 'Только клиентские и внутренние; суммы скрыты для защиты маржи.' },
-    accountant: { label: 'Бухгалтер', sections: ['client', 'supplier'], hideMoney: false, hint: 'Финансовый блок: счета, акты, УПД, инвойсы.' },
-    lawyer: { label: 'Юрист', sections: ['client', 'legal'], hideMoney: true, hint: 'Клиентские и юридические; суммы скрыты.' },
-    logistics: { label: 'Закупка / логистика', sections: ['supplier', 'logistics', 'customs'], hideMoney: false, hint: 'Документы поставщика, логистики и таможни.' },
-    admin: { label: 'Администратор', sections: 'all', hideMoney: false, hint: 'Полный доступ + настройка справочников и ролей.' },
+    sales: { label: 'Менеджер продаж', sections: ['client', 'internal'], hideMoney: true },
+    accountant: { label: 'Бухгалтер', sections: ['client', 'supplier'], hideMoney: false },
+    lawyer: { label: 'Юрист', sections: ['client', 'legal'], hideMoney: true },
+    logistics: { label: 'Закупка / логистика', sections: ['supplier', 'logistics', 'customs'], hideMoney: false },
+    admin: { label: 'Администратор', sections: 'all', hideMoney: false },
   };
 
   MATRIX_STATUS = {
@@ -4646,12 +4683,25 @@ class Component extends DCLogic {
     const registryLoadFailed = !S.registryLoading && !!S.registryLoadError;
     const archiveMode = S.screen === 'archive';
     const activeRegistry = S.screen === 'registry';
-    const role = this.ROLES[S.role] || {
-      label: (this.serverPolicy && this.serverPolicy.roleName) || S.role,
-      sections: (this.serverPolicy && this.serverPolicy.visibleSectionCodes) || [],
-      hideMoney: !!(this.serverPolicy && this.serverPolicy.hideMoney),
-      hint: 'Настраиваемая роль реестра.',
+    const fallbackRole = this.ROLES[S.role] || {
+      label: S.role,
+      sections: [],
+      hideMoney: false,
     };
+    const role = {
+      ...fallbackRole,
+      label: (this.serverPolicy && this.serverPolicy.roleName) || fallbackRole.label,
+    };
+    const rolePolicyForSummary = this.serverPolicy || {
+      roleCode: S.role,
+      visibleSectionCodes: fallbackRole.sections === 'all'
+        ? this.SECTIONS.map(section => section.code)
+        : fallbackRole.sections,
+      visibleTypeCodes: null,
+      hiddenFields: [],
+      hideMoney: fallbackRole.hideMoney,
+    };
+    const roleHint = this.rolePolicySummary(rolePolicyForSummary, this.SECTIONS);
     const scoped = this.scopedDocs();
 
     const selSecsArr = Object.keys(S.filters.sections).filter(k => S.filters.sections[k]);
@@ -5725,19 +5775,25 @@ class Component extends DCLogic {
       onEdit: () => this.openLifecycleEditor(lifecycle),
     }));
     const moneyTag = (hide) => hide ? { moneyLabel: 'суммы скрыты', moneyC: '#dc2626', moneyBg: '#fdeaea' } : { moneyLabel: 'суммы видны', moneyC: '#15803d', moneyBg: '#e7f5ec' };
-    const adminRoleRows = (S.adminPolicies || []).map(policy => {
-      const fallback = this.ROLES[policy.roleCode] || {};
+    const systemRoleOrder = { admin: 0, sales: 1 };
+    const orderedAdminPolicies = [...(S.adminPolicies || [])].sort((left, right) => {
+      const leftOrder = systemRoleOrder[left.roleCode] ?? 2;
+      const rightOrder = systemRoleOrder[right.roleCode] ?? 2;
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      return String(left.roleName || '').localeCompare(String(right.roleName || ''), 'ru');
+    });
+    const adminRoleRows = orderedAdminPolicies.map(policy => {
       const capabilities = this.rolePolicyCapabilities(policy);
-      const scopeLabel = (policy.visibleSectionCodes || []).length === adminSectionRows.filter(section => section.activeLabel === 'Да').length
+      const visibleSectionSet = new Set(policy.visibleSectionCodes || []);
+      const activeSections = adminSectionSource.filter(section => section.isActive !== false);
+      const scopeLabel = activeSections.length > 0 && activeSections.every(section => visibleSectionSet.has(section.code))
         ? 'все разделы'
         : `${(policy.visibleSectionCodes || []).length} раздела(ов)`;
       return {
         code: policy.roleCode,
         label: capabilities.fixedName || policy.roleName,
         isActive: policy.isActive !== false,
-        summary: policy.roleCode === 'admin'
-          ? 'Полный доступ ко всем разделам, типам, полям и настройкам реестра.'
-          : (fallback.hint || 'Настраиваемая политика доступа.'),
+        summary: this.rolePolicySummary(policy, adminSectionSource),
         scopeLabel,
         system: capabilities.isSystem,
         systemNote: capabilities.systemNote || '',
@@ -5751,7 +5807,7 @@ class Component extends DCLogic {
         cardTitle: capabilities.canEditPolicy
           ? 'Редактировать политику роли'
           : 'Системная роль с фиксированным полным доступом',
-        ...moneyTag(policy.hideMoney),
+        ...moneyTag(this.rolePolicyHidesMoney(policy)),
         onEdit: capabilities.canEditPolicy ? () => this.openRoleEditor(policy) : () => {},
       };
     });
@@ -6223,7 +6279,7 @@ class Component extends DCLogic {
       }),
       ntLifecycleOptions: (S.adminLifecyclesData || []).filter(lifecycle => lifecycle.isActive !== false).map(lifecycle => ({ code: lifecycle.code, label: lifecycle.name })),
       ntCreateStyle: `background:${nt.label.trim() && (nt.sections || []).length ? '#4f46e5' : '#c7c5ef'};color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:12.5px;font-weight:600;cursor:${nt.label.trim() && (nt.sections || []).length ? 'pointer' : 'not-allowed'};`,
-      role: S.role, roleLabel: role.label, roleHint: role.hint,
+      role: S.role, roleLabel: role.label, roleHint,
       registryLoading: S.registryLoading,
       registryLoadFailed,
       registryReady: S.registryReady && !S.registryLoading,
