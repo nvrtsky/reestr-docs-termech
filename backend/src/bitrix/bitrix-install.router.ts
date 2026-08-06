@@ -2,10 +2,14 @@ import { Router } from 'express';
 
 import type { BitrixApiClient } from './bitrix-client.js';
 import { saveBitrixEventTokenHash } from './bitrix-event-token.repository.js';
+import {
+  bitrixScopeAliases,
+  missingRequiredBitrixScopes,
+  normalizeBitrixScopes,
+  REQUIRED_BITRIX_SCOPES,
+} from './bitrix-scopes.js';
 import type { Database } from '../db/database.js';
 import { ApiError } from '../http/api-error.js';
-
-const REQUIRED_SCOPES = ['crm', 'placement', 'user', 'department', 'disk', 'im', 'task'] as const;
 
 interface InstallRouterOptions {
   database: Database;
@@ -62,12 +66,8 @@ export function createBitrixInstallRouter({
       const memberId = readOptional([payload.member_id, payload.memberId, auth.member_id]);
       const portalUrl = `https://${domain}`;
       const scopes = await bitrix.call<string[]>(domain, accessToken, 'scope');
-      const normalizedScopes = Array.isArray(scopes)
-        ? scopes.map((scope) => String(scope).toLowerCase())
-        : [];
-      const missingScopes = REQUIRED_SCOPES.filter(
-        (scope) => !normalizedScopes.includes(scope),
-      );
+      const normalizedScopes = normalizeBitrixScopes(scopes);
+      const missingScopes = missingRequiredBitrixScopes(normalizedScopes);
       if (missingScopes.length) {
         throw new ApiError(
           400,
@@ -113,7 +113,8 @@ function buildInstallerHtml({
   const config = JSON.stringify({
     appUrl,
     eventHandlerUrl,
-    scopes: REQUIRED_SCOPES,
+    scopes: REQUIRED_BITRIX_SCOPES,
+    scopeAliases: bitrixScopeAliases(),
     placements: [
       { code: 'CRM_DEAL_DETAIL_TAB', title: 'Документы' },
       { code: 'CRM_COMPANY_DETAIL_TAB', title: 'Документы' },
@@ -172,7 +173,9 @@ function buildInstallerHtml({
     BX24.init(async () => {
       try {
         const scopes = (await call('scope')).map(value => String(value).toLowerCase());
-        const missingScopes = config.scopes.filter(scope => !scopes.includes(scope));
+        const missingScopes = config.scopes.filter(scope =>
+          ![scope, ...(config.scopeAliases[scope] || [])].some(candidate => scopes.includes(candidate))
+        );
         if (missingScopes.length) {
           throw new Error('Не добавлены права приложения: ' + missingScopes.join(', '));
         }

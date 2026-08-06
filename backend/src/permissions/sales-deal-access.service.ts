@@ -43,6 +43,30 @@ export class SalesDealAccessService {
     )`;
   }
 
+  async documentStates(context: RegistryContext, documentId: string) {
+    const checkedAfter = new Date(Date.now() - STATE_TTL_MS);
+    const links = await this.documentDealLinks(context, documentId);
+    const staleIds = links
+      .filter((link) => !link.dealStateCheckedAt || link.dealStateCheckedAt < checkedAfter)
+      .map((link) => link.entityId);
+    if (context.bitrix && staleIds.length) {
+      try {
+        await this.refreshDealIds(context, staleIds);
+      } catch {
+        // Card rendering remains available for administrators and other roles;
+        // an unknown state is displayed if Bitrix24 is temporarily unavailable.
+        // Sales access itself still fails closed through prepare().
+      }
+    }
+    return new Map((await this.documentDealLinks(context, documentId)).map((link) => [
+      link.entityId,
+      {
+        dealClosed: link.dealClosed,
+        dealStateCheckedAt: link.dealStateCheckedAt,
+      },
+    ]));
+  }
+
   private async refreshStaleStates(context: RegistryContext, checkedAfter: Date) {
     if (!context.bitrix) return;
     const stale = await this.database
@@ -60,11 +84,16 @@ export class SalesDealAccessService {
       )
       .orderBy(asc(registryDocumentLinks.entityId));
     if (!stale.length) return;
+    await this.refreshDealIds(context, stale.map((item) => item.entityId));
+  }
 
+  private async refreshDealIds(context: RegistryContext, entityIds: number[]) {
+    if (!context.bitrix || !entityIds.length) return;
+    const idsToRefresh = [...new Set(entityIds)].sort((left, right) => left - right);
     const checkedAt = new Date();
     try {
-      for (let offset = 0; offset < stale.length; offset += BATCH_SIZE) {
-        const ids = stale.slice(offset, offset + BATCH_SIZE).map((item) => item.entityId);
+      for (let offset = 0; offset < idsToRefresh.length; offset += BATCH_SIZE) {
+        const ids = idsToRefresh.slice(offset, offset + BATCH_SIZE);
         const deals = await this.bitrix.call<BitrixDealState[]>(
           context.bitrix.domain,
           context.bitrix.accessToken,
@@ -110,6 +139,22 @@ export class SalesDealAccessService {
         { cause: error instanceof Error ? error.message : 'unknown' },
       );
     }
+  }
+
+  private documentDealLinks(context: RegistryContext, documentId: string) {
+    return this.database
+      .select({
+        entityId: registryDocumentLinks.entityId,
+        dealClosed: registryDocumentLinks.dealClosed,
+        dealStateCheckedAt: registryDocumentLinks.dealStateCheckedAt,
+      })
+      .from(registryDocumentLinks)
+      .where(and(
+        eq(registryDocumentLinks.portalUrl, context.portalUrl),
+        eq(registryDocumentLinks.documentId, documentId),
+        eq(registryDocumentLinks.entityType, 'deal'),
+      ))
+      .orderBy(asc(registryDocumentLinks.entityId));
   }
 }
 

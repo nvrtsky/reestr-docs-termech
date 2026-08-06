@@ -53,6 +53,7 @@ export class BitrixNotificationsService {
     recipientIds: number[],
   ): Promise<NotificationDelivery[]> {
     const actionLabel = action === 'archived' ? 'архивирован' : 'восстановлен из архива';
+    const actorLabel = context.userName?.trim() || `Пользователь #${context.userId}`;
     const eventNonce = Date.now().toString(36);
     const recipients = [...new Set(recipientIds)]
       .filter((userId) => Number.isSafeInteger(userId) && userId > 0)
@@ -63,7 +64,7 @@ export class BitrixNotificationsService {
         context,
         userId,
         `registry-archive-${document.id}-${action}-${eventNonce}-${userId}`,
-        `[B]Реестр документов[/B]\nДокумент «${this.label(document)}» ${actionLabel}. Действие выполнил пользователь #${context.userId}.`,
+        `[B]Реестр документов[/B]\nДокумент «${this.label(document)}» ${actionLabel}. Действие выполнил ${actorLabel}.`,
       ));
     }
     return deliveries;

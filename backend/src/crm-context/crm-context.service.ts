@@ -165,8 +165,10 @@ export class CrmContextService {
     const companyTitle = companyId
       ? this.entityTitle(company?.TITLE, this.defaultTitle('company', companyId))
       : null;
+    // The deal placement must show documents linked to this exact deal. The
+    // company remains creation context, but must not broaden the list to every
+    // document linked only to the same company.
     const references: DocumentEntityReference[] = [{ entityType: 'deal', entityId: dealId }];
-    if (companyId) references.push({ entityType: 'company', entityId: companyId });
     return {
       entityType: 'deal',
       entityId: dealId,

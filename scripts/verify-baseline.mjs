@@ -105,6 +105,7 @@ const users = [
   { id: 1, name: 'Администратор', isBitrixAdmin: true },
   { id: 2, name: 'А. Петров', isBitrixAdmin: false },
   { id: 3, name: 'М. Смирнова', isBitrixAdmin: false },
+  { id: 4, name: 'Константин Александрович Константинопольский', isBitrixAdmin: false },
 ];
 
 const documentItems = [
@@ -136,6 +137,7 @@ const documentItems = [
       sizeBytes: 845312,
       version: 3,
       isCurrent: true,
+      createdBy: 3,
       url: null,
       storageCopies: [{
         id: 'abababab-abab-4bab-8bab-ababababab01',
@@ -174,8 +176,8 @@ const documentItems = [
       url: null,
     }],
     links: [
-      { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', entityType: 'deal', entityId: 1234, entityTitle: 'Поставка оборудования' },
-      { id: 'bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc', entityType: 'deal', entityId: 5678, entityTitle: 'Монтаж и пусконаладка' },
+      { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', entityType: 'deal', entityId: 1234, entityTitle: 'Поставка оборудования', dealClosed: false },
+      { id: 'bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc', entityType: 'deal', entityId: 5678, entityTitle: 'Монтаж и пусконаладка', dealClosed: true },
       { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', entityType: 'company', entityId: 77, entityTitle: 'ООО «Ромашка»' },
     ],
     taskLinks: [{ id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', taskId: 8801, taskTitle: 'Проверить договор' }],
@@ -255,7 +257,7 @@ const documentItems = [
     moneyHidden: false,
     deletedAt: null,
     attachments: [],
-    links: [],
+    links: [{ id: 'f4f4f4f4-f4f4-44f4-84f4-f4f4f4f4f4f4', entityType: 'deal', entityId: 1234, entityTitle: 'Поставка оборудования' }],
     taskLinks: [],
     fields: [],
     history: [{ event: 'relation_parent_added', actorId: 2, createdAt: '2026-05-10T10:00:00.000Z' }],
@@ -281,10 +283,10 @@ const documentItems = [
     responsibleId: 2,
     responsibleName: 'А. Петров',
     createdBy: 2,
-    moneyHidden: false,
+    moneyHidden: true,
     deletedAt: null,
     attachments: [],
-    links: [],
+    links: [{ id: 'f5f5f5f5-f5f5-45f5-85f5-f5f5f5f5f5f5', entityType: 'company', entityId: 77, entityTitle: 'ООО «Ромашка»' }],
     taskLinks: [],
     fields: [],
     history: [],
@@ -390,7 +392,11 @@ function mockPayload(url) {
   if (pathname.endsWith('/lifecycles')) return { items: [lifecycle] };
   if (pathname.endsWith('/users')) return { items: users };
   if (pathname.endsWith('/saved-views')) return { items: [] };
-  if (pathname.endsWith('/tasks')) return { items: [{ id: 8801, title: 'Проверить договор' }, { id: 8802, title: 'Согласовать комплект' }] };
+  if (pathname.endsWith('/tasks')) return { items: [
+    { id: 8801, title: 'Проверить договор' },
+    { id: 8802, title: 'Согласовать комплект' },
+    { id: 8803, title: 'Согласовать очень длинное название комплекта документов поставщика' },
+  ] };
   if (pathname.endsWith('/documents/options')) {
     return {
       scopeTotal: documentItems.length,
@@ -465,6 +471,14 @@ function mockPayload(url) {
       stageName: 'Сделка успешна',
       stageColor: '#15803d',
     };
+    const secondDeal = {
+      id: 5678,
+      title: 'Монтаж и пусконаладка',
+      companyId: 77,
+      stageId: 'C1:PREPARATION',
+      stageName: 'Подготовка документов',
+      stageColor: '#2563eb',
+    };
     const company = { id: 77, title: 'ООО «Ромашка»' };
     const context = entityType === 'deal'
       ? {
@@ -474,7 +488,7 @@ function mockPayload(url) {
           company,
           deal,
           deals: [deal],
-          references: [{ entityType: 'deal', entityId }, { entityType: 'company', entityId: company.id }],
+          references: [{ entityType: 'deal', entityId }],
           syncUnavailable: false,
         }
       : {
@@ -483,11 +497,21 @@ function mockPayload(url) {
           entityTitle: company.title,
           company,
           deal: null,
-          deals: [deal],
-          references: [{ entityType: 'company', entityId }, { entityType: 'deal', entityId: deal.id }],
+          deals: [deal, secondDeal],
+          references: [
+            { entityType: 'company', entityId },
+            { entityType: 'deal', entityId: deal.id },
+            { entityType: 'deal', entityId: secondDeal.id },
+          ],
           syncUnavailable: false,
         };
-    const items = entityType === 'deal' ? documentItems.slice(0, 4) : documentItems.slice(0, 2);
+    const companyDealIds = new Set([deal.id, secondDeal.id]);
+    const items = entityType === 'deal'
+      ? documentItems.filter(item => (item.links || []).some(link =>
+          link.entityType === 'deal' && Number(link.entityId) === entityId))
+      : documentItems.filter(item => (item.links || []).some(link =>
+          (link.entityType === 'company' && Number(link.entityId) === entityId)
+          || (link.entityType === 'deal' && companyDealIds.has(Number(link.entityId)))));
     return { items, meta: { total: items.length, limit: 1000, offset: 0 }, context };
   }
   const documentMatch = pathname.match(/\/documents\/([0-9a-f-]+)$/i);
@@ -654,6 +678,52 @@ const registryEvidence = await evaluate(`(() => {
   };
 })()`);
 
+await clickIframeText('Договор поставщика Acme Trading');
+await waitFor(`document.querySelector('iframe').contentDocument.querySelector('[data-document-requisites="true"]')?.innerText.includes('SUP-19')`, 'visible empty amount requisites');
+const visibleEmptyAmountGridEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const grid = doc.querySelector('[data-document-requisites="true"]');
+  const amount = grid?.querySelector('[data-requisite="amount"]');
+  const company = grid?.querySelector('[data-requisite="company"]');
+  const responsible = grid?.querySelector('[data-requisite="responsible"]');
+  if (!amount || !company || !responsible) return false;
+  const amountRect = amount.getBoundingClientRect();
+  const companyRect = company.getBoundingClientRect();
+  const responsibleRect = responsible.getBoundingClientRect();
+  return amount.innerText.includes('—')
+    && Math.abs(amountRect.top - companyRect.top) <= 1
+    && companyRect.left > amountRect.left
+    && Math.abs(amountRect.width - companyRect.width) <= 2
+    && responsibleRect.top > companyRect.bottom
+    && getComputedStyle(amount).backgroundColor === 'rgb(255, 255, 255)'
+    && getComputedStyle(company).backgroundColor === 'rgb(255, 255, 255)';
+})()`);
+await screenshot('document-requisites-visible-empty-amount-1280x900.png', 1280, 900);
+await evaluate(`document.querySelector('iframe').contentDocument.querySelector('button[aria-label="Закрыть карточку документа"]')?.click()`);
+await waitFor(`!document.querySelector('iframe').contentDocument.querySelector('[data-document-requisites="true"]')`, 'close visible amount document drawer');
+
+await clickIframeText('Приложение — спецификация оборудования');
+await waitFor(`document.querySelector('iframe').contentDocument.querySelector('[data-document-requisites="true"]')?.innerText.includes('ПР-2026/45-1')`, 'hidden amount requisites');
+const hiddenAmountGridEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const grid = doc.querySelector('[data-document-requisites="true"]');
+  const number = grid?.querySelector('[data-requisite="number"]');
+  const amount = grid?.querySelector('[data-requisite="amount"]');
+  const company = grid?.querySelector('[data-requisite="company"]');
+  const responsible = grid?.querySelector('[data-requisite="responsible"]');
+  if (!number || amount || !company || !responsible) return false;
+  const numberRect = number.getBoundingClientRect();
+  const companyRect = company.getBoundingClientRect();
+  const responsibleRect = responsible.getBoundingClientRect();
+  return Math.abs(numberRect.left - companyRect.left) <= 1
+    && companyRect.width >= numberRect.width * 1.9
+    && responsibleRect.top > companyRect.bottom
+    && getComputedStyle(company).backgroundColor === 'rgb(255, 255, 255)';
+})()`);
+await screenshot('document-requisites-hidden-amount-1280x900.png', 1280, 900);
+await evaluate(`document.querySelector('iframe').contentDocument.querySelector('button[aria-label="Закрыть карточку документа"]')?.click()`);
+await waitFor(`!document.querySelector('iframe').contentDocument.querySelector('[data-document-requisites="true"]')`, 'close hidden amount document drawer');
+
 await evaluate(`(() => {
   const doc = document.querySelector('iframe').contentDocument;
   const input = doc.querySelector('input[placeholder^="Поиск по"]');
@@ -717,6 +787,41 @@ await waitFor(`!document.querySelector('iframe').contentDocument.querySelector('
 await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.includes('История версий и изменений')`, 'document drawer');
 await screenshot('document-drawer-1440x1000.png', 1440, 1000);
 await screenshot('document-drawer-compact-1280x900.png', 1280, 900);
+await evaluate(`(() => {
+  const frame = document.querySelector('iframe');
+  frame.contentWindow.postMessage({
+    type: 'registry-bitrix-context',
+    context: {
+      auth: {
+        accessToken: 'visual-access-token',
+        domain: 'https://termech.bitrix24.ru/',
+        memberId: 'visual-member',
+      },
+      application: { id: '321', code: 'local.registry' },
+      placement: null,
+    },
+  }, window.location.origin);
+})()`);
+await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.includes('https://termech.bitrix24.ru/marketplace/app/321/?document=11111111-1111-4111-8111-111111111111')`, 'portal-owned internal document link');
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const view = doc.defaultView;
+  Object.defineProperty(view.navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: async () => { throw new Error('iframe clipboard denied'); } },
+  });
+  doc.execCommand = command => {
+    if (command !== 'copy') return false;
+    view.__registryCopiedText = doc.activeElement?.value || '';
+    return true;
+  };
+  doc.querySelector('[data-document-internal-link="true"] button')?.click();
+})()`);
+await waitFor(`document.querySelector('iframe').contentDocument.querySelector('[data-document-internal-link="true"] button')?.innerText.includes('Ссылка скопирована')`, 'internal link iframe clipboard fallback');
+const internalLinkCopyEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  return doc.defaultView.__registryCopiedText === 'https://termech.bitrix24.ru/marketplace/app/321/?document=11111111-1111-4111-8111-111111111111';
+})()`);
 const compactDrawerEvidence = await evaluate(`(() => {
   const doc = document.querySelector('iframe').contentDocument;
   const bodyText = doc.body.innerText;
@@ -724,7 +829,7 @@ const compactDrawerEvidence = await evaluate(`(() => {
   const links = [...doc.querySelectorAll('button')].find(button => button.innerText.includes('Привязки Bitrix24'));
   const storage = [...doc.querySelectorAll('button')].find(button => button.innerText.includes('Хранение на Bitrix24 Диске'));
   const history = [...doc.querySelectorAll('button')].find(button => button.innerText.includes('История версий и изменений'));
-  const company = doc.querySelector('button[title="Открыть компанию в Bitrix24"]');
+  const company = doc.querySelector('[data-requisite="company"] button');
   const currentAttachmentRows = [...doc.querySelectorAll('*')].filter(item => item.children.length === 0 && item.textContent.trim() === 'contract-equipment-v3.pdf');
   return {
     companyLink: !!company && company.innerText.includes('ООО «Ромашка»'),
@@ -733,9 +838,56 @@ const compactDrawerEvidence = await evaluate(`(() => {
     secondaryCollapsed: additional?.getAttribute('aria-expanded') === 'false'
       && links?.getAttribute('aria-expanded') === 'false'
       && storage?.getAttribute('aria-expanded') === 'false',
-    separateHistory: !!history && history.innerText.includes('3 верс.') && history.innerText.includes('4 соб.'),
+    separateHistory: !!history && history.innerText.includes('3 файловых версий') && history.innerText.includes('4 соб.'),
+    internalLink: bodyText.includes('Внутренняя ссылка на документ')
+      && bodyText.includes('Ссылка непубличная: документ откроется только после авторизации в установленном приложении Bitrix24 и проверки прав пользователя.')
+      && bodyText.includes('https://termech.bitrix24.ru/marketplace/app/321/?document=11111111-1111-4111-8111-111111111111')
+      && !bodyText.includes('AUTH_ID=')
+      && [...doc.querySelectorAll('button')]
+        .filter(button => button.innerText.includes('Ссылк') && button.innerText.includes('скопирован')).length === 1,
+    archiveNotice: bodyText.includes('Архивирование без удаления')
+      && bodyText.includes('Получатели уведомления: А. Петров, М. Смирнова')
+      && [...doc.querySelectorAll('button')].some(button => button.innerText.trim() === 'В архив'),
+    accessPanel: bodyText.includes('Состояние связанных сделок и доступ')
+      && bodyText.includes('Есть открытая сделка')
+      && !bodyText.includes('Этап сделки'),
   };
 })()`);
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  [...doc.querySelectorAll('button')]
+    .find(button => button.innerText.includes('Состояние связанных сделок и доступ'))?.click();
+})()`);
+await waitFor(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const panel = doc.getElementById('document-deal-access');
+  return panel?.innerText.includes('Сделка #1234')
+    && panel?.innerText.includes('Открыта')
+    && panel?.innerText.includes('Сделка #5678')
+    && panel?.innerText.includes('Закрыта')
+    && panel?.innerText.includes('Менеджер продаж')
+    && panel?.innerText.includes('Просмотр, скачивание и редактирование')
+    && panel?.innerText.includes('Бухгалтер')
+    && panel?.innerText.includes('Политика реестра для этого типа документа')
+    && panel?.innerText.includes('Администратор')
+    && panel?.innerText.includes('Полный доступ')
+    && panel?.innerText.includes('Сначала проверяются права пользователя Bitrix24')
+    && [...panel.querySelectorAll('button')].some(button => button.innerText.includes('Открыть сделку #1234'));
+})()`, 'expanded deal access explanation');
+await evaluate(`document.querySelector('iframe').contentDocument.querySelector('[data-document-access-panel="true"]')?.scrollIntoView({ block: 'center' })`);
+await screenshot('document-access-panel-1280x900.png', 1280, 900);
+const dealAccessDetailsEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const panel = doc.getElementById('document-deal-access');
+  return !!panel && panel.scrollWidth <= panel.clientWidth + 1;
+})()`);
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  [...doc.querySelectorAll('button')]
+    .find(button => button.innerText.includes('Состояние связанных сделок и доступ'))?.click();
+})()`);
+await evaluate(`document.querySelector('iframe').contentDocument.querySelector('[data-document-archive-panel="true"]')?.scrollIntoView({ block: 'center' })`);
+await screenshot('document-archive-panel-1280x900.png', 1280, 900);
 await evaluate(`(() => {
   const doc = document.querySelector('iframe').contentDocument;
   [...doc.querySelectorAll('button')].find(button => button.innerText.includes('Хранение на Bitrix24 Диске'))?.click();
@@ -785,8 +937,12 @@ await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.i
 const accordionEvidence = await evaluate(`(() => {
   const doc = document.querySelector('iframe').contentDocument;
   const links = [...doc.querySelectorAll('button')].find(button => button.innerText.includes('Привязки Bitrix24'));
+  const crmLinks = [...doc.querySelectorAll('#document-linked-entities button[title*="открыть в Bitrix24"]')];
   return links?.getAttribute('aria-expanded') === 'true'
-    && doc.body.innerText.includes('Проверить договор');
+    && doc.body.innerText.includes('Проверить договор')
+    && crmLinks.length >= 3
+    && crmLinks.some(button => button.innerText.includes('Поставка оборудования'))
+    && crmLinks.some(button => button.innerText.includes('ООО «Ромашка»'));
 })()`);
 const drawerScrollBeforeHistory = await evaluate(`(() => {
   const doc = document.querySelector('iframe').contentDocument;
@@ -809,7 +965,7 @@ const historyDialogEvidence = await evaluate(`(() => {
   const doc = document.querySelector('iframe').contentDocument;
   const dialog = doc.querySelector('[aria-labelledby="document-history-title"]');
   const text = dialog?.innerText.toLowerCase() || '';
-  return text.includes('версии файлов · 3')
+  return text.includes('3 файловых версий')
     && text.includes('contract-equipment-v1.pdf')
     && text.includes('журнал изменений · 4')
     && text.includes('документ создан')
@@ -831,6 +987,20 @@ const drawerPositionPreserved = await evaluate(`(() => {
 await clickIframeButton('✕');
 await setPlacement('CRM_DEAL_DETAIL_TAB', 1234);
 await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.includes('#1234 · Поставка оборудования')`, 'deal context');
+const dealContextScopeEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const text = (doc.body.innerText || '').replace(/\s+/g, ' ').toLocaleLowerCase('ru');
+  const countLabel = [...doc.querySelectorAll('div')].find(item =>
+    item.children.length === 0
+    && item.textContent.trim().toLocaleLowerCase('ru') === 'документов в сделке');
+  return {
+    count: !!countLabel && countLabel.parentElement?.innerText.trim().endsWith('3'),
+    contract: text.includes('договор поставки оборудования'),
+    invoice: text.includes('счёт на предоплату 50%'),
+    quote: text.includes('дополнительное соглашение №1'),
+    excludesCompanyOnly: !text.includes('приложение — спецификация оборудования'),
+  };
+})()`);
 await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.toLocaleUpperCase('ru').includes('СУММА ДОКУМЕНТОВ СДЕЛКИ · 4')`, 'deal financial summary');
 await screenshot('deal-context-1440x1000.png', 1440, 1000);
 await screenshot('deal-financial-rub-1280x900.png', 1280, 900);
@@ -886,7 +1056,82 @@ const dealBitrixImportSyncEvidence = await evaluate(`(() => {
 })()`);
 await setPlacement('CRM_COMPANY_DETAIL_TAB', 77);
 await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.includes('ООО «Ромашка»')`, 'company context');
+await waitFor(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const zones = [...doc.querySelectorAll('[data-drop-key^="company_global_drop_"]')];
+  const supplier = doc.querySelector('[data-drop-key="company_global_drop_supplier"]');
+  return zones.length >= 6 && supplier?.dataset.companyId === '77';
+})()`, 'company-context drop zones');
+const companyGlobalDropDetails = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const zones = [...doc.querySelectorAll('[data-drop-key^="company_global_drop_"]')];
+  const supplier = doc.querySelector('[data-drop-key="company_global_drop_supplier"]');
+  return {
+    count: zones.length,
+    supplier: !!supplier,
+    companyId: supplier?.dataset.companyId || '',
+    hasLabel: doc.body.innerText.includes('Быстрая загрузка в раздел'),
+  };
+})()`);
+const companyGlobalDropEvidence = companyGlobalDropDetails.count >= 6
+  && companyGlobalDropDetails.supplier
+  && companyGlobalDropDetails.companyId === '77'
+  && companyGlobalDropDetails.hasLabel;
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const view = doc.defaultView;
+  const zone = doc.querySelector('[data-drop-key="company_global_drop_supplier"]');
+  const transfer = new view.DataTransfer();
+  transfer.items.add(new view.File(['company'], 'company-context.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
+  view.__companyDropTransfer = transfer;
+  zone.dispatchEvent(new view.DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+})()`);
+await waitFor(`document.querySelector('iframe').contentDocument.querySelector('[data-drop-key="company_global_drop_supplier"]')?.innerText.includes('Отпустите файлы')`, 'company global drop highlight');
+const companyDropHighlightEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const zone = doc.querySelector('[data-drop-key="company_global_drop_supplier"]');
+  const style = doc.defaultView.getComputedStyle(zone);
+  return zone.innerText.includes('Отпустите файлы')
+    && style.borderTopStyle === 'solid'
+    && style.backgroundColor !== 'rgba(0, 0, 0, 0)';
+})()`);
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const zone = doc.querySelector('[data-drop-key="company_global_drop_supplier"]');
+  zone.dispatchEvent(new doc.defaultView.DragEvent('dragleave', { bubbles: true, cancelable: true, dataTransfer: doc.defaultView.__companyDropTransfer }));
+  [...doc.querySelectorAll('span[title]')].find(item => item.title.startsWith('#1234 ·'))?.parentElement?.click();
+  [...doc.querySelectorAll('span[title]')].find(item => item.title.startsWith('#5678 ·'))?.parentElement?.click();
+})()`);
+await waitFor(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  return (doc.body.innerText.match(/Договор поставки оборудования/g) || []).length >= 2;
+})()`, 'multi-deal document in every company deal');
+const companyMultiDealCardsEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const text = doc.body.innerText;
+  return text.includes('#1234 · Поставка оборудования')
+    && text.includes('#5678 · Монтаж и пусконаладка')
+    && (text.match(/Договор поставки оборудования/g) || []).length >= 2;
+})()`);
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  [...doc.querySelectorAll('button')].find(button => button.innerText.trim() === 'По документам')?.click();
+})()`);
+await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.includes('#1234, #5678')`, 'company multi-deal label');
+const companyMultiDealTableEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  return doc.body.innerText.includes('Сделки')
+    && doc.body.innerText.includes('#1234, #5678');
+})()`);
 await screenshot('company-context-1440x1000.png', 1440, 1000);
+await screenshot('company-context-1280x900.png', 1280, 900);
+const companyLayoutEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const zones = [...doc.querySelectorAll('[data-drop-key^="company_global_drop_"]')];
+  return doc.documentElement.scrollWidth <= doc.documentElement.clientWidth + 1
+    && zones.length === 6
+    && zones.every(zone => zone.scrollWidth <= zone.clientWidth + 1);
+})()`);
 await setPlacement('LEFT_MENU', 0);
 await clickIframeButton('Помощь');
 await waitFor(`!!document.querySelector('iframe').contentDocument.querySelector('[aria-labelledby="help-training-title"]')`, 'six help materials');
@@ -904,8 +1149,24 @@ const helpMaterialsEvidence = await evaluate(`(() => {
 })()`);
 await screenshot('help-six-materials-1440x1000.png', 1440, 1000);
 await clickIframeButton('✕');
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const view = doc.defaultView;
+  view.__adminLoadingFlashSeen = false;
+  view.__adminLoadingObserver = new view.MutationObserver(() => {
+    if (doc.body.innerText.includes('Загрузка настроек…')) {
+      view.__adminLoadingFlashSeen = true;
+    }
+  });
+  view.__adminLoadingObserver.observe(doc.body, { childList: true, subtree: true, characterData: true });
+})()`);
 await clickIframeButton('Администрирование');
 await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.includes('Администрирование реестра')`, 'administration');
+const administrationNoLoadingFlash = await evaluate(`(() => {
+  const view = document.querySelector('iframe').contentWindow;
+  view.__adminLoadingObserver?.disconnect();
+  return view.__adminLoadingFlashSeen === false;
+})()`);
 await screenshot('administration-1440x1000.png', 1440, 1000);
 await clickIframeButton('Обучение');
 await waitFor(`document.querySelector('iframe').contentDocument.body.textContent.includes('Пользовательская инструкция') && document.querySelector('iframe').contentDocument.body.textContent.includes('Административная инструкция')`, 'two future training guides');
@@ -1077,6 +1338,38 @@ await waitFor(`(() => {
   return doc.body.innerText.includes('Массовая загрузка документов')
     && doc.querySelectorAll('button[aria-label="Удалить файл из массовой загрузки"]').length === 2;
 })()`, 'two bulk upload rows');
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const responsible = doc.querySelector('[data-bulk-common-responsible="true"]');
+  if (!responsible) return false;
+  responsible.click();
+  return true;
+})()`);
+await waitFor(`!!document.querySelector('iframe').contentDocument.querySelector('[data-bulk-responsible-menu="common"] [data-bulk-responsible-option="4"]')`, 'responsible custom menu opened');
+const bulkResponsibleMenuEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const dialog = doc.querySelector('[aria-labelledby="bulk-upload-title"]');
+  const menu = dialog?.querySelector('[data-bulk-responsible-menu="common"]');
+  const options = [...(menu?.querySelectorAll('[role="option"]') || [])];
+  const rowControls = [...(dialog?.querySelectorAll('[data-bulk-row-responsible="true"]') || [])];
+  return !!menu
+    && options.length >= 4
+    && rowControls.length === 2
+    && !dialog.querySelector('select[data-bulk-common-responsible="true"]')
+    && rowControls.every(control => control.tagName === 'BUTTON')
+    && options.every(option => {
+      const style = doc.defaultView.getComputedStyle(option);
+      return style.overflowX === 'hidden'
+        && style.textOverflow === 'ellipsis'
+        && parseFloat(style.paddingLeft) >= 12
+        && parseFloat(style.paddingRight) >= 12
+        && Math.abs(parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)) <= 0.01
+        && option.getBoundingClientRect().right <= menu.getBoundingClientRect().right - 4 + 0.01;
+    });
+})()`);
+await screenshot('bulk-responsible-menu-1280x900.png', 1280, 900);
+await evaluate(`document.querySelector('iframe').contentDocument.querySelector('[data-bulk-responsible-option="4"]').click()`);
+await waitFor(`document.querySelector('iframe').contentDocument.querySelector('[data-bulk-common-responsible="true"]')?.dataset.selectedValue === '4'`, 'long responsible selected');
 await screenshot('bulk-upload-two-files-1440x1000.png', 1440, 1000);
 await screenshot('bulk-upload-two-files-1280x900.png', 1280, 900);
 const bulkLayoutEvidence = await evaluate(`(() => {
@@ -1084,7 +1377,20 @@ const bulkLayoutEvidence = await evaluate(`(() => {
   const dialog = doc.querySelector('[aria-labelledby="bulk-upload-title"]');
   const firstSection = dialog.querySelector('select');
   const longTitle = [...dialog.querySelectorAll('input')].find(input => input.value.includes('Очень длинное название'));
-  const companyButtons = [...dialog.querySelectorAll('button[title="Найти компанию в Bitrix24"]')];
+  const companyButtons = [...dialog.querySelectorAll('button[title="Выбрать одну компанию Bitrix24; новый выбор заменит текущий"]')];
+  const commonGrid = dialog.querySelector('[data-bulk-common-grid="true"]');
+  const commonControlRects = [...dialog.querySelectorAll('[data-bulk-common-control="true"]')]
+    .map(control => control.getBoundingClientRect());
+  const commonControlTops = commonControlRects.slice(0, 6).map(rect => rect.top);
+  const commonTask = dialog.querySelector('[data-bulk-common-task="true"]');
+  const commonStatusRect = dialog.querySelector('[data-bulk-common-status="true"]')?.getBoundingClientRect();
+  const commonResponsibleRect = dialog.querySelector('[data-bulk-common-responsible="true"]')?.getBoundingClientRect();
+  const commonApplyRect = dialog.querySelector('[data-bulk-apply-common="true"]')?.getBoundingClientRect();
+  const selects = [...dialog.querySelectorAll('select')];
+  const longResponsible = dialog.querySelector('[data-bulk-common-responsible="true"]');
+  const longResponsibleText = longResponsible?.querySelector('span');
+  const longResponsibleStyle = longResponsibleText ? doc.defaultView.getComputedStyle(longResponsibleText) : null;
+  const longTitleStyle = longTitle ? doc.defaultView.getComputedStyle(longTitle) : null;
   return {
     twoRows: dialog.querySelectorAll('button[aria-label="Удалить файл из массовой загрузки"]').length === 2,
     sectionPrefilled: firstSection?.value === 'supplier',
@@ -1092,10 +1398,126 @@ const bulkLayoutEvidence = await evaluate(`(() => {
     crmCompanySelector: companyButtons.length >= 3,
     accessibleHelp: !!dialog.querySelector('button[aria-label="Справка по массовой загрузке"]'),
     commonAndRowDealSelectors: dialog.querySelectorAll('button[title="Выбрать одну или несколько сделок Bitrix24"]').length === 3,
-    commonAndRowTaskSelectors: (dialog.innerText.match(/Существующая задача/g) || []).length === 3,
+    commonAndRowTaskSelectors: (dialog.innerText.match(/Задача Bitrix24/g) || []).length === 3,
     commonAndRowStatusSelectors: (dialog.innerText.match(/Статус документа/g) || []).length === 3,
+    commonTaskAligned: commonControlTops.length === 6
+      && Math.max(...commonControlTops) - Math.min(...commonControlTops) <= 0.01
+      && commonTask.scrollWidth <= commonTask.clientWidth + 1,
+    commonControlsUniformHeight: commonControlRects.length === 8
+      && commonControlRects.every(rect => Math.abs(rect.height - 36) <= 0.01),
+    commonStatusAndApplyAligned: Boolean(commonStatusRect && commonResponsibleRect && commonApplyRect)
+      && Math.abs(commonStatusRect.height - commonResponsibleRect.height) <= 0.01
+      && Math.abs(commonApplyRect.height - commonResponsibleRect.height) <= 0.01
+      && Math.abs(commonApplyRect.top - commonResponsibleRect.top) <= 0.01
+      && commonApplyRect.left > commonResponsibleRect.left,
+    commonTaskEmptyStateClean: !dialog.innerText.includes('Задача не выбрана'),
+    selectTextContained: selects.length > 0 && selects.every(select => {
+      const style = doc.defaultView.getComputedStyle(select);
+      return style.textOverflow === 'ellipsis'
+        && parseFloat(style.paddingRight) >= 22
+        && select.getBoundingClientRect().right <= dialog.getBoundingClientRect().right + 1;
+    }),
+    longValuesEllipsized: longResponsible?.dataset.selectedValue === '4'
+      && longResponsible?.title === 'Константин Александрович Константинопольский'
+      && longResponsibleStyle?.textOverflow === 'ellipsis'
+      && longResponsibleText.scrollWidth > longResponsibleText.clientWidth
+      && longTitleStyle?.textOverflow === 'ellipsis'
+      && dialog.scrollWidth <= dialog.clientWidth + 1,
   };
 })()`);
+const commonTaskSearchInput = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const input = doc.querySelector('[data-bulk-common-task="true"] input');
+  if (!input) return false;
+  const setter = Object.getOwnPropertyDescriptor(doc.defaultView.HTMLInputElement.prototype, 'value').set;
+  setter.call(input, 'Согласовать');
+  input.dispatchEvent(new doc.defaultView.Event('input', { bubbles: true }));
+  return true;
+})()`);
+if (!commonTaskSearchInput) throw new Error('Common Bitrix24 task search input was not found.');
+await waitFor(`document.querySelector('iframe').contentDocument.querySelector('[data-bulk-common-task="true"] [role="listbox"]')?.querySelectorAll('[role="option"]').length === 3`, 'bulk task search results');
+const bulkTaskSearchEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const task = doc.querySelector('[data-bulk-common-task="true"]');
+  const list = task?.querySelector('[role="listbox"]');
+  const options = [...(list?.querySelectorAll('[role="option"]') || [])];
+  return !!list
+    && !task.querySelector('select')
+    && options.length === 3
+    && options.every(option => {
+      const style = doc.defaultView.getComputedStyle(option);
+      return style.textOverflow === 'ellipsis'
+        && style.overflowX === 'hidden';
+    })
+    && options.some(option => option.title.includes('очень длинное название')
+      && option.scrollWidth > option.clientWidth)
+    && list.scrollWidth <= list.clientWidth + 1;
+})()`);
+await screenshot('bulk-task-search-results-1280x900.png', 1280, 900);
+await evaluate(`document.querySelector('iframe').contentDocument.querySelector('[data-bulk-common-task="true"] [role="option"]')?.click()`);
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const remove = doc.querySelector('button[aria-label="Удалить файл из массовой загрузки"]');
+  const row = remove?.parentElement?.parentElement;
+  const selects = row ? [...row.querySelectorAll('select')] : [];
+  if (!selects[0]) return false;
+  selects[0].value = 'client';
+  selects[0].dispatchEvent(new doc.defaultView.Event('change', { bubbles: true }));
+  return true;
+})()`);
+await waitFor(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const remove = doc.querySelector('button[aria-label="Удалить файл из массовой загрузки"]');
+  const row = remove?.parentElement?.parentElement;
+  const type = row ? [...row.querySelectorAll('select')][1] : null;
+  return [...(type?.options || [])].some(option => option.value === 'Коммерческое предложение');
+})()`, 'long document type option');
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const remove = doc.querySelector('button[aria-label="Удалить файл из массовой загрузки"]');
+  const row = remove?.parentElement?.parentElement;
+  const type = row ? [...row.querySelectorAll('select')][1] : null;
+  if (!type) return false;
+  type.value = 'Коммерческое предложение';
+  type.dispatchEvent(new doc.defaultView.Event('change', { bubbles: true }));
+  return true;
+})()`);
+await waitFor(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const remove = doc.querySelector('button[aria-label="Удалить файл из массовой загрузки"]');
+  const row = remove?.parentElement?.parentElement;
+  return [...(row?.querySelectorAll('select') || [])][1]?.value === 'Коммерческое предложение';
+})()`, 'long document type selected');
+const bulkLongTypeEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const remove = doc.querySelector('button[aria-label="Удалить файл из массовой загрузки"]');
+  const row = remove?.parentElement?.parentElement;
+  const type = [...(row?.querySelectorAll('select') || [])][1];
+  const style = type ? doc.defaultView.getComputedStyle(type) : null;
+  return type?.value === 'Коммерческое предложение'
+    && type?.title === 'Коммерческое предложение'
+    && style?.textOverflow === 'ellipsis'
+    && parseFloat(style?.paddingRight || '0') >= 22
+    && row.scrollWidth <= row.clientWidth + 1;
+})()`);
+await screenshot('bulk-long-type-contained-1280x900.png', 1280, 900);
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const remove = doc.querySelector('button[aria-label="Удалить файл из массовой загрузки"]');
+  const row = remove?.parentElement?.parentElement;
+  const section = [...(row?.querySelectorAll('select') || [])][0];
+  if (!section) return false;
+  section.value = 'supplier';
+  section.dispatchEvent(new doc.defaultView.Event('change', { bubbles: true }));
+  return true;
+})()`);
+await waitFor(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const remove = doc.querySelector('button[aria-label="Удалить файл из массовой загрузки"]');
+  const row = remove?.parentElement?.parentElement;
+  const selects = [...(row?.querySelectorAll('select') || [])];
+  return selects[0]?.value === 'supplier' && selects[1]?.value === '';
+})()`, 'bulk row restored after long type check');
 const bulkNumberPendingEvidence = await evaluate(`(() => {
   const doc = document.querySelector('iframe').contentDocument;
   const modes = [...doc.querySelectorAll('[data-bulk-number-mode="pending"]')];
@@ -1222,6 +1644,7 @@ const evidence = await evaluate(`(() => {
     userTrainingGuide: ${JSON.stringify(trainingEvidence.userGuide)},
     adminTrainingGuide: ${JSON.stringify(trainingEvidence.adminGuide)},
     trainingGuidesMarkedFuture: ${JSON.stringify(trainingEvidence.futureStatus)},
+    administrationNoLoadingFlash: ${JSON.stringify(administrationNoLoadingFlash)},
     departmentMapping: ${JSON.stringify(roleEvidence.departmentMapping)},
     typePermissionMatrix: ${JSON.stringify(roleEvidence.typePermissionMatrix)},
     multiSectionDocumentType: ${JSON.stringify(multiSectionTypeEvidence)},
@@ -1238,6 +1661,15 @@ const evidence = await evaluate(`(() => {
     bulkCommonAndRowDealSelectors: ${JSON.stringify(bulkLayoutEvidence.commonAndRowDealSelectors)},
     bulkCommonAndRowTaskSelectors: ${JSON.stringify(bulkLayoutEvidence.commonAndRowTaskSelectors)},
     bulkCommonAndRowStatusSelectors: ${JSON.stringify(bulkLayoutEvidence.commonAndRowStatusSelectors)},
+    bulkCommonTaskAligned: ${JSON.stringify(bulkLayoutEvidence.commonTaskAligned)},
+    bulkCommonControlsUniformHeight: ${JSON.stringify(bulkLayoutEvidence.commonControlsUniformHeight)},
+    bulkCommonStatusAndApplyAligned: ${JSON.stringify(bulkLayoutEvidence.commonStatusAndApplyAligned)},
+    bulkCommonTaskEmptyStateClean: ${JSON.stringify(bulkLayoutEvidence.commonTaskEmptyStateClean)},
+    bulkSelectTextContained: ${JSON.stringify(bulkLayoutEvidence.selectTextContained)},
+    bulkResponsibleCustomMenu: ${JSON.stringify(bulkResponsibleMenuEvidence)},
+    bulkLongValuesEllipsized: ${JSON.stringify(bulkLayoutEvidence.longValuesEllipsized)},
+    bulkTaskSearchSuggestions: ${JSON.stringify(bulkTaskSearchEvidence)},
+    bulkLongTypeContained: ${JSON.stringify(bulkLongTypeEvidence)},
     bulkAccessibleHelp: ${JSON.stringify(bulkLayoutEvidence.accessibleHelp && helpEvidence)},
     bulkNumberPendingUntilType: ${JSON.stringify(bulkNumberPendingEvidence)},
     bulkAutomaticNumbering: ${JSON.stringify(bulkAutomaticNumberEvidence)},
@@ -1246,7 +1678,13 @@ const evidence = await evaluate(`(() => {
     bulkModalDropTarget: ${JSON.stringify(modalDropEvidence)},
     bulkSingleRowRemoval: ${JSON.stringify(removalEvidence)},
     bulkRowErrorAndRetry: ${JSON.stringify(rowErrorEvidence)},
+    drawerVisibleEmptyAmountGrid: ${JSON.stringify(visibleEmptyAmountGridEvidence)},
+    drawerHiddenAmountGrid: ${JSON.stringify(hiddenAmountGridEvidence)},
     drawerCompanyLink: ${JSON.stringify(compactDrawerEvidence.companyLink)},
+    drawerInternalLink: ${JSON.stringify(compactDrawerEvidence.internalLink)},
+    drawerInternalLinkCopy: ${JSON.stringify(internalLinkCopyEvidence)},
+    drawerArchiveNotice: ${JSON.stringify(compactDrawerEvidence.archiveNotice)},
+    drawerDealAccessPanel: ${JSON.stringify(compactDrawerEvidence.accessPanel && dealAccessDetailsEvidence)},
     drawerPrimaryContentVisible: ${JSON.stringify(compactDrawerEvidence.primaryContentVisible)},
     drawerPreviousVersionsHidden: ${JSON.stringify(compactDrawerEvidence.previousVersionsHidden)},
     drawerSecondaryCollapsed: ${JSON.stringify(compactDrawerEvidence.secondaryCollapsed)},
@@ -1262,6 +1700,16 @@ const evidence = await evaluate(`(() => {
     dealFinancialCurrencySwitch: ${JSON.stringify(dealFinancialUsdEvidence)},
     dealBitrixImportCards: ${JSON.stringify(dealBitrixImportEvidence)},
     dealBitrixImportSyncResult: ${JSON.stringify(dealBitrixImportSyncEvidence)},
+    dealContextCount: ${JSON.stringify(dealContextScopeEvidence.count)},
+    dealContextContract: ${JSON.stringify(dealContextScopeEvidence.contract)},
+    dealContextInvoice: ${JSON.stringify(dealContextScopeEvidence.invoice)},
+    dealContextQuote: ${JSON.stringify(dealContextScopeEvidence.quote)},
+    dealContextExcludesCompanyOnly: ${JSON.stringify(dealContextScopeEvidence.excludesCompanyOnly)},
+    companyGlobalDropZones: ${JSON.stringify(companyGlobalDropEvidence)},
+    companyGlobalDropHighlight: ${JSON.stringify(companyDropHighlightEvidence)},
+    companyMultiDealCards: ${JSON.stringify(companyMultiDealCardsEvidence)},
+    companyMultiDealTable: ${JSON.stringify(companyMultiDealTableEvidence)},
+    companyLayoutAt1280: ${JSON.stringify(companyLayoutEvidence)},
   };
 })()`);
 

@@ -99,6 +99,35 @@ interface ArchiveNotificationDocument {
   responsibleId: number;
 }
 
+export function resolveLegacyArchiveRestoreStatus(
+  events: Array<{ before: unknown; after: unknown }>,
+  lifecycleConfig: {
+    initialStatus: string;
+    states: Array<{ code: string; terminal?: boolean }>;
+  },
+) {
+  for (const event of events) {
+    const before = event.before as { status?: unknown } | null;
+    const after = event.after as { status?: unknown } | null;
+    if (
+      after?.status === 'archived'
+      && typeof before?.status === 'string'
+      && before.status !== 'archived'
+      && lifecycleConfig.states.some((state) => state.code === before.status)
+    ) {
+      return before.status;
+    }
+  }
+  if (
+    lifecycleConfig.initialStatus
+    && lifecycleConfig.initialStatus !== 'archived'
+    && lifecycleConfig.states.some((state) => state.code === lifecycleConfig.initialStatus)
+  ) {
+    return lifecycleConfig.initialStatus;
+  }
+  return lifecycleConfig.states.find((state) => state.code !== 'archived')?.code || 'draft';
+}
+
 export class DocumentsService {
   private readonly numbering = new DocumentNumberingService();
   private readonly attachments: AttachmentsService;
@@ -1192,6 +1221,12 @@ export class DocumentsService {
       policy,
       accessScopes,
     );
+    const dealStates = await this.salesDealAccess.documentStates(context, id);
+    const resolvedLinks = links.map((link) => {
+      if (link.entityType !== 'deal') return link;
+      const state = dealStates.get(link.entityId);
+      return state ? { ...link, ...state } : link;
+    });
     const storageCopiesByAttachment = new Map<string, typeof storageCopies>();
     for (const copy of storageCopies) {
       const current = storageCopiesByAttachment.get(copy.attachmentId) ?? [];
@@ -1205,7 +1240,7 @@ export class DocumentsService {
         storageCopies: (storageCopiesByAttachment.get(attachment.id) ?? [])
           .map(({ attachmentId: _attachmentId, ...copy }) => copy),
       })),
-      links,
+      links: resolvedLinks,
       taskLinks,
       fields: fieldValues,
       history: history.map((entry) => this.sanitizeAuditEntry(entry, policy, row.typeCode)),
@@ -1736,6 +1771,14 @@ export class DocumentsService {
       }
     }
 
+    // Archiving has one storage model: recoverable soft-delete. Lifecycle
+    // configurations may still expose `archived` as a target, but the action
+    // is routed through the same archive/restore path as the registry menu.
+    if (targetStatus === 'archived') {
+      await this.softDelete(context, id);
+      return this.getById(context, id, true);
+    }
+
     await this.database.transaction(async (transaction) => {
       await transaction
         .update(registryDocuments)
@@ -1969,7 +2012,7 @@ export class DocumentsService {
       )) {
         throw new ApiError(403, 'restore_access_denied', 'Восстановление документов недоступно для вашей роли.');
       }
-      if (!document.deletedAt) {
+      if (!document.deletedAt && document.status !== 'archived') {
         throw new ApiError(409, 'document_not_deleted', 'Документ не находится в архиве.');
       }
     }
@@ -1978,12 +2021,23 @@ export class DocumentsService {
       await this.loadArchiveParticipants(context, document.id, document.createdBy),
     ] as const)));
 
+    const restoredStatuses = new Map(await Promise.all(documents.map(async (document) => [
+      document.id,
+      document.status === 'archived'
+        ? await this.legacyArchiveRestoreStatus(
+            context,
+            document.id,
+            document.lifecycleConfig,
+          )
+        : document.status,
+    ] as const)));
     const restoredAt = new Date();
     await this.database.transaction(async (transaction) => {
       for (const document of documents) {
         await transaction
           .update(registryDocuments)
           .set({
+            status: restoredStatuses.get(document.id)!,
             deletedAt: null,
             deletedBy: null,
             updatedBy: context.userId,
@@ -1993,7 +2047,10 @@ export class DocumentsService {
             and(
               eq(registryDocuments.id, document.id),
               eq(registryDocuments.portalUrl, context.portalUrl),
-              isNotNull(registryDocuments.deletedAt),
+              or(
+                isNotNull(registryDocuments.deletedAt),
+                eq(registryDocuments.status, 'archived'),
+              ),
             ),
           );
         await transaction.insert(registryAuditLog).values({
@@ -2006,6 +2063,7 @@ export class DocumentsService {
             cardCreatorId: document.createdBy,
             fileUploaderIds: participants.get(document.id)!.fileUploaderIds,
             notificationRecipientIds: participants.get(document.id)!.recipientIds,
+            restoredStatus: restoredStatuses.get(document.id),
           },
         });
       }
@@ -2284,9 +2342,12 @@ export class DocumentsService {
     )) {
       throw new ApiError(403, 'restore_access_denied', 'Restore is not allowed.');
     }
-    if (!current.deletedAt) {
-      throw new ApiError(409, 'document_not_deleted', 'Document is not deleted.');
+    if (!current.deletedAt && current.status !== 'archived') {
+      throw new ApiError(409, 'document_not_deleted', 'Документ не находится в архиве.');
     }
+    const restoredStatus = current.status === 'archived'
+      ? await this.legacyArchiveRestoreStatus(context, id, current.lifecycleConfig)
+      : current.status;
     const participants = await this.loadArchiveParticipants(
       context,
       id,
@@ -2297,6 +2358,7 @@ export class DocumentsService {
       await transaction
         .update(registryDocuments)
         .set({
+          status: restoredStatus,
           deletedAt: null,
           deletedBy: null,
           updatedBy: context.userId,
@@ -2317,6 +2379,7 @@ export class DocumentsService {
           cardCreatorId: current.createdBy,
           fileUploaderIds: participants.fileUploaderIds,
           notificationRecipientIds: participants.recipientIds,
+          restoredStatus,
         },
       });
     });
@@ -2328,7 +2391,28 @@ export class DocumentsService {
       participants,
     );
 
-    return this.getById(context, id, current.status === 'archived');
+    return this.getById(context, id);
+  }
+
+  private async legacyArchiveRestoreStatus(
+    context: RegistryContext,
+    documentId: string,
+    lifecycleConfig: {
+      initialStatus: string;
+      states: Array<{ code: string; terminal?: boolean }>;
+    },
+  ) {
+    const events = await this.database
+      .select({ before: registryAuditLog.before, after: registryAuditLog.after })
+      .from(registryAuditLog)
+      .where(and(
+        eq(registryAuditLog.portalUrl, context.portalUrl),
+        eq(registryAuditLog.documentId, documentId),
+        eq(registryAuditLog.event, 'status_changed'),
+      ))
+      .orderBy(desc(registryAuditLog.createdAt))
+      .limit(50);
+    return resolveLegacyArchiveRestoreStatus(events, lifecycleConfig);
   }
 
   private async loadTypeConfiguration(
