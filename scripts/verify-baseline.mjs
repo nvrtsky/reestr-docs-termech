@@ -332,6 +332,14 @@ const rolePolicies = [
     },
     hideMoney: true,
     isActive: true,
+    capabilities: {
+      isSystem: true,
+      canEditPolicy: true,
+      canEditName: false,
+      canDelete: false,
+      fixedName: 'Менеджер продаж',
+      systemNote: 'После закрытия всех связанных сделок доступ к карточке и файлам снимается независимо от остальных настроек роли.',
+    },
   },
   {
     roleCode: 'accountant',
@@ -342,6 +350,24 @@ const rolePolicies = [
     permissions: { ...permissions, administer: false, editAny: false, byType: {} },
     hideMoney: false,
     isActive: true,
+  },
+  {
+    roleCode: 'admin',
+    roleName: 'Администратор',
+    visibleSectionCodes: sections.map(section => section.code),
+    visibleTypeCodes: null,
+    hiddenFields: [],
+    permissions,
+    hideMoney: false,
+    isActive: true,
+    capabilities: {
+      isSystem: true,
+      canEditPolicy: false,
+      canEditName: false,
+      canDelete: false,
+      fixedName: 'Администратор',
+      systemNote: 'Администраторы Bitrix24 получают полный доступ автоматически. Права роли фиксированы.',
+    },
   },
 ];
 
@@ -1191,14 +1217,37 @@ await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.i
 await screenshot('administration-role-matrix-1440x1000.png', 1440, 1000);
 await screenshot('administration-role-matrix-1280x900.png', 1280, 900);
 const roleEvidence = await evaluate(`(() => {
-  const text = document.querySelector('iframe').contentDocument.body.innerText;
+  const doc = document.querySelector('iframe').contentDocument;
+  const text = doc.body.innerText;
+  const salesCard = doc.querySelector('[data-role-policy="sales"]');
+  const adminCard = doc.querySelector('[data-role-policy="admin"]');
+  const dialog = doc.querySelector('[role="dialog"]');
+  const nameInput = [...(dialog?.querySelectorAll('input') || [])]
+    .find(input => input.closest('label')?.innerText.includes('Название роли'));
   return {
     departmentMapping: text.includes('Назначение подразделений'),
     typePermissionMatrix: text.includes('Права по типам документов'),
+    systemBadges: salesCard?.innerText.includes('Системная роль')
+      && adminCard?.innerText.includes('Системная роль'),
+    salesRuleVisible: dialog?.innerText.includes('Неизменяемое системное правило')
+      && dialog?.innerText.includes('После закрытия всех связанных сделок'),
+    salesIdentityLocked: nameInput?.disabled === true,
+    salesDeleteHidden: ![...(dialog?.querySelectorAll('button') || [])]
+      .some(button => button.innerText.trim() === 'Удалить'),
+    adminMarkedReadOnly: adminCard?.getAttribute('data-role-editable') === 'false',
   };
 })()`);
 
 await clickIframeButton('✕');
+const administratorRoleReadOnlyEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const adminCard = doc.querySelector('[data-role-policy="admin"]');
+  adminCard?.click();
+  return !!adminCard
+    && adminCard.getAttribute('data-system-role') === 'true'
+    && adminCard.getAttribute('data-role-editable') === 'false'
+    && !doc.querySelector('[role="dialog"]');
+})()`);
 await clickIframeButton('Типы документов');
 await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.includes('Договор поставщика')`, 'document type administration');
 await clickIframeText('Договор');
@@ -1647,6 +1696,10 @@ const evidence = await evaluate(`(() => {
     administrationNoLoadingFlash: ${JSON.stringify(administrationNoLoadingFlash)},
     departmentMapping: ${JSON.stringify(roleEvidence.departmentMapping)},
     typePermissionMatrix: ${JSON.stringify(roleEvidence.typePermissionMatrix)},
+    systemRoleBadges: ${JSON.stringify(roleEvidence.systemBadges)},
+    salesMandatoryRuleVisible: ${JSON.stringify(roleEvidence.salesRuleVisible)},
+    salesSystemRoleProtected: ${JSON.stringify(roleEvidence.salesIdentityLocked && roleEvidence.salesDeleteHidden)},
+    administratorRoleReadOnly: ${JSON.stringify(roleEvidence.adminMarkedReadOnly && administratorRoleReadOnlyEvidence)},
     multiSectionDocumentType: ${JSON.stringify(multiSectionTypeEvidence)},
     fieldLibraryTypeLock: ${JSON.stringify(libraryLock)},
     blankFieldTypeEditable: ${JSON.stringify(blankFieldTypeEditable)},

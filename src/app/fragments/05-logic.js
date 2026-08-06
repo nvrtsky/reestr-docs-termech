@@ -1166,7 +1166,43 @@ class Component extends DCLogic {
     }
   }
 
+  rolePolicyCapabilities(role) {
+    const roleCode = typeof role === 'string' ? role : role && role.roleCode;
+    const server = role && typeof role === 'object' && role.capabilities
+      ? role.capabilities
+      : null;
+    const fallback = roleCode === 'admin'
+      ? {
+          isSystem: true,
+          canEditPolicy: false,
+          canEditName: false,
+          canDelete: false,
+          fixedName: 'Администратор',
+          systemNote: 'Администраторы Bitrix24 получают полный доступ автоматически. Права роли фиксированы.',
+        }
+      : (roleCode === 'sales'
+          ? {
+              isSystem: true,
+              canEditPolicy: true,
+              canEditName: false,
+              canDelete: false,
+              fixedName: 'Менеджер продаж',
+              systemNote: 'После закрытия всех связанных сделок доступ к карточке и файлам снимается независимо от остальных настроек роли.',
+            }
+          : {
+              isSystem: false,
+              canEditPolicy: true,
+              canEditName: true,
+              canDelete: true,
+              fixedName: null,
+              systemNote: null,
+            });
+    return { ...fallback, ...(server || {}) };
+  }
+
   openRoleEditor(role = null) {
+    const roleCapabilities = this.rolePolicyCapabilities(role);
+    if (role && !roleCapabilities.canEditPolicy) return;
     const defaultPermissions = {
       create: false,
       editOwn: false,
@@ -1183,7 +1219,7 @@ class Component extends DCLogic {
       roleModalOpen: true,
       editingRoleCode: role ? role.roleCode : null,
       roleEdit: role ? {
-        roleName: role.roleName,
+        roleName: roleCapabilities.fixedName || role.roleName,
         visibleSectionCodes: [...(role.visibleSectionCodes || [])],
         allTypes: role.visibleTypeCodes === null,
         visibleTypeCodes: [...(role.visibleTypeCodes || [])],
@@ -1214,6 +1250,11 @@ class Component extends DCLogic {
     const roleCode = this.state.editingRoleCode;
     const input = this.state.roleEdit;
     if (!input || !String(input.roleName || '').trim()) return;
+    const currentRole = (this.state.adminPolicies || []).find(role => role.roleCode === roleCode);
+    const capabilities = roleCode
+      ? this.rolePolicyCapabilities(currentRole || roleCode)
+      : this.rolePolicyCapabilities(null);
+    if (!capabilities.canEditPolicy) return;
     const visibleSections = new Set(input.visibleSectionCodes);
     const visibleTypeCodes = input.visibleTypeCodes.filter(typeCode => {
       const type = this.state.adminTypes.find(item => item.code === typeCode);
@@ -1248,7 +1289,8 @@ class Component extends DCLogic {
   async deleteRolePolicy() {
     const roleCode = this.state.editingRoleCode;
     const input = this.state.roleEdit;
-    if (!roleCode || roleCode === 'admin' || !input) return;
+    const currentRole = (this.state.adminPolicies || []).find(role => role.roleCode === roleCode);
+    if (!roleCode || !input || !this.rolePolicyCapabilities(currentRole || roleCode).canDelete) return;
     const confirmed = await this.requestConfirmation({
       title: 'Удалить роль?',
       message: `Роль «${input.roleName}» будет удалена. Удаление возможно только если она не назначена и не используется в переходах статусов.`,
@@ -5685,17 +5727,32 @@ class Component extends DCLogic {
     const moneyTag = (hide) => hide ? { moneyLabel: 'суммы скрыты', moneyC: '#dc2626', moneyBg: '#fdeaea' } : { moneyLabel: 'суммы видны', moneyC: '#15803d', moneyBg: '#e7f5ec' };
     const adminRoleRows = (S.adminPolicies || []).map(policy => {
       const fallback = this.ROLES[policy.roleCode] || {};
+      const capabilities = this.rolePolicyCapabilities(policy);
       const scopeLabel = (policy.visibleSectionCodes || []).length === adminSectionRows.filter(section => section.activeLabel === 'Да').length
         ? 'все разделы'
         : `${(policy.visibleSectionCodes || []).length} раздела(ов)`;
       return {
         code: policy.roleCode,
-        label: policy.roleName,
+        label: capabilities.fixedName || policy.roleName,
         isActive: policy.isActive !== false,
-        summary: fallback.hint || 'Настраиваемая политика доступа.',
+        summary: policy.roleCode === 'admin'
+          ? 'Полный доступ ко всем разделам, типам, полям и настройкам реестра.'
+          : (fallback.hint || 'Настраиваемая политика доступа.'),
         scopeLabel,
+        system: capabilities.isSystem,
+        systemNote: capabilities.systemNote || '',
+        systemNoteVisible: !!capabilities.systemNote,
+        systemNoteStyle: policy.roleCode === 'sales'
+          ? 'margin-top:9px;padding:7px 9px;border:1px solid #fde68a;border-radius:7px;background:#fffbeb;color:#92400e;font-size:10px;line-height:1.45;'
+          : 'margin-top:9px;padding:7px 9px;border:1px solid #c7d2fe;border-radius:7px;background:#f7f7ff;color:#4338ca;font-size:10px;line-height:1.45;',
+        editable: capabilities.canEditPolicy,
+        editMarkVisible: capabilities.canEditPolicy,
+        cursor: capabilities.canEditPolicy ? 'pointer' : 'default',
+        cardTitle: capabilities.canEditPolicy
+          ? 'Редактировать политику роли'
+          : 'Системная роль с фиксированным полным доступом',
         ...moneyTag(policy.hideMoney),
-        onEdit: () => this.openRoleEditor(policy),
+        onEdit: capabilities.canEditPolicy ? () => this.openRoleEditor(policy) : () => {},
       };
     });
     const adminRoleOptions = [
@@ -5796,6 +5853,10 @@ class Component extends DCLogic {
       };
     });
     const roleEdit = S.roleEdit || { roleName: '', visibleSectionCodes: [], allTypes: true, visibleTypeCodes: [], hiddenFields: [], permissions: {}, hideMoney: false, isActive: true };
+    const editingRolePolicy = (S.adminPolicies || []).find(policy => policy.roleCode === S.editingRoleCode);
+    const editingRoleCapabilities = S.editingRoleCode
+      ? this.rolePolicyCapabilities(editingRolePolicy || S.editingRoleCode)
+      : this.rolePolicyCapabilities(null);
     const toggleInList = (items, value) => items.includes(value) ? items.filter(item => item !== value) : [...items, value];
     const roleSectionOptions = adminSectionSource.filter(section => section.isActive !== false).map(section => ({
       code: section.code, label: section.name, checked: roleEdit.visibleSectionCodes.includes(section.code), mark: roleEdit.visibleSectionCodes.includes(section.code) ? '✓' : '',
@@ -6051,6 +6112,10 @@ class Component extends DCLogic {
       openRoleModal: () => this.openRoleEditor(),
       closeRoleModal: () => this.setState({ roleModalOpen: false, adminEditError: '' }),
       roleName: roleEdit.roleName,
+      roleNameLocked: !editingRoleCapabilities.canEditName,
+      roleSystem: editingRoleCapabilities.isSystem,
+      roleSystemNote: editingRoleCapabilities.systemNote || '',
+      roleSystemNoteVisible: !!editingRoleCapabilities.systemNote,
       roleActive: roleEdit.isActive,
       roleActiveLabel: roleEdit.isActive ? 'Да' : 'Нет',
       roleHideMoney: roleEdit.hideMoney,
@@ -6058,14 +6123,19 @@ class Component extends DCLogic {
       roleAllTypes: roleEdit.allTypes,
       roleCustomTypes: !roleEdit.allTypes,
       roleAllTypesLabel: roleEdit.allTypes ? 'Да' : 'Нет',
-      roleCanDelete: !!S.editingRoleCode && S.editingRoleCode !== 'admin',
+      roleCanDelete: !!S.editingRoleCode && editingRoleCapabilities.canDelete,
+      roleCanSave: editingRoleCapabilities.canEditPolicy,
       roleSectionOptions,
       roleTypeOptions,
       roleFieldOptions,
       rolePermissionOptions,
       roleTypePolicyRows,
       roleTypeMatrixVisible: roleTypePolicyRows.length > 0,
-      setRoleName: event => this.setState({ roleEdit: { ...roleEdit, roleName: event.target.value } }),
+      setRoleName: event => {
+        if (editingRoleCapabilities.canEditName) {
+          this.setState({ roleEdit: { ...roleEdit, roleName: event.target.value } });
+        }
+      },
       toggleRoleActive: () => this.setState({ roleEdit: { ...roleEdit, isActive: !roleEdit.isActive } }),
       toggleRoleHideMoney: () => this.setState({ roleEdit: { ...roleEdit, hideMoney: !roleEdit.hideMoney } }),
       toggleRoleAllTypes: () => {

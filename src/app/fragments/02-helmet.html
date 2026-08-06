@@ -375,6 +375,21 @@
     text-overflow: ellipsis;
     padding: 7px 12px;
   }
+  .dc-select-button {
+    padding-right: 7px !important;
+  }
+  .dc-select-chevron {
+    display: block;
+    flex: none;
+    width: 9px;
+    height: 6px;
+    margin-left: 2px;
+    margin-right: 1px;
+    background: center / 9px 6px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 6'%3E%3Cpath d='M1 1.25 4.5 4.75 8 1.25' fill='none' stroke='%2318181b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+  .dc-select-chevron--up {
+    transform: rotate(180deg);
+  }
   @keyframes dcSlideIn { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
   @keyframes dcFade { from { opacity: 0; } to { opacity: 1; } }
 </style>

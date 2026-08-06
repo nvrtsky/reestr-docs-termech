@@ -1,7 +1,6 @@
 import type { ApiError } from './api-error.js';
 
 const messages: Record<string, string> = {
-  administrator_policy_must_be_full: 'Политика администратора должна сохранять полный доступ к реестру.',
   attachment_disk_file_missing: 'Для вложения не указан файл на Диске Bitrix24.',
   attachment_field_mismatch: 'Новая версия файла должна оставаться в том же поле документа.',
   attachment_name_invalid: 'Некорректное название вложения.',
@@ -46,8 +45,6 @@ const messages: Record<string, string> = {
   cbr_rates_incomplete: 'Не удалось получить все курсы для расчёта итога.',
   cbr_rates_unavailable: 'Курсы Банка России временно недоступны. Повторите попытку позже.',
   cbr_response_invalid: 'Банк России вернул некорректные данные курсов.',
-  cannot_delete_administrator_policy: 'Роль администратора удалить нельзя.',
-  cannot_disable_administrator_policy: 'Роль администратора нельзя отключить.',
   create_access_denied: 'У вашей роли нет права создавать документы.',
   crm_access_unavailable: 'Не удалось проверить права Bitrix24 на связанные компании и сделки. Доступ временно закрыт.',
   counterparty_company_selection_required: 'Выберите компанию-контрагента из списка компаний Bitrix24.',
@@ -117,6 +114,9 @@ const messages: Record<string, string> = {
   section_not_found: 'Раздел не найден.',
   shared_saved_view_access_denied: 'Только администратор может управлять общими представлениями.',
   status_unchanged: 'Документ уже находится в выбранном статусе.',
+  system_role_delete_denied: 'Системную роль удалить нельзя.',
+  system_role_name_fixed: 'Название системной роли изменить нельзя.',
+  system_role_policy_read_only: 'Права системной роли администратора фиксированы и недоступны для редактирования.',
   task_link_not_found: 'Связь с задачей не найдена.',
   superseded_document_archive_unavailable: 'В жизненном цикле исходного документа отсутствует статус архива.',
   superseded_document_type_mismatch: 'Новая редакция должна иметь тот же раздел и тип документа.',

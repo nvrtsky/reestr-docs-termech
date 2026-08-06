@@ -29,6 +29,7 @@ import {
   type UpdateRolePolicyInput,
 } from './administration.schemas.js';
 import { BitrixIntegrationsService } from './bitrix-integrations.service.js';
+import { rolePolicyCapabilities } from './system-roles.js';
 
 interface AdministrationRouterDependencies {
   database: Database;
@@ -143,7 +144,6 @@ async function assertRolePolicyReferences(
     }
   }
 
-  return { knownSections };
 }
 
 export function createAdministrationRouter({
@@ -210,7 +210,12 @@ export function createAdministrationRouter({
         .from(registryRolePolicies)
         .where(eq(registryRolePolicies.portalUrl, context.portalUrl))
         .orderBy(asc(registryRolePolicies.roleName));
-      response.json({ items });
+      response.json({
+        items: items.map((item) => ({
+          ...item,
+          capabilities: rolePolicyCapabilities(item.roleCode),
+        })),
+      });
     } catch (error) {
       next(error);
     }
@@ -264,12 +269,16 @@ export function createAdministrationRouter({
       const roleCode = request.params.roleCode?.trim();
       if (!roleCode) throw new ApiError(400, 'role_code_required', 'Role code is required.');
       const input = updateRolePolicySchema.parse(request.body);
-      if (roleCode === 'admin' && (!input.isActive || !input.permissions.administer)) {
+      const capabilities = rolePolicyCapabilities(roleCode);
+      if (!capabilities.canEditPolicy) {
         throw new ApiError(
           409,
-          'cannot_disable_administrator_policy',
-          'The Bitrix24 administrator policy must remain active with administration access.',
+          'system_role_policy_read_only',
+          'The system role policy is read-only.',
         );
+      }
+      if (!capabilities.canEditName && input.roleName !== capabilities.fixedName) {
+        throw new ApiError(409, 'system_role_name_fixed', 'The system role name cannot be changed.');
       }
       if (roleCode !== 'admin' && input.permissions.administer) {
         throw new ApiError(
@@ -278,29 +287,7 @@ export function createAdministrationRouter({
           'Administration access is reserved for Bitrix24 administrators.',
         );
       }
-      const references = await assertRolePolicyReferences(database, context.portalUrl, input);
-      if (roleCode === 'admin') {
-        const visibleSections = new Set(input.visibleSectionCodes);
-        const hasAllSections = visibleSections.size === references.knownSections.size
-          && [...references.knownSections].every((code) => visibleSections.has(code));
-        const { byType, ...basePermissions } = input.permissions;
-        const hasAllPermissions = Object.values(basePermissions).every(Boolean)
-          && Object.keys(byType).length === 0;
-        if (
-          input.roleName !== 'Администратор'
-          || !hasAllSections
-          || input.visibleTypeCodes !== null
-          || input.hiddenFields.length > 0
-          || input.hideMoney
-          || !hasAllPermissions
-        ) {
-          throw new ApiError(
-            409,
-            'administrator_policy_must_be_full',
-            'The Bitrix24 administrator policy must keep full registry access.',
-          );
-        }
-      }
+      await assertRolePolicyReferences(database, context.portalUrl, input);
 
       const targetPolicy = await database
         .select({ id: registryRolePolicies.id })
@@ -349,11 +336,11 @@ export function createAdministrationRouter({
       const { context } = await requireAdministrator(database, request);
       const roleCode = request.params.roleCode?.trim();
       if (!roleCode) throw new ApiError(400, 'role_code_required', 'Role code is required.');
-      if (roleCode === 'admin') {
+      if (!rolePolicyCapabilities(roleCode).canDelete) {
         throw new ApiError(
           409,
-          'cannot_delete_administrator_policy',
-          'Роль администратора Bitrix24 удалить нельзя.',
+          'system_role_delete_denied',
+          'Системную роль удалить нельзя.',
         );
       }
       const policy = await database
