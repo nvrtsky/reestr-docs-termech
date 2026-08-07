@@ -7,6 +7,7 @@ import { ApiError } from './api-error.js';
 export interface RegistryContext {
   portalUrl: string;
   userId: number;
+  userName?: string;
   roleCode: string;
   roleSource: 'development' | 'bitrix_admin' | 'user' | 'department';
   roleDepartmentId?: number;

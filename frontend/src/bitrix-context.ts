@@ -6,6 +6,10 @@ export interface RegistryBitrixContext {
     domain: string;
     memberId: string;
   } | null;
+  application: {
+    id: string;
+    code: string;
+  } | null;
   placement: {
     code: string;
     title: string;
@@ -17,17 +21,25 @@ export interface RegistryBitrixContext {
 
 let framePromise: Promise<B24Frame | null> | null = null;
 let validationPromise: Promise<void> | null = null;
+let appInfoPromise: Promise<BitrixAppInfo> | null = null;
 
 const REQUIRED_SCOPES = ['crm', 'placement', 'user', 'department', 'disk', 'im', 'task'];
+const SCOPE_ALIASES: Record<string, string[]> = {
+  task: ['tasks'],
+};
 
 interface BitrixAppInfo {
+  ID?: string | number;
   CODE?: string;
 }
 
 async function getFrame() {
   if (window.self === window.top) return null;
   if (!framePromise) {
-    framePromise = initializeB24Frame().catch(() => null);
+    framePromise = initializeB24Frame().catch((error) => {
+      framePromise = null;
+      throw error;
+    });
   }
   return framePromise;
 }
@@ -49,7 +61,7 @@ async function validateBitrixApplication() {
   const auth = frame.auth.getAuthData();
   if (!auth) throw new Error('Bitrix24 не передал авторизацию приложения.');
 
-  const appInfo = await callFrame<BitrixAppInfo>(frame, 'app.info');
+  const appInfo = await getApplicationInfo(frame);
   const expectedAppCode = import.meta.env.VITE_BITRIX_APP_CODE?.trim();
   const actualAppCode = String(appInfo?.CODE || '').trim();
   if (expectedAppCode && actualAppCode !== expectedAppCode) {
@@ -64,7 +76,8 @@ async function validateBitrixApplication() {
     ? scopes.map((scope) => String(scope).toLowerCase())
     : [];
   const missingScopes = REQUIRED_SCOPES.filter(
-    (scope) => !normalizedScopes.includes(scope),
+    (scope) => ![scope, ...(SCOPE_ALIASES[scope] || [])]
+      .some((candidate) => normalizedScopes.includes(candidate)),
   );
   if (missingScopes.length) {
     throw new Error(
@@ -85,15 +98,23 @@ async function callFrame<T>(frame: B24Frame, method: string, params: object = {}
 
 export async function getRegistryBitrixContext(refresh = false): Promise<RegistryBitrixContext> {
   const frame = await getFrame();
-  if (!frame) return { auth: null, placement: null };
+  if (!frame) return { auth: null, application: null, placement: null };
   if (refresh) await frame.auth.refreshAuth();
   const auth = frame.auth.getAuthData();
+  const appInfo = await getApplicationInfo(frame);
+  const appId = positiveEntityId(appInfo.ID);
   return {
     auth: auth
       ? {
           accessToken: auth.access_token,
-          domain: auth.domain,
+          domain: normalizeBitrixDomain(auth.domain),
           memberId: auth.member_id,
+        }
+      : null,
+    application: appId
+      ? {
+          id: appId,
+          code: String(appInfo.CODE || '').trim(),
         }
       : null,
     placement: {
@@ -104,6 +125,16 @@ export async function getRegistryBitrixContext(refresh = false): Promise<Registr
       isSliderMode: frame.placement.isSliderMode,
     },
   };
+}
+
+function getApplicationInfo(frame: B24Frame) {
+  if (!appInfoPromise) {
+    appInfoPromise = callFrame<BitrixAppInfo>(frame, 'app.info').catch((error) => {
+      appInfoPromise = null;
+      throw error;
+    });
+  }
+  return appInfoPromise;
 }
 
 function extractPlacementEntityId(value: unknown): string | null {
@@ -149,4 +180,15 @@ function parseJsonValue(value: unknown): unknown {
 function positiveEntityId(value: unknown): string | null {
   const id = Number(value);
   return Number.isSafeInteger(id) && id > 0 ? String(id) : null;
+}
+
+function normalizeBitrixDomain(value: unknown) {
+  const raw = String(value || '').trim();
+  if (!raw) return raw;
+  try {
+    const url = new URL(raw.includes('://') ? raw : `https://${raw}`);
+    return url.hostname.toLowerCase();
+  } catch {
+    return raw.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase();
+  }
 }

@@ -1,0 +1,11 @@
+[Unit]
+Description=Back up the Termech document registry PostgreSQL database
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/var/www/termech-doc-registry
+ExecStart=/var/www/termech-doc-registry/deploy/production/scripts/backup-registry.sh
+UMask=0077

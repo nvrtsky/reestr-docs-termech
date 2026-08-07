@@ -13,6 +13,7 @@
     "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
     "test": "npm run test -w backend",
     "verify:visual": "node scripts/verify-baseline.mjs",
+    "verify:crm-selector": "node --import tsx scripts/verify-bitrix-crm-selector.mts",
     "verify:stage1-api": "node --import tsx scripts/verify-stage1-api.mts",
     "verify:stage2-api": "node --import tsx scripts/verify-stage2-api.mts",
     "verify:stage3-api": "node --import tsx scripts/verify-stage3-api.mts",

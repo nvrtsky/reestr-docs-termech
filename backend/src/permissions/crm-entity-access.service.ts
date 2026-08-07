@@ -18,7 +18,9 @@ interface AccessDecision {
   expiresAt: number;
 }
 
-const ACCESS_TTL_MS = 60_000;
+// CRM permissions are security data, so a cached allow decision must not
+// survive into a later request after Bitrix24 access has been revoked.
+const ACCESS_TTL_MS = 0;
 const BATCH_SIZE = 50;
 const decisionCache = new Map<string, Map<number, AccessDecision>>();
 

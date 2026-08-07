@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import type { Database } from '../db/database.js';
 import { registryExchangeRates } from '../db/schema/index.js';
@@ -27,6 +27,8 @@ interface ParsedCbrResponse {
 
 const CBR_XML_ENDPOINT = 'https://www.cbr.ru/scripts/XML_daily.asp';
 const MAX_RESPONSE_SIZE = 2_000_000;
+const CURRENT_DAY_CACHE_TTL_MS = 30 * 60 * 1000;
+const DEFAULT_PORTAL_TIME_ZONE = 'Europe/Minsk';
 
 export class CbrRatesService implements ExchangeRateProvider {
   constructor(
@@ -40,7 +42,11 @@ export class CbrRatesService implements ExchangeRateProvider {
     if (requestedCurrencies.some((currency) => !/^[A-Z]{3}$/.test(currency))) {
       throw new ApiError(400, 'currency_invalid', 'Currency code is invalid.');
     }
-    if (requestedDate > new Date().toISOString().slice(0, 10)) {
+    const portalToday = localIsoDate(
+      new Date(),
+      process.env.PORTAL_TIME_ZONE || DEFAULT_PORTAL_TIME_ZONE,
+    );
+    if (requestedDate > portalToday) {
       throw new ApiError(
         422,
         'cbr_rate_future_date',
@@ -57,7 +63,13 @@ export class CbrRatesService implements ExchangeRateProvider {
         eq(registryExchangeRates.requestedDate, requestedDate),
         inArray(registryExchangeRates.currency, requestedCurrencies),
       ));
-    const quotes = new Map(cached.map((row) => [row.currency, this.toQuote(row)]));
+    const freshThreshold = Date.now() - CURRENT_DAY_CACHE_TTL_MS;
+    const usableCached = cached.filter((row) =>
+      requestedDate !== portalToday
+      || row.rateDate === requestedDate
+      || row.fetchedAt.getTime() >= freshThreshold,
+    );
+    const quotes = new Map(usableCached.map((row) => [row.currency, this.toQuote(row)]));
     const missing = requestedCurrencies.filter((currency) => !quotes.has(currency));
     if (!missing.length) return quotes;
 
@@ -95,7 +107,19 @@ export class CbrRatesService implements ExchangeRateProvider {
         nominal: quote.nominal,
         rubValue: quote.rubValue.toFixed(8),
       })))
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: [
+          registryExchangeRates.portalUrl,
+          registryExchangeRates.requestedDate,
+          registryExchangeRates.currency,
+        ],
+        set: {
+          rateDate: parsed.rateDate,
+          nominal: sql`excluded.nominal`,
+          rubValue: sql`excluded.rub_value`,
+          fetchedAt: new Date(),
+        },
+      });
     for (const quote of fetched) quotes.set(quote.currency, quote);
     return quotes;
   }
@@ -137,6 +161,17 @@ export class CbrRatesService implements ExchangeRateProvider {
       rateDate: row.rateDate,
     };
   }
+}
+
+export function localIsoDate(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
 }
 
 export function parseCbrDailyXml(xml: string): ParsedCbrResponse {

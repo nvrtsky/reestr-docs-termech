@@ -110,6 +110,23 @@ export const addDocumentLinkSchema = z.object({
 
 export type AddDocumentLinkInput = z.infer<typeof addDocumentLinkSchema>;
 
+export const replaceDocumentLinksSchema = z.object({
+  items: z.array(addDocumentLinkSchema).max(50),
+}).superRefine(({ items }, context) => {
+  const keys = new Set<string>();
+  for (const [index, item] of items.entries()) {
+    const key = `${item.entityType}:${item.entityId}`;
+    if (keys.has(key)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['items', index, 'entityId'],
+        message: `CRM entity ${key} is selected more than once.`,
+      });
+    }
+    keys.add(key);
+  }
+});
+
 export const taskSearchQuerySchema = z.object({
   search: z.string().trim().max(200).default(''),
   limit: z.coerce.number().int().min(1).max(50).default(20),

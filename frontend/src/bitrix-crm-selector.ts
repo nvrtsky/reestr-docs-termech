@@ -1,4 +1,4 @@
-interface SelectedCrmEntity {
+export interface SelectedCrmEntity {
   entityType: 'deal' | 'company';
   entityId: number;
   entityTitle: string;
@@ -6,12 +6,18 @@ interface SelectedCrmEntity {
 
 interface SelectCrmItem {
   id?: string | number;
+  ID?: string | number;
+  entityId?: string | number;
+  entity_id?: string | number;
   title?: string;
+  TITLE?: string;
+  entityTitle?: string;
+  name?: string;
 }
 
 interface SelectCrmResult {
-  deal?: SelectCrmItem[];
-  company?: SelectCrmItem[];
+  deal?: unknown;
+  company?: unknown;
 }
 
 interface ClassicBx24 {
@@ -47,7 +53,9 @@ export async function selectCrmEntities(value: {
       (selection) => resolve(selection || {}),
     );
   });
-  return normalizeSelection(result).filter((item) => entityTypes.includes(item.entityType));
+  const selected = normalizeSelection(result)
+    .filter((item) => entityTypes.includes(item.entityType));
+  return constrainCrmSelection(selected, value, multiple);
 }
 
 export async function openBitrixPath(path: string) {
@@ -89,12 +97,13 @@ function initializeClassicSdk(bx24: ClassicBx24) {
   });
 }
 
-function normalizeSelection(result: SelectCrmResult) {
+export function normalizeSelection(result: SelectCrmResult) {
   const items: SelectedCrmEntity[] = [];
   for (const entityType of ['deal', 'company'] as const) {
-    for (const item of result[entityType] || []) {
-      const entityId = positiveId(item.id);
-      const entityTitle = typeof item.title === 'string' ? item.title.trim().slice(0, 500) : '';
+    for (const item of selectionItems(result[entityType])) {
+      const entityId = positiveId(item.id ?? item.ID ?? item.entityId ?? item.entity_id);
+      const rawTitle = item.title ?? item.TITLE ?? item.entityTitle ?? item.name;
+      const entityTitle = typeof rawTitle === 'string' ? rawTitle.trim().slice(0, 500) : '';
       if (!entityId || !entityTitle) continue;
       items.push({ entityType, entityId, entityTitle });
     }
@@ -102,6 +111,47 @@ function normalizeSelection(result: SelectCrmResult) {
   return [...new Map(
     items.map((item) => [`${item.entityType}:${item.entityId}`, item]),
   ).values()];
+}
+
+export function constrainCrmSelection(
+  items: SelectedCrmEntity[],
+  currentValue: { deal: number[]; company: number[] },
+  multiple: boolean,
+) {
+  if (multiple || items.length <= 1) return items;
+
+  const currentKeys = new Set<string>();
+  for (const entityType of ['deal', 'company'] as const) {
+    for (const rawId of currentValue[entityType] || []) {
+      const entityId = positiveId(rawId);
+      if (entityId) currentKeys.add(`${entityType}:${entityId}`);
+    }
+  }
+  const replacements = items.filter(
+    (item) => !currentKeys.has(`${item.entityType}:${item.entityId}`),
+  );
+  const selected = replacements[replacements.length - 1] || items[items.length - 1];
+  return selected ? [selected] : [];
+}
+
+function selectionItems(value: unknown, visited = new Set<object>()): SelectCrmItem[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => selectionItems(item, visited));
+  }
+  if (!value || typeof value !== 'object') return [];
+  if (visited.has(value)) return [];
+  visited.add(value);
+
+  const item = value as SelectCrmItem & Record<string, unknown>;
+  if (
+    item.id !== undefined
+    || item.ID !== undefined
+    || item.entityId !== undefined
+    || item.entity_id !== undefined
+  ) {
+    return [item];
+  }
+  return Object.values(item).flatMap((entry) => selectionItems(entry, visited));
 }
 
 function positiveId(value: unknown) {

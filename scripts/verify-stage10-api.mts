@@ -61,6 +61,7 @@ class FakeSessions implements BitrixSessionResolver {
     return {
       portalUrl: `https://${normalized}`,
       userId,
+      userName: accessToken.startsWith('actor') ? 'Иван Петров' : `Пользователь #${userId}`,
       roleCode: sales ? 'sales' : 'admin',
       roleSource: sales ? 'user' : 'bitrix_admin',
       departmentIds: [],
@@ -133,6 +134,7 @@ try {
   const archiveCalls = bitrix.notificationCalls.slice();
   assert.deepEqual(archiveCalls.map((call) => call.userId).sort(), [610, 620]);
   assert.equal(archiveCalls.every((call) => call.message.includes('архивирован')), true);
+  assert.equal(archiveCalls.every((call) => call.message.includes('Действие выполнил Иван Петров.')), true);
   const [stillStored] = await database.db.select({ id: registryDocuments.id, deletedAt: registryDocuments.deletedAt })
     .from(registryDocuments).where(eq(registryDocuments.id, document.id)).limit(1);
   assert.ok(stillStored?.deletedAt);
@@ -165,6 +167,51 @@ try {
   checks.push('restore_notifies_both_participants_and_audits_delivery_failure_without_rollback');
 
   bitrix.failUserId = null;
+  await api(`/documents/${document.id}/transition`, 'actor-access-token', {
+    method: 'POST',
+    body: { status: 'on_review' },
+  });
+  await api(`/documents/${document.id}/transition`, 'actor-access-token', {
+    method: 'POST',
+    body: { status: 'signed' },
+  });
+  const lifecycleArchived = await api(`/documents/${document.id}/transition`, 'actor-access-token', {
+    method: 'POST',
+    body: { status: 'archived' },
+  });
+  assert.equal(lifecycleArchived.status, 'signed');
+  assert.ok(lifecycleArchived.deletedAt);
+  const [unifiedArchiveRow] = await database.db.select({
+    status: registryDocuments.status,
+    deletedAt: registryDocuments.deletedAt,
+  }).from(registryDocuments).where(eq(registryDocuments.id, document.id)).limit(1);
+  assert.equal(unifiedArchiveRow.status, 'signed');
+  assert.ok(unifiedArchiveRow.deletedAt);
+  await api(`/documents/${document.id}/restore`, 'actor-access-token', { method: 'POST' });
+  checks.push('lifecycle_archive_uses_the_same_recoverable_soft_archive_model');
+
+  await database.db.update(registryDocuments).set({
+    status: 'archived',
+    deletedAt: null,
+    deletedBy: null,
+  }).where(eq(registryDocuments.id, document.id));
+  await database.db.insert(registryAuditLog).values({
+    portalUrl,
+    documentId: document.id,
+    event: 'status_changed',
+    actorId: 699,
+    before: { status: 'signed' },
+    after: { status: 'archived' },
+  });
+  const legacyRestored = await api(
+    `/documents/${document.id}/restore`,
+    'actor-access-token',
+    { method: 'POST' },
+  );
+  assert.equal(legacyRestored.status, 'signed');
+  assert.equal(legacyRestored.deletedAt, null);
+  checks.push('legacy_archived_status_restores_to_the_previous_lifecycle_state');
+
   const financial = await api('/documents', 'creator-access-token', {
     method: 'POST',
     body: {

@@ -495,7 +495,13 @@ export function createCatalogsRouter({ database }: CatalogsRouterDependencies) {
           })),
         );
 
-        const attachedFields: Array<{ key: string; name: string; dataType: string; isRequired: boolean }> = [];
+        const attachedFields: Array<{
+          key: string;
+          name: string;
+          dataType: string;
+          isRequired: boolean;
+          options?: string[];
+        }> = [];
         for (const [index, field] of input.fields.entries()) {
           let definition = definitionByLabel.get(field.name.toLocaleLowerCase('ru'));
           if (!definition) {
@@ -506,7 +512,7 @@ export function createCatalogsRouter({ database }: CatalogsRouterDependencies) {
                 key: `custom_${randomUUID().replaceAll('-', '')}`,
                 label: field.name,
                 dataType: field.dataType,
-                options: field.dataType === 'select' ? [] : null,
+                options: field.dataType === 'select' ? field.options : null,
               })
               .returning({
                 id: registryFieldDefinitions.id,
@@ -523,12 +529,14 @@ export function createCatalogsRouter({ database }: CatalogsRouterDependencies) {
             fieldDefinitionId: definition.id,
             sortOrder: (index + 1) * 100,
             isRequired: field.isRequired,
+            optionsOverride: field.dataType === 'select' ? field.options : null,
           });
           attachedFields.push({
             key: definition.key,
             name: definition.label,
             dataType: definition.dataType,
             isRequired: field.isRequired,
+            ...(field.dataType === 'select' ? { options: field.options } : {}),
           });
         }
         return {
@@ -820,6 +828,7 @@ export function createCatalogsRouter({ database }: CatalogsRouterDependencies) {
           name: string;
           dataType: string;
           isRequired: boolean;
+          options?: string[];
         }> = [];
         for (const [index, field] of input.fields.entries()) {
           let definition = field.key
@@ -833,7 +842,7 @@ export function createCatalogsRouter({ database }: CatalogsRouterDependencies) {
                 key: `custom_${randomUUID().replaceAll('-', '')}`,
                 label: field.name,
                 dataType: field.dataType,
-                options: field.dataType === 'select' ? [] : null,
+                options: field.dataType === 'select' ? field.options : null,
               })
               .returning({
                 id: registryFieldDefinitions.id,
@@ -852,12 +861,14 @@ export function createCatalogsRouter({ database }: CatalogsRouterDependencies) {
             labelOverride: field.name === definition.label ? null : field.name,
             sortOrder: (index + 1) * 100,
             isRequired: field.isRequired,
+            optionsOverride: field.dataType === 'select' ? field.options : null,
           });
           attachedFields.push({
             key: definition.key,
             name: field.name,
             dataType: definition.dataType,
             isRequired: field.isRequired,
+            ...(field.dataType === 'select' ? { options: field.options } : {}),
           });
         }
         return {

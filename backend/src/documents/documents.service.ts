@@ -21,6 +21,7 @@ import {
 
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
 import { AttachmentsService } from '../attachments/attachments.service.js';
+import { CrmContextService } from '../crm-context/crm-context.service.js';
 import type { Database } from '../db/database.js';
 import {
   registryAttachments,
@@ -51,6 +52,7 @@ import {
   assertTypeVisible,
   isDocumentFieldHidden,
   isMoneyHidden,
+  isTypePermissionAllowed,
   isTypePermissionGranted,
   loadRegistryPolicy,
   type RegistryPolicy,
@@ -99,9 +101,39 @@ interface ArchiveNotificationDocument {
   responsibleId: number;
 }
 
+export function resolveLegacyArchiveRestoreStatus(
+  events: Array<{ before: unknown; after: unknown }>,
+  lifecycleConfig: {
+    initialStatus: string;
+    states: Array<{ code: string; terminal?: boolean }>;
+  },
+) {
+  for (const event of events) {
+    const before = event.before as { status?: unknown } | null;
+    const after = event.after as { status?: unknown } | null;
+    if (
+      after?.status === 'archived'
+      && typeof before?.status === 'string'
+      && before.status !== 'archived'
+      && lifecycleConfig.states.some((state) => state.code === before.status)
+    ) {
+      return before.status;
+    }
+  }
+  if (
+    lifecycleConfig.initialStatus
+    && lifecycleConfig.initialStatus !== 'archived'
+    && lifecycleConfig.states.some((state) => state.code === lifecycleConfig.initialStatus)
+  ) {
+    return lifecycleConfig.initialStatus;
+  }
+  return lifecycleConfig.states.find((state) => state.code !== 'archived')?.code || 'draft';
+}
+
 export class DocumentsService {
   private readonly numbering = new DocumentNumberingService();
   private readonly attachments: AttachmentsService;
+  private readonly crmContext: CrmContextService;
 
   constructor(
     private readonly database: Database,
@@ -111,6 +143,7 @@ export class DocumentsService {
     private readonly salesDealAccess: SalesDealAccessService,
   ) {
     this.attachments = new AttachmentsService(database, bitrix);
+    this.crmContext = new CrmContextService(bitrix);
   }
 
   async list(
@@ -130,6 +163,7 @@ export class DocumentsService {
 
     const conditions: SQL[] = [
       eq(registryDocuments.portalUrl, context.portalUrl),
+      eq(registryDocuments.isFinalized, true),
       query.deleted === 'only'
         ? or(
             isNotNull(registryDocuments.deletedAt),
@@ -147,14 +181,26 @@ export class DocumentsService {
     }
 
     if (query.statuses.length) {
-      conditions.push(inArray(registryDocuments.status, query.statuses));
+      const statusConditions = query.statuses.map((token) => {
+        const separator = token.indexOf(':');
+        if (separator <= 0 || separator === token.length - 1) {
+          // Backward compatibility for saved views created before lifecycle-
+          // qualified status filters were introduced.
+          return eq(registryDocuments.status, token);
+        }
+        return and(
+          eq(registryLifecycles.code, token.slice(0, separator)),
+          eq(registryDocuments.status, token.slice(separator + 1)),
+        )!;
+      });
+      conditions.push(or(...statusConditions)!);
     }
     if (query.view === 'mine') {
       conditions.push(eq(registryDocuments.responsibleId, context.userId));
     } else if (query.view === 'work') {
-      conditions.push(inArray(registryDocuments.status, ['awaiting', 'on_review']));
+      conditions.push(this.lifecycleWorkStatusCondition());
     } else if (query.view === 'draft') {
-      conditions.push(eq(registryDocuments.status, 'draft'));
+      conditions.push(this.lifecycleInitialStatusCondition());
     }
     if (query.type) {
       conditions.push(eq(registryDocumentTypes.code, query.type));
@@ -216,6 +262,10 @@ export class DocumentsService {
           from registry_document_field_values as dynamic_value
           inner join registry_field_definitions as dynamic_field
             on dynamic_field.id = dynamic_value.field_definition_id
+          inner join registry_type_fields as dynamic_type_field
+            on dynamic_type_field.portal_url = dynamic_value.portal_url
+            and dynamic_type_field.type_id = ${registryDocuments.typeId}
+            and dynamic_type_field.field_definition_id = dynamic_value.field_definition_id
           where dynamic_value.portal_url = ${context.portalUrl}
             and dynamic_value.document_id = ${registryDocuments.id}
             and dynamic_field.portal_url = ${context.portalUrl}
@@ -271,6 +321,7 @@ export class DocumentsService {
       typeCode: registryDocumentTypes.code,
       typeName: registryDocumentTypes.name,
       isFinancial: registryDocumentTypes.isFinancial,
+      lifecycleCode: registryLifecycles.code,
     };
 
     const [rows, [totalRow]] = await Promise.all([
@@ -285,6 +336,7 @@ export class DocumentsService {
           registryDocumentTypes,
           eq(registryDocuments.typeId, registryDocumentTypes.id),
         )
+        .innerJoin(registryLifecycles, eq(registryDocumentTypes.lifecycleId, registryLifecycles.id))
         .where(where)
         .orderBy(desc(registryDocuments.documentDate), desc(registryDocuments.createdAt))
         .limit(query.limit)
@@ -300,6 +352,7 @@ export class DocumentsService {
           registryDocumentTypes,
           eq(registryDocuments.typeId, registryDocumentTypes.id),
         )
+        .innerJoin(registryLifecycles, eq(registryDocumentTypes.lifecycleId, registryLifecycles.id))
         .where(where),
     ]);
 
@@ -309,10 +362,29 @@ export class DocumentsService {
             documentId: registryDocumentFieldValues.documentId,
             key: registryFieldDefinitions.key,
             label: registryFieldDefinitions.label,
+            labelOverride: registryTypeFields.labelOverride,
             dataType: registryFieldDefinitions.dataType,
             value: registryDocumentFieldValues.value,
           })
           .from(registryDocumentFieldValues)
+          .innerJoin(
+            registryDocuments,
+            and(
+              eq(registryDocumentFieldValues.documentId, registryDocuments.id),
+              eq(registryDocumentFieldValues.portalUrl, registryDocuments.portalUrl),
+            ),
+          )
+          .innerJoin(
+            registryTypeFields,
+            and(
+              eq(registryTypeFields.portalUrl, registryDocuments.portalUrl),
+              eq(registryTypeFields.typeId, registryDocuments.typeId),
+              eq(
+                registryTypeFields.fieldDefinitionId,
+                registryDocumentFieldValues.fieldDefinitionId,
+              ),
+            ),
+          )
           .innerJoin(
             registryFieldDefinitions,
             eq(registryDocumentFieldValues.fieldDefinitionId, registryFieldDefinitions.id),
@@ -331,7 +403,10 @@ export class DocumentsService {
     for (const field of fieldRows) {
       if (isDocumentFieldHidden(policy, field, typeCodeByDocument.get(field.documentId))) continue;
       const current = fieldsByDocument.get(field.documentId) ?? [];
-      current.push(field);
+        current.push({
+          ...field,
+          label: field.labelOverride || field.label,
+        });
       fieldsByDocument.set(field.documentId, current);
     }
     const relationsByDocument = await this.loadRelationsForDocuments(
@@ -365,6 +440,7 @@ export class DocumentsService {
 
     const visibleConditions: SQL[] = [
       eq(registryDocuments.portalUrl, context.portalUrl),
+      eq(registryDocuments.isFinalized, true),
       inArray(registrySections.code, policy.visibleSectionCodes),
     ];
     visibleConditions.push(...accessScopes);
@@ -398,6 +474,7 @@ export class DocumentsService {
           registryDocumentTypes,
           eq(registryDocuments.typeId, registryDocumentTypes.id),
         )
+        .innerJoin(registryLifecycles, eq(registryDocumentTypes.lifecycleId, registryLifecycles.id))
         .where(extra ? and(scope, extra) : scope);
       return row?.value ?? 0;
     };
@@ -414,6 +491,7 @@ export class DocumentsService {
           registryDocumentTypes,
           eq(registryDocuments.typeId, registryDocumentTypes.id),
         )
+        .innerJoin(registryLifecycles, eq(registryDocumentTypes.lifecycleId, registryLifecycles.id))
         .where(activeScope)
         .groupBy(registrySections.code),
       this.database
@@ -433,8 +511,8 @@ export class DocumentsService {
         .orderBy(asc(registryDocuments.responsibleName), asc(registryDocuments.responsibleId)),
       countDocuments(activeScope),
       countDocuments(activeScope, eq(registryDocuments.responsibleId, context.userId)),
-      countDocuments(activeScope, inArray(registryDocuments.status, ['awaiting', 'on_review'])),
-      countDocuments(activeScope, eq(registryDocuments.status, 'draft')),
+      countDocuments(activeScope, this.lifecycleWorkStatusCondition()),
+      countDocuments(activeScope, this.lifecycleInitialStatusCondition()),
       countDocuments(archiveScope),
     ]);
 
@@ -508,13 +586,44 @@ export class DocumentsService {
   async addLink(
     context: RegistryContext,
     documentId: string,
-    input: AddDocumentLinkInput & { entityTitle: string },
+    input: AddDocumentLinkInput & {
+      entityTitle: string;
+      /** undefined is allowed only when no live Bitrix24 lookup was possible. */
+      dealCompanyId?: number | null;
+    },
   ) {
     const policy = await loadRegistryPolicy(this.database, context);
     const current = await this.loadDocumentForWrite(context, documentId);
     assertSectionVisible(policy, current.sectionCode);
     assertTypeVisible(policy, current.typeCode);
     this.assertCanEdit(policy, context, current);
+
+    if (
+      input.entityType === 'company'
+      && (!current.counterpartyId || input.entityId !== current.counterpartyId)
+    ) {
+      throw new ApiError(
+        409,
+        'counterparty_company_link_mismatch',
+        'The company link must match the document counterparty. Change the counterparty in document details.',
+      );
+    }
+    if (
+      input.entityType === 'deal'
+      && input.dealCompanyId !== undefined
+      && input.dealCompanyId !== current.counterpartyId
+    ) {
+      throw new ApiError(
+        409,
+        'crm_company_scope_mismatch',
+        'The selected deal must belong to the document counterparty company.',
+        {
+          dealId: input.entityId,
+          dealCompanyId: input.dealCompanyId,
+          counterpartyId: current.counterpartyId,
+        },
+      );
+    }
 
     let insertedLinkId: string | null = null;
     await this.database.transaction(async (transaction) => {
@@ -537,6 +646,7 @@ export class DocumentsService {
         documentId,
         event: 'link_added',
         actorId: context.userId,
+        actorName: context.userName ?? null,
         after: {
           linkId: inserted[0].id,
           entityType: input.entityType,
@@ -563,6 +673,7 @@ export class DocumentsService {
               documentId,
               event: 'link_add_rolled_back',
               actorId: context.userId,
+              actorName: context.userName ?? null,
               metadata: {
                 linkId: insertedLinkId,
                 entityType: input.entityType,
@@ -601,6 +712,13 @@ export class DocumentsService {
       .limit(1);
     if (!link) {
       throw new ApiError(404, 'document_link_not_found', 'Document link was not found.');
+    }
+    if (link.entityType === 'company') {
+      throw new ApiError(
+        409,
+        'counterparty_company_link_required',
+        'The counterparty company link is managed through document details and cannot be removed separately.',
+      );
     }
     const dealCopies = link.entityType === 'deal'
       ? await this.database
@@ -677,6 +795,7 @@ export class DocumentsService {
         documentId,
         event: 'link_removed',
         actorId: context.userId,
+        actorName: context.userName ?? null,
         before: removed,
         metadata: { physicalCopyCount: dealCopies.length },
       });
@@ -826,6 +945,7 @@ export class DocumentsService {
         documentId: childDocumentId,
         event: currentRelation ? 'relation_parent_changed' : 'relation_parent_added',
         actorId: context.userId,
+        actorName: context.userName ?? null,
         before: currentRelation ?? null,
         after: created,
       });
@@ -835,6 +955,7 @@ export class DocumentsService {
           documentId: currentRelation.parentDocumentId,
           event: 'relation_child_removed',
           actorId: context.userId,
+          actorName: context.userName ?? null,
           before: currentRelation,
         });
       }
@@ -843,6 +964,7 @@ export class DocumentsService {
         documentId: input.parentDocumentId,
         event: 'relation_child_added',
         actorId: context.userId,
+        actorName: context.userName ?? null,
         after: created,
       });
     });
@@ -899,6 +1021,7 @@ export class DocumentsService {
           documentId: childDocumentId,
           event: 'relation_parent_removed',
           actorId: context.userId,
+          actorName: context.userName ?? null,
           before: removed,
         },
         {
@@ -906,6 +1029,7 @@ export class DocumentsService {
           documentId: removed.parentDocumentId,
           event: 'relation_child_removed',
           actorId: context.userId,
+          actorName: context.userName ?? null,
           before: removed,
         },
       ]);
@@ -941,6 +1065,7 @@ export class DocumentsService {
         documentId,
         event: 'task_link_added',
         actorId: context.userId,
+        actorName: context.userName ?? null,
         after: {
           taskLinkId: inserted[0].id,
           taskId: input.taskId,
@@ -979,6 +1104,7 @@ export class DocumentsService {
         documentId,
         event: 'task_link_removed',
         actorId: context.userId,
+        actorName: context.userName ?? null,
         before: removed,
       });
     });
@@ -1018,6 +1144,7 @@ export class DocumentsService {
         deletedAt: registryDocuments.deletedAt,
         deletedBy: registryDocuments.deletedBy,
         supersedesId: registryDocuments.supersedesId,
+        isFinalized: registryDocuments.isFinalized,
         sectionCode: registrySections.code,
         sectionName: registrySections.name,
         sectionColor: registrySections.color,
@@ -1038,9 +1165,12 @@ export class DocumentsService {
           eq(registryDocuments.portalUrl, context.portalUrl),
           ...accessScopes,
           deletedOnly
-            ? or(
-                isNotNull(registryDocuments.deletedAt),
-                eq(registryDocuments.status, 'archived'),
+            ? and(
+                eq(registryDocuments.isFinalized, true),
+                or(
+                  isNotNull(registryDocuments.deletedAt),
+                  eq(registryDocuments.status, 'archived'),
+                )!,
               )!
             : and(
                 isNull(registryDocuments.deletedAt),
@@ -1053,8 +1183,12 @@ export class DocumentsService {
     if (!row) {
       throw new ApiError(404, 'document_not_found', 'Document was not found.');
     }
+    if (!row.isFinalized && row.createdBy !== context.userId) {
+      throw new ApiError(404, 'document_not_found', 'Document was not found.');
+    }
     assertSectionVisible(policy, row.sectionCode);
     assertTypeVisible(policy, row.typeCode);
+    const contentVisible = isTypePermissionAllowed(policy, row.typeCode, 'content');
 
     const [attachments, storageCopies, links, taskLinks, rawFieldValues, history] = await Promise.all([
       this.database
@@ -1070,7 +1204,9 @@ export class DocumentsService {
           isPrimary: registryAttachments.isPrimary,
           isCurrent: registryAttachments.isCurrent,
           replacesAttachmentId: registryAttachments.replacesAttachmentId,
+          fieldDefinitionId: registryAttachments.fieldDefinitionId,
           fieldKey: registryFieldDefinitions.key,
+          configuredFieldId: registryTypeFields.id,
           createdBy: registryAttachments.createdBy,
           createdAt: registryAttachments.createdAt,
         })
@@ -1078,6 +1214,14 @@ export class DocumentsService {
         .leftJoin(
           registryFieldDefinitions,
           eq(registryAttachments.fieldDefinitionId, registryFieldDefinitions.id),
+        )
+        .leftJoin(
+          registryTypeFields,
+          and(
+            eq(registryTypeFields.portalUrl, context.portalUrl),
+            eq(registryTypeFields.typeId, row.internalTypeId),
+            eq(registryTypeFields.fieldDefinitionId, registryAttachments.fieldDefinitionId),
+          ),
         )
         .where(
           and(
@@ -1174,11 +1318,11 @@ export class DocumentsService {
             eq(registryAuditLog.documentId, id),
           ),
         )
-        .orderBy(desc(registryAuditLog.createdAt))
-        .limit(100),
+        .orderBy(desc(registryAuditLog.createdAt)),
     ]);
 
     const fieldValues = rawFieldValues
+      .filter((field) => contentVisible || field.dataType !== 'file')
       .filter((field) => !isDocumentFieldHidden(policy, field, row.typeCode))
       .map((field) => ({
         key: field.key,
@@ -1192,6 +1336,26 @@ export class DocumentsService {
       policy,
       accessScopes,
     );
+    const dealStates = await this.salesDealAccess.documentStates(context, id);
+    const resolvedLinks = links.map((link) => {
+      if (link.entityType !== 'deal') return link;
+      const state = dealStates.get(link.entityId);
+      return state ? { ...link, ...state } : link;
+    });
+    const resolvedTaskLinks = context.bitrix
+      ? (await Promise.all(taskLinks.map(async (link) => {
+          try {
+            const task = await this.crmContext.resolveTaskSelection(
+              context,
+              link.taskId,
+              link.taskTitle,
+            );
+            return { ...link, taskId: task.id, taskTitle: task.title };
+          } catch {
+            return null;
+          }
+        }))).filter((link): link is NonNullable<typeof link> => link !== null)
+      : taskLinks;
     const storageCopiesByAttachment = new Map<string, typeof storageCopies>();
     for (const copy of storageCopies) {
       const current = storageCopiesByAttachment.get(copy.attachmentId) ?? [];
@@ -1200,15 +1364,28 @@ export class DocumentsService {
     }
     return {
       ...this.toResponse(row, policy),
-      attachments: attachments.map((attachment) => ({
+      attachments: (contentVisible ? attachments : [])
+        .filter((attachment) => !attachment.fieldDefinitionId || (
+          attachment.configuredFieldId
+          && !isDocumentFieldHidden(policy, {
+            key: attachment.fieldKey || '',
+            dataType: 'file',
+          }, row.typeCode)
+        ))
+        .map(({ configuredFieldId: _configuredFieldId, fieldDefinitionId: _fieldDefinitionId, ...attachment }) => ({
         ...attachment,
         storageCopies: (storageCopiesByAttachment.get(attachment.id) ?? [])
           .map(({ attachmentId: _attachmentId, ...copy }) => copy),
-      })),
-      links,
-      taskLinks,
+        })),
+      links: resolvedLinks,
+      taskLinks: resolvedTaskLinks,
       fields: fieldValues,
-      history: history.map((entry) => this.sanitizeAuditEntry(entry, policy, row.typeCode)),
+      history: history.map((entry) => this.sanitizeAuditEntry(
+        entry,
+        policy,
+        row.typeCode,
+        contentVisible,
+      )),
       relations: relationsByDocument.get(id) ?? { parent: null, children: [] },
     };
   }
@@ -1218,6 +1395,7 @@ export class DocumentsService {
     input: CreateDocumentInput,
     bulkUpload?: BulkUploadCreateOptions,
   ) {
+    input = this.normalizeCounterpartyLinks(input);
     const bulkRequestHash = bulkUpload
       ? createHash('sha256').update(JSON.stringify(input)).digest('hex')
       : null;
@@ -1366,8 +1544,13 @@ export class DocumentsService {
           'The document lifecycle does not contain the archived status.',
         );
       }
-      const [existingRevision] = await this.database
-        .select({ id: registryDocuments.id })
+      const existingRevisions = await this.database
+        .select({
+          id: registryDocuments.id,
+          createdBy: registryDocuments.createdBy,
+          createdAt: registryDocuments.createdAt,
+          isFinalized: registryDocuments.isFinalized,
+        })
         .from(registryDocuments)
         .where(
           and(
@@ -1377,6 +1560,16 @@ export class DocumentsService {
           ),
         )
         .limit(1);
+      let existingRevision: (typeof existingRevisions)[number] | undefined = existingRevisions[0];
+      if (
+        existingRevision
+        && !existingRevision.isFinalized
+        && existingRevision.createdBy === context.userId
+        && Date.now() - existingRevision.createdAt.getTime() > 15 * 60 * 1000
+      ) {
+        await this.abandonCreation(context, existingRevision.id);
+        existingRevision = undefined;
+      }
       if (existingRevision) {
         throw new ApiError(
           409,
@@ -1389,6 +1582,45 @@ export class DocumentsService {
     let documentId: string;
     try {
       documentId = await this.database.transaction(async (transaction) => {
+      if (superseded) {
+        await transaction.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${`${context.portalUrl}\u001f${superseded.id}`}, 0))`,
+        );
+        const [freshSource] = await transaction
+          .select({ id: registryDocuments.id, status: registryDocuments.status })
+          .from(registryDocuments)
+          .where(and(
+            eq(registryDocuments.id, superseded.id),
+            eq(registryDocuments.portalUrl, context.portalUrl),
+            eq(registryDocuments.isFinalized, true),
+            isNull(registryDocuments.deletedAt),
+            ne(registryDocuments.status, 'archived'),
+          ))
+          .limit(1);
+        if (!freshSource) {
+          throw new ApiError(
+            409,
+            'superseded_document_changed',
+            'The source document changed before the new revision could be created.',
+          );
+        }
+        const [activeRevision] = await transaction
+          .select({ id: registryDocuments.id })
+          .from(registryDocuments)
+          .where(and(
+            eq(registryDocuments.portalUrl, context.portalUrl),
+            eq(registryDocuments.supersedesId, superseded.id),
+            isNull(registryDocuments.deletedAt),
+          ))
+          .limit(1);
+        if (activeRevision) {
+          throw new ApiError(
+            409,
+            'document_already_superseded',
+            'A newer revision of this document already exists.',
+          );
+        }
+      }
       if (bulkUpload && bulkRequestHash) {
         const [reservation] = await transaction
           .insert(registryBulkUploadItems)
@@ -1426,7 +1658,10 @@ export class DocumentsService {
           sectionId: typeConfig.sectionId,
           typeId: typeConfig.typeId,
           number: resolvedNumber.number,
-          numberUniquenessKey: resolvedNumber.numberUniquenessKey,
+          // The number becomes authoritative only after required files and
+          // fields are complete. An interrupted wizard therefore cannot block
+          // a later valid document with an invisible draft reservation.
+          numberUniquenessKey: null,
           title: input.title,
           documentDate: input.documentDate,
           amount: input.amount ?? null,
@@ -1442,6 +1677,7 @@ export class DocumentsService {
           responsibleName: input.responsibleName ?? null,
           createdBy: context.userId,
           supersedesId: superseded?.id ?? null,
+          isFinalized: false,
         })
         .returning({ id: registryDocuments.id });
 
@@ -1482,6 +1718,7 @@ export class DocumentsService {
         documentId: document.id,
         event: 'document_created',
         actorId: context.userId,
+        actorName: context.userName ?? null,
         after: {
           ...input,
           number: resolvedNumber.number,
@@ -1516,31 +1753,6 @@ export class DocumentsService {
           ));
       }
 
-      if (superseded) {
-        await transaction
-          .update(registryDocuments)
-          .set({
-            status: 'archived',
-            updatedBy: context.userId,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(registryDocuments.id, superseded.id),
-              eq(registryDocuments.portalUrl, context.portalUrl),
-              isNull(registryDocuments.deletedAt),
-            ),
-          );
-        await transaction.insert(registryAuditLog).values({
-          portalUrl: context.portalUrl,
-          documentId: superseded.id,
-          event: 'document_superseded',
-          actorId: context.userId,
-          before: { status: superseded.status },
-          after: { status: 'archived', supersededById: document.id },
-        });
-      }
-
       return document.id;
       });
     } catch (error) {
@@ -1554,9 +1766,7 @@ export class DocumentsService {
       throw error;
     }
 
-    const created = await this.getById(context, documentId);
-    await this.notifications.responsibleAssigned(context, created);
-    return created;
+    return this.getById(context, documentId);
   }
 
   async update(
@@ -1600,6 +1810,53 @@ export class DocumentsService {
         policy,
       );
     }
+    const previousFieldValues = fields
+      ? await this.database
+          .select({
+            key: registryFieldDefinitions.key,
+            value: registryDocumentFieldValues.value,
+          })
+          .from(registryDocumentFieldValues)
+          .innerJoin(
+            registryFieldDefinitions,
+            eq(registryDocumentFieldValues.fieldDefinitionId, registryFieldDefinitions.id),
+          )
+          .innerJoin(
+            registryTypeFields,
+            and(
+              eq(registryTypeFields.portalUrl, context.portalUrl),
+              eq(registryTypeFields.typeId, current.typeId),
+              eq(registryTypeFields.fieldDefinitionId, registryFieldDefinitions.id),
+            ),
+          )
+          .where(and(
+            eq(registryDocumentFieldValues.portalUrl, context.portalUrl),
+            eq(registryDocumentFieldValues.documentId, id),
+            inArray(registryFieldDefinitions.key, Object.keys(fields)),
+          ))
+      : [];
+    const previousFieldValueByKey = new Map(
+      previousFieldValues.map((item) => [item.key, item.value]),
+    );
+    const auditFieldsBefore = fields
+      ? Object.fromEntries(
+          Object.keys(fields).map((key) => [key, previousFieldValueByKey.get(key) ?? null]),
+        )
+      : undefined;
+
+    const counterpartyChanged = input.counterpartyId !== undefined
+      && (
+        input.counterpartyId !== current.counterpartyId
+        || (input.counterpartyName ?? null) !== (current.counterpartyName ?? null)
+      );
+    const relocation = counterpartyChanged
+      ? await this.attachments.prepareCounterpartyRelocation(
+          context,
+          id,
+          input.counterpartyId ?? null,
+          input.counterpartyName ?? null,
+        )
+      : null;
 
     try {
       await this.database.transaction(async (transaction) => {
@@ -1625,16 +1882,65 @@ export class DocumentsService {
         updates.number = resolvedNumber.number;
         updates.numberUniquenessKey = resolvedNumber.numberUniquenessKey;
       }
-      await transaction
+      const [changed] = await transaction
         .update(registryDocuments)
         .set(updates)
         .where(
           and(
             eq(registryDocuments.id, id),
             eq(registryDocuments.portalUrl, context.portalUrl),
+            eq(registryDocuments.updatedAt, current.updatedAt),
+            eq(registryDocuments.isFinalized, true),
             isNull(registryDocuments.deletedAt),
           ),
-        );
+        )
+        .returning({ id: registryDocuments.id });
+      if (!changed) {
+        throw new ApiError(409, 'document_update_conflict', 'Document changed. Refresh and retry.');
+      }
+
+      if (counterpartyChanged) {
+        await transaction
+          .delete(registryDocumentLinks)
+          .where(and(
+            eq(registryDocumentLinks.portalUrl, context.portalUrl),
+            eq(registryDocumentLinks.documentId, id),
+            eq(registryDocumentLinks.entityType, 'company'),
+          ));
+        if (input.counterpartyId && input.counterpartyName) {
+          await transaction.insert(registryDocumentLinks).values({
+            portalUrl: context.portalUrl,
+            documentId: id,
+            entityType: 'company',
+            entityId: input.counterpartyId,
+            entityTitle: input.counterpartyName,
+            linkRole: 'counterparty',
+          });
+        }
+        for (const attachment of relocation?.attachmentUpdates ?? []) {
+          await transaction
+            .update(registryAttachments)
+            .set({ diskFolderId: attachment.diskFolderId, url: attachment.url })
+            .where(and(
+              eq(registryAttachments.id, attachment.id),
+              eq(registryAttachments.portalUrl, context.portalUrl),
+              eq(registryAttachments.documentId, id),
+            ));
+        }
+        for (const copy of relocation?.copyUpdates ?? []) {
+          await transaction
+            .update(registryAttachmentCopies)
+            .set({
+              diskFolderId: copy.diskFolderId,
+              storagePath: copy.storagePath,
+              url: copy.url,
+            })
+            .where(and(
+              eq(registryAttachmentCopies.id, copy.id),
+              eq(registryAttachmentCopies.portalUrl, context.portalUrl),
+            ));
+        }
+      }
 
       if (fields) {
         await this.upsertFieldValues(
@@ -1651,11 +1957,18 @@ export class DocumentsService {
         documentId: id,
         event: 'document_updated',
         actorId: context.userId,
-        before: this.auditSnapshot(current),
+        actorName: context.userName ?? null,
+        before: {
+          ...this.auditSnapshot(current),
+          ...(auditFieldsBefore ? { fields: auditFieldsBefore } : {}),
+        },
         after: { ...updates, fields },
       });
       });
     } catch (error) {
+      if (relocation) {
+        await this.attachments.rollbackCounterpartyRelocation(context, relocation);
+      }
       if (isDocumentNumberConflict(error)) {
         throw new ApiError(
           409,
@@ -1713,7 +2026,7 @@ export class DocumentsService {
     if (transition.roles && !transition.roles.includes(policy.roleCode)) {
       throw new ApiError(403, 'transition_role_denied', 'Role cannot perform transition.');
     }
-    await this.assertRequiredFileFieldsComplete(context, id, current.typeId);
+    await this.assertRequiredFieldsComplete(context, id, current.typeId);
     await this.assertRequiredContentComplete(context, id, current.contentRequired);
     if (transition.requiresAttachment) {
       const [attachmentCount] = await this.database
@@ -1736,22 +2049,37 @@ export class DocumentsService {
       }
     }
 
+    // Archiving has one storage model: recoverable soft-delete. Lifecycle
+    // configurations may still expose `archived` as a target, but the action
+    // is routed through the same archive/restore path as the registry menu.
+    if (targetStatus === 'archived') {
+      await this.softDelete(context, id);
+      return this.getById(context, id, true);
+    }
+
     await this.database.transaction(async (transaction) => {
-      await transaction
+      const [changed] = await transaction
         .update(registryDocuments)
         .set({ status: targetStatus, updatedBy: context.userId, updatedAt: new Date() })
         .where(
           and(
             eq(registryDocuments.id, id),
             eq(registryDocuments.portalUrl, context.portalUrl),
+            eq(registryDocuments.status, current.status),
+            eq(registryDocuments.isFinalized, true),
             isNull(registryDocuments.deletedAt),
           ),
-        );
+        )
+        .returning({ id: registryDocuments.id });
+      if (!changed) {
+        throw new ApiError(409, 'document_transition_conflict', 'Document status changed. Refresh and retry.');
+      }
       await transaction.insert(registryAuditLog).values({
         portalUrl: context.portalUrl,
         documentId: id,
         event: 'status_changed',
         actorId: context.userId,
+        actorName: context.userName ?? null,
         before: { status: current.status },
         after: { status: targetStatus },
         metadata: comment ? { comment } : null,
@@ -1793,7 +2121,7 @@ export class DocumentsService {
     );
 
     await this.database.transaction(async (transaction) => {
-      await transaction
+      const [deleted] = await transaction
         .update(registryDocuments)
         .set({
           deletedAt: new Date(),
@@ -1805,14 +2133,20 @@ export class DocumentsService {
           and(
             eq(registryDocuments.id, id),
             eq(registryDocuments.portalUrl, context.portalUrl),
+            eq(registryDocuments.isFinalized, true),
             isNull(registryDocuments.deletedAt),
           ),
-        );
+        )
+        .returning({ id: registryDocuments.id });
+      if (!deleted) {
+        throw new ApiError(409, 'document_archive_conflict', 'Document was already archived. Refresh and retry.');
+      }
       await transaction.insert(registryAuditLog).values({
         portalUrl: context.portalUrl,
         documentId: id,
         event: 'document_deleted',
         actorId: context.userId,
+        actorName: context.userName ?? null,
         before: this.auditSnapshot(current),
         metadata: {
           cardCreatorId: current.createdBy,
@@ -1845,7 +2179,7 @@ export class DocumentsService {
 
     await this.database.transaction(async (transaction) => {
       for (const document of changed) {
-        await transaction
+        const [updated] = await transaction
           .update(registryDocuments)
           .set({
             responsibleId: input.responsibleId,
@@ -1857,14 +2191,21 @@ export class DocumentsService {
             and(
               eq(registryDocuments.id, document.id),
               eq(registryDocuments.portalUrl, context.portalUrl),
+              eq(registryDocuments.responsibleId, document.responsibleId),
+              eq(registryDocuments.isFinalized, true),
               isNull(registryDocuments.deletedAt),
             ),
-          );
+          )
+          .returning({ id: registryDocuments.id });
+        if (!updated) {
+          throw new ApiError(409, 'document_update_conflict', 'One of the documents was already changed. Refresh and retry.');
+        }
         await transaction.insert(registryAuditLog).values({
           portalUrl: context.portalUrl,
           documentId: document.id,
           event: 'responsible_changed',
           actorId: context.userId,
+          actorName: context.userName ?? null,
           before: {
             responsibleId: document.responsibleId,
             responsibleName: document.responsibleName,
@@ -1914,7 +2255,7 @@ export class DocumentsService {
     const deletedAt = new Date();
     await this.database.transaction(async (transaction) => {
       for (const document of documents) {
-        await transaction
+        const [deleted] = await transaction
           .update(registryDocuments)
           .set({
             deletedAt,
@@ -1926,14 +2267,20 @@ export class DocumentsService {
             and(
               eq(registryDocuments.id, document.id),
               eq(registryDocuments.portalUrl, context.portalUrl),
+              eq(registryDocuments.isFinalized, true),
               isNull(registryDocuments.deletedAt),
             ),
-          );
+          )
+          .returning({ id: registryDocuments.id });
+        if (!deleted) {
+          throw new ApiError(409, 'document_archive_conflict', 'One of the documents was already changed. Refresh and retry.');
+        }
         await transaction.insert(registryAuditLog).values({
           portalUrl: context.portalUrl,
           documentId: document.id,
           event: 'document_deleted',
           actorId: context.userId,
+          actorName: context.userName ?? null,
           before: this.auditSnapshot(document),
           metadata: {
             bulk: true,
@@ -1978,12 +2325,17 @@ export class DocumentsService {
       await this.loadArchiveParticipants(context, document.id, document.createdBy),
     ] as const)));
 
+    const restoredStatuses = new Map(documents.map((document) => [
+      document.id,
+      document.status,
+    ] as const));
     const restoredAt = new Date();
     await this.database.transaction(async (transaction) => {
       for (const document of documents) {
-        await transaction
+        const [restored] = await transaction
           .update(registryDocuments)
           .set({
+            status: restoredStatuses.get(document.id)!,
             deletedAt: null,
             deletedBy: null,
             updatedBy: context.userId,
@@ -1995,17 +2347,23 @@ export class DocumentsService {
               eq(registryDocuments.portalUrl, context.portalUrl),
               isNotNull(registryDocuments.deletedAt),
             ),
-          );
+          )
+          .returning({ id: registryDocuments.id });
+        if (!restored) {
+          throw new ApiError(409, 'document_restore_conflict', 'One of the documents was already restored. Refresh and retry.');
+        }
         await transaction.insert(registryAuditLog).values({
           portalUrl: context.portalUrl,
           documentId: document.id,
           event: 'document_restored',
           actorId: context.userId,
+          actorName: context.userName ?? null,
           metadata: {
             bulk: true,
             cardCreatorId: document.createdBy,
             fileUploaderIds: participants.get(document.id)!.fileUploaderIds,
             notificationRecipientIds: participants.get(document.id)!.recipientIds,
+            restoredStatus: restoredStatuses.get(document.id),
           },
         });
       }
@@ -2027,30 +2385,13 @@ export class DocumentsService {
     const ageMs = Date.now() - current.createdAt.getTime();
     if (
       current.createdBy !== context.userId ||
-      current.status !== current.lifecycleConfig.initialStatus ||
-      ageMs < 0 ||
-      ageMs > 15 * 60 * 1000
+      current.isFinalized ||
+      ageMs < 0
     ) {
       throw new ApiError(
         409,
         'document_abandon_not_allowed',
         'This document can no longer be abandoned as an incomplete creation.',
-      );
-    }
-    const [finalizedCreation] = await this.database
-      .select({ id: registryAuditLog.id })
-      .from(registryAuditLog)
-      .where(and(
-        eq(registryAuditLog.portalUrl, context.portalUrl),
-        eq(registryAuditLog.documentId, id),
-        eq(registryAuditLog.event, 'document_creation_finalized'),
-      ))
-      .limit(1);
-    if (finalizedCreation) {
-      throw new ApiError(
-        409,
-        'document_abandon_not_allowed',
-        'A finalized document cannot be abandoned as an incomplete creation.',
       );
     }
     const uploadedFiles = await this.database
@@ -2121,31 +2462,6 @@ export class DocumentsService {
       throw error;
     }
 
-    let supersededStatusToRestore: string | null = null;
-    if (current.supersedesId) {
-      const [supersedeEvent] = await this.database
-        .select({ before: registryAuditLog.before, after: registryAuditLog.after })
-        .from(registryAuditLog)
-        .where(
-          and(
-            eq(registryAuditLog.portalUrl, context.portalUrl),
-            eq(registryAuditLog.documentId, current.supersedesId),
-            eq(registryAuditLog.event, 'document_superseded'),
-          ),
-        )
-        .orderBy(desc(registryAuditLog.createdAt))
-        .limit(1);
-      const before = supersedeEvent?.before as { status?: unknown } | null;
-      const after = supersedeEvent?.after as { supersededById?: unknown } | null;
-      if (
-        after?.supersededById === id
-        && typeof before?.status === 'string'
-        && before.status
-      ) {
-        supersededStatusToRestore = before.status;
-      }
-    }
-
     try {
       await this.database.transaction(async (transaction) => {
       await transaction
@@ -2197,41 +2513,13 @@ export class DocumentsService {
         documentId: id,
         event: 'document_creation_abandoned',
         actorId: context.userId,
+        actorName: context.userName ?? null,
         before: this.auditSnapshot(current),
         metadata: {
           reason: 'attachment_upload_failed',
           physicalCopyCount: uploadedFileCopies.length,
         },
       });
-      if (current.supersedesId && supersededStatusToRestore) {
-        const [restored] = await transaction
-          .update(registryDocuments)
-          .set({
-            status: supersededStatusToRestore,
-            updatedBy: context.userId,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(registryDocuments.id, current.supersedesId),
-              eq(registryDocuments.portalUrl, context.portalUrl),
-              eq(registryDocuments.status, 'archived'),
-              isNull(registryDocuments.deletedAt),
-            ),
-          )
-          .returning({ id: registryDocuments.id });
-        if (restored) {
-          await transaction.insert(registryAuditLog).values({
-            portalUrl: context.portalUrl,
-            documentId: current.supersedesId,
-            event: 'document_supersede_reverted',
-            actorId: context.userId,
-            before: { status: 'archived', supersededById: id },
-            after: { status: supersededStatusToRestore },
-            metadata: { reason: 'replacement_creation_abandoned' },
-          });
-        }
-      }
       });
     } catch (error) {
       if (bitrixContext) {
@@ -2260,15 +2548,167 @@ export class DocumentsService {
         'Only the document creator can finalize its initial upload.',
       );
     }
-    await this.assertRequiredFileFieldsComplete(context, id, current.typeId);
+    if (current.isFinalized) return this.getById(context, id);
+    await this.assertRequiredFieldsComplete(context, id, current.typeId);
     await this.assertRequiredContentComplete(context, id, current.contentRequired);
-    await this.database.insert(registryAuditLog).values({
-      portalUrl: context.portalUrl,
-      documentId: id,
-      event: 'document_creation_finalized',
-      actorId: context.userId,
-    });
-    return this.getById(context, id);
+    const supersededSource = current.supersedesId
+      ? await this.loadDocumentForWrite(context, current.supersedesId)
+      : null;
+    const supersededParticipants = supersededSource
+      ? await this.loadArchiveParticipants(
+          context,
+          supersededSource.id,
+          supersededSource.createdBy,
+        )
+      : null;
+    let finalizedNow: boolean;
+    try {
+      finalizedNow = await this.database.transaction(async (transaction) => {
+      await transaction.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`${context.portalUrl}\u001f${id}`}, 0))`,
+      );
+      const [fresh] = await transaction
+        .select({
+          id: registryDocuments.id,
+          isFinalized: registryDocuments.isFinalized,
+          supersedesId: registryDocuments.supersedesId,
+          number: registryDocuments.number,
+          documentDate: registryDocuments.documentDate,
+          counterpartyId: registryDocuments.counterpartyId,
+          typeId: registryDocuments.typeId,
+        })
+        .from(registryDocuments)
+        .where(and(
+          eq(registryDocuments.id, id),
+          eq(registryDocuments.portalUrl, context.portalUrl),
+          isNull(registryDocuments.deletedAt),
+        ))
+        .limit(1);
+      if (!fresh) {
+        throw new ApiError(409, 'document_creation_changed', 'The document changed before finalization.');
+      }
+      if (fresh.isFinalized) return false;
+
+      const resolvedNumber = await this.numbering.resolve(
+        transaction as unknown as Database,
+        current,
+        {
+          portalUrl: context.portalUrl,
+          number: fresh.number,
+          documentDate: fresh.documentDate,
+          counterpartyId: fresh.counterpartyId,
+        },
+      );
+      const finalizedNumberKey = resolvedNumber.numberUniquenessKey;
+      if (fresh.supersedesId) {
+        await transaction.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${`${context.portalUrl}\u001f${fresh.supersedesId}`}, 0))`,
+        );
+        const [source] = await transaction
+          .select({
+            id: registryDocuments.id,
+            status: registryDocuments.status,
+          })
+          .from(registryDocuments)
+          .where(and(
+            eq(registryDocuments.id, fresh.supersedesId),
+            eq(registryDocuments.portalUrl, context.portalUrl),
+            eq(registryDocuments.isFinalized, true),
+            isNull(registryDocuments.deletedAt),
+            ne(registryDocuments.status, 'archived'),
+          ))
+          .limit(1);
+        if (!source) {
+          throw new ApiError(
+            409,
+            'superseded_document_changed',
+            'The source document is no longer available for replacement.',
+          );
+        }
+        const [archivedSource] = await transaction
+          .update(registryDocuments)
+          .set({
+            status: 'archived',
+            numberUniquenessKey: null,
+            updatedBy: context.userId,
+            updatedAt: new Date(),
+          })
+          .where(and(
+            eq(registryDocuments.id, source.id),
+            eq(registryDocuments.portalUrl, context.portalUrl),
+            eq(registryDocuments.status, source.status),
+            eq(registryDocuments.isFinalized, true),
+            isNull(registryDocuments.deletedAt),
+          ))
+          .returning({ id: registryDocuments.id });
+        if (!archivedSource) {
+          throw new ApiError(
+            409,
+            'superseded_document_changed',
+            'The source document changed during replacement.',
+          );
+        }
+        await transaction.insert(registryAuditLog).values({
+          portalUrl: context.portalUrl,
+          documentId: source.id,
+          event: 'document_superseded',
+          actorId: context.userId,
+          actorName: context.userName ?? null,
+          before: { status: source.status },
+          after: { status: 'archived', supersededById: id },
+        });
+      }
+
+      const [finalized] = await transaction
+        .update(registryDocuments)
+        .set({
+          isFinalized: true,
+          numberUniquenessKey: finalizedNumberKey,
+          updatedBy: context.userId,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(registryDocuments.id, id),
+          eq(registryDocuments.portalUrl, context.portalUrl),
+          eq(registryDocuments.isFinalized, false),
+          isNull(registryDocuments.deletedAt),
+        ))
+        .returning({ id: registryDocuments.id });
+      if (!finalized) {
+        throw new ApiError(409, 'document_creation_changed', 'The document changed during finalization.');
+      }
+      await transaction.insert(registryAuditLog).values({
+        portalUrl: context.portalUrl,
+        documentId: id,
+        event: 'document_creation_finalized',
+        actorId: context.userId,
+        actorName: context.userName ?? null,
+      });
+      return true;
+      });
+    } catch (error) {
+      if (isDocumentNumberConflict(error)) {
+        throw new ApiError(
+          409,
+          'document_number_conflict',
+          'Документ с таким номером уже существует для выбранных типа и компании.',
+        );
+      }
+      throw error;
+    }
+    const finalized = await this.getById(context, id);
+    if (finalizedNow) {
+      await this.notifications.responsibleAssigned(context, finalized);
+      if (supersededSource && supersededParticipants) {
+        await this.recordArchiveNotifications(
+          context,
+          supersededSource,
+          'archived',
+          supersededParticipants,
+        );
+      }
+    }
+    return finalized;
   }
 
   async restore(context: RegistryContext, id: string) {
@@ -2285,8 +2725,9 @@ export class DocumentsService {
       throw new ApiError(403, 'restore_access_denied', 'Restore is not allowed.');
     }
     if (!current.deletedAt) {
-      throw new ApiError(409, 'document_not_deleted', 'Document is not deleted.');
+      throw new ApiError(409, 'document_not_deleted', 'Документ не находится в архиве.');
     }
+    const restoredStatus = current.status;
     const participants = await this.loadArchiveParticipants(
       context,
       id,
@@ -2294,9 +2735,10 @@ export class DocumentsService {
     );
 
     await this.database.transaction(async (transaction) => {
-      await transaction
+      const [restored] = await transaction
         .update(registryDocuments)
         .set({
+          status: restoredStatus,
           deletedAt: null,
           deletedBy: null,
           updatedBy: context.userId,
@@ -2306,17 +2748,24 @@ export class DocumentsService {
           and(
             eq(registryDocuments.id, id),
             eq(registryDocuments.portalUrl, context.portalUrl),
+            isNotNull(registryDocuments.deletedAt),
           ),
-        );
+        )
+        .returning({ id: registryDocuments.id });
+      if (!restored) {
+        throw new ApiError(409, 'document_restore_conflict', 'Document was already restored. Refresh and retry.');
+      }
       await transaction.insert(registryAuditLog).values({
         portalUrl: context.portalUrl,
         documentId: id,
         event: 'document_restored',
         actorId: context.userId,
+        actorName: context.userName ?? null,
         metadata: {
           cardCreatorId: current.createdBy,
           fileUploaderIds: participants.fileUploaderIds,
           notificationRecipientIds: participants.recipientIds,
+          restoredStatus,
         },
       });
     });
@@ -2328,7 +2777,28 @@ export class DocumentsService {
       participants,
     );
 
-    return this.getById(context, id, current.status === 'archived');
+    return this.getById(context, id);
+  }
+
+  private async legacyArchiveRestoreStatus(
+    context: RegistryContext,
+    documentId: string,
+    lifecycleConfig: {
+      initialStatus: string;
+      states: Array<{ code: string; terminal?: boolean }>;
+    },
+  ) {
+    const events = await this.database
+      .select({ before: registryAuditLog.before, after: registryAuditLog.after })
+      .from(registryAuditLog)
+      .where(and(
+        eq(registryAuditLog.portalUrl, context.portalUrl),
+        eq(registryAuditLog.documentId, documentId),
+        eq(registryAuditLog.event, 'status_changed'),
+      ))
+      .orderBy(desc(registryAuditLog.createdAt))
+      .limit(50);
+    return resolveLegacyArchiveRestoreStatus(events, lifecycleConfig);
   }
 
   private async loadTypeConfiguration(
@@ -2418,6 +2888,8 @@ export class DocumentsService {
         responsibleName: registryDocuments.responsibleName,
         createdBy: registryDocuments.createdBy,
         createdAt: registryDocuments.createdAt,
+        updatedAt: registryDocuments.updatedAt,
+        isFinalized: registryDocuments.isFinalized,
         deletedAt: registryDocuments.deletedAt,
         supersedesId: registryDocuments.supersedesId,
         sectionCode: registrySections.code,
@@ -2444,6 +2916,9 @@ export class DocumentsService {
       .limit(1);
 
     if (!item) {
+      throw new ApiError(404, 'document_not_found', 'Document was not found.');
+    }
+    if (!item.isFinalized && item.createdBy !== context.userId) {
       throw new ApiError(404, 'document_not_found', 'Document was not found.');
     }
     if (!includeDeleted && item.status === 'archived') {
@@ -2494,6 +2969,7 @@ export class DocumentsService {
     const conditions: SQL[] = [
       eq(registryDocuments.portalUrl, context.portalUrl),
       inArray(registryDocuments.id, relatedIds),
+      eq(registryDocuments.isFinalized, true),
       isNull(registryDocuments.deletedAt),
       ne(registryDocuments.status, 'archived'),
       inArray(registrySections.code, policy.visibleSectionCodes),
@@ -2633,6 +3109,53 @@ export class DocumentsService {
     }
   }
 
+  private normalizeCounterpartyLinks(input: CreateDocumentInput): CreateDocumentInput {
+    const companyLinks = input.links.filter((link) => link.entityType === 'company');
+    if (!input.counterpartyId) {
+      if (companyLinks.length) {
+        throw new ApiError(
+          400,
+          'counterparty_company_link_mismatch',
+          'A company link requires the same company to be selected as the document counterparty.',
+        );
+      }
+      return input;
+    }
+    if (companyLinks.some((link) => link.entityId !== input.counterpartyId)) {
+      throw new ApiError(
+        409,
+        'counterparty_company_link_mismatch',
+        'The linked company must match the selected document counterparty.',
+      );
+    }
+    const links = input.links.filter((link) => link.entityType !== 'company');
+    links.push({
+      entityType: 'company',
+      entityId: input.counterpartyId,
+      entityTitle: input.counterpartyName
+        || companyLinks[0]?.entityTitle
+        || `Компания #${input.counterpartyId}`,
+      linkRole: 'counterparty',
+    });
+    return { ...input, links };
+  }
+
+  private lifecycleInitialStatusCondition() {
+    return sql`${registryDocuments.status} = (${registryLifecycles.config} ->> 'initialStatus')`;
+  }
+
+  private lifecycleWorkStatusCondition() {
+    return sql`(
+      ${registryDocuments.status} <> (${registryLifecycles.config} ->> 'initialStatus')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(${registryLifecycles.config} -> 'states') AS lifecycle_state
+        WHERE lifecycle_state ->> 'code' = ${registryDocuments.status}
+          AND COALESCE((lifecycle_state ->> 'terminal')::boolean, false) = true
+      )
+    )`;
+  }
+
   private async validateFieldValues(
     context: RegistryContext,
     typeId: string,
@@ -2738,7 +3261,7 @@ export class DocumentsService {
     }
   }
 
-  private async assertRequiredFileFieldsComplete(
+  private async assertRequiredFieldsComplete(
     context: RegistryContext,
     documentId: string,
     typeId: string,
@@ -2747,6 +3270,7 @@ export class DocumentsService {
       .select({
         id: registryFieldDefinitions.id,
         key: registryFieldDefinitions.key,
+        dataType: registryFieldDefinitions.dataType,
       })
       .from(registryTypeFields)
       .innerJoin(
@@ -2759,13 +3283,14 @@ export class DocumentsService {
           eq(registryTypeFields.typeId, typeId),
           eq(registryTypeFields.isRequired, true),
           eq(registryFieldDefinitions.portalUrl, context.portalUrl),
-          eq(registryFieldDefinitions.dataType, 'file'),
           eq(registryFieldDefinitions.isActive, true),
         ),
       );
     if (!requiredFields.length) return;
 
-    const attachments = await this.database
+    const requiredFileFields = requiredFields.filter((field) => field.dataType === 'file');
+    const requiredValueFields = requiredFields.filter((field) => field.dataType !== 'file');
+    const attachments = requiredFileFields.length ? await this.database
       .select({ fieldDefinitionId: registryAttachments.fieldDefinitionId })
       .from(registryAttachments)
       .where(
@@ -2776,23 +3301,47 @@ export class DocumentsService {
           eq(registryAttachments.isCurrent, true),
           inArray(
             registryAttachments.fieldDefinitionId,
-            requiredFields.map((field) => field.id),
+            requiredFileFields.map((field) => field.id),
           ),
           isNull(registryAttachments.deletedAt),
         ),
-      );
+      ) : [];
+    const values = requiredValueFields.length ? await this.database
+      .select({
+        fieldDefinitionId: registryDocumentFieldValues.fieldDefinitionId,
+        value: registryDocumentFieldValues.value,
+      })
+      .from(registryDocumentFieldValues)
+      .where(and(
+        eq(registryDocumentFieldValues.portalUrl, context.portalUrl),
+        eq(registryDocumentFieldValues.documentId, documentId),
+        inArray(
+          registryDocumentFieldValues.fieldDefinitionId,
+          requiredValueFields.map((field) => field.id),
+        ),
+      )) : [];
     const attached = new Set(attachments.map((item) => item.fieldDefinitionId));
+    const populated = new Set(values
+      .filter((item) => !this.isEmptyFieldValue(item.value))
+      .map((item) => item.fieldDefinitionId));
     const missing = requiredFields
-      .filter((field) => !attached.has(field.id))
+      .filter((field) => field.dataType === 'file'
+        ? !attached.has(field.id)
+        : !populated.has(field.id))
       .map((field) => field.key);
     if (missing.length) {
       throw new ApiError(
         409,
-        'required_file_fields_incomplete',
-        'Required file fields have not been uploaded yet.',
+        'required_document_fields_incomplete',
+        'Required document fields have not been completed yet.',
         { keys: missing },
       );
     }
+  }
+
+  private isEmptyFieldValue(value: unknown) {
+    return value === null || value === undefined || value === ''
+      || (Array.isArray(value) && value.length === 0);
   }
 
   private async assertRequiredContentComplete(
@@ -2848,10 +3397,12 @@ export class DocumentsService {
     context: RegistryContext,
     document: { createdBy: number; responsibleId: number; typeCode: string },
   ) {
-    assertTypePermission(policy, document.typeCode, 'edit');
     const own =
       document.createdBy === context.userId || document.responsibleId === context.userId;
-    if (!policy.permissions.editAny && !(policy.permissions.editOwn && own)) {
+    const scopeAllowed = policy.permissions.editAny
+      || (policy.permissions.editOwn && own);
+    if (!isTypePermissionGranted(policy, document.typeCode, 'edit', scopeAllowed)) {
+      assertTypePermission(policy, document.typeCode, 'edit');
       throw new ApiError(403, 'edit_access_denied', 'Document editing is not allowed.');
     }
   }
@@ -2922,6 +3473,7 @@ export class DocumentsService {
           ? 'archive_notifications_dispatched'
           : 'restore_notifications_dispatched',
         actorId: context.userId,
+        actorName: context.userName ?? null,
         metadata: {
           bulk,
           cardCreatorId: participants.cardCreatorId,
@@ -2943,13 +3495,11 @@ export class DocumentsService {
     context: RegistryContext,
     document: { createdBy: number; responsibleId: number; typeCode: string },
   ) {
-    assertTypePermission(policy, document.typeCode, 'transition');
     const own =
       document.createdBy === context.userId || document.responsibleId === context.userId;
-    if (
-      !policy.permissions.transitionAny &&
-      !(policy.permissions.transitionOwn && own)
-    ) {
+    const scopeAllowed = policy.permissions.transitionAny
+      || (policy.permissions.transitionOwn && own);
+    if (!isTypePermissionGranted(policy, document.typeCode, 'transition', scopeAllowed)) {
       throw new ApiError(403, 'transition_access_denied', 'Status change is not allowed.');
     }
   }
@@ -2960,10 +3510,16 @@ export class DocumentsService {
   }
 
   private sanitizeAuditEntry<T extends {
+    event: string;
     before: unknown;
     after: unknown;
     metadata: unknown;
-  }>(entry: T, policy: RegistryPolicy, typeCode: string): T {
+  }>(
+    entry: T,
+    policy: RegistryPolicy,
+    typeCode: string,
+    contentVisible = true,
+  ): T {
     const hiddenKeys = new Set(policy.hiddenFields);
     if (isMoneyHidden(policy, typeCode)) {
       hiddenKeys.add('amount');
@@ -2983,11 +3539,14 @@ export class DocumentsService {
           .map(([key, item]) => [key, sanitize(item)]),
       );
     };
+    const contentEvent = entry.event.startsWith('attachment_')
+      || entry.event.startsWith('external_link_')
+      || entry.event === 'document_content_updated';
     return {
       ...entry,
-      before: sanitize(entry.before),
-      after: sanitize(entry.after),
-      metadata: sanitize(entry.metadata),
+      before: contentVisible || !contentEvent ? sanitize(entry.before) : null,
+      after: contentVisible || !contentEvent ? sanitize(entry.after) : null,
+      metadata: contentVisible || !contentEvent ? sanitize(entry.metadata) : null,
     };
   }
 

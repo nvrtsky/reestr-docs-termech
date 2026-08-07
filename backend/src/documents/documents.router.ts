@@ -26,6 +26,7 @@ import {
   documentExportQuerySchema,
   documentIdSchema,
   documentListQuerySchema,
+  replaceDocumentLinksSchema,
   setParentRelationSchema,
   taskLinkIdSchema,
   transitionDocumentSchema,
@@ -58,6 +59,15 @@ export function createDocumentsRouter({
       const id = documentIdSchema.parse(request.params.id);
       const parsed = updateDocumentSchema.parse(request.body);
       const input = await canonicalizeCompanyUpdate(context, parsed, crmContext);
+      if (input.counterpartyId !== undefined) {
+        const current = await documents.getById(context, id);
+        await assertDealCompanyCompatibility(
+          context,
+          current.links,
+          input.counterpartyId,
+          crmContext,
+        );
+      }
       response.json(
         await documents.update(context, id, input),
       );
@@ -110,9 +120,19 @@ export function createDocumentsRouter({
 
   router.post('/bulk/assign', async (request, response, next) => {
     try {
+      const context = requireRegistryContext(request);
       const input = bulkAssignDocumentsSchema.parse(request.body);
+      const responsible = await crmContext.resolveUserSelection(
+        context,
+        input.responsibleId,
+        input.responsibleName,
+      );
       response.json(
-        await documents.bulkAssign(requireRegistryContext(request), input),
+        await documents.bulkAssign(context, {
+          ...input,
+          responsibleId: responsible.id,
+          responsibleName: responsible.name,
+        }),
       );
     } catch (error) {
       next(error);
@@ -247,15 +267,55 @@ export function createDocumentsRouter({
       const context = requireRegistryContext(request);
       const documentId = documentIdSchema.parse(request.params.id);
       const input = addDocumentLinkSchema.parse(request.body);
-      const entityTitle = await crmContext.resolveEntityTitle(
+      if (input.entityType === 'deal') {
+        const deal = await crmContext.resolveDealSelection(
+          context,
+          input.entityId,
+          input.entityTitle,
+        );
+        response.status(201).json(await documents.addLink(context, documentId, {
+          ...input,
+          entityId: deal.id,
+          entityTitle: deal.title,
+          dealCompanyId: deal.companyId,
+        }));
+        return;
+      }
+      const company = await crmContext.resolveCompanySelection(
         context,
-        input.entityType,
         input.entityId,
         input.entityTitle,
       );
-      response.status(201).json(
-        await documents.addLink(context, documentId, { ...input, entityTitle }),
+      response.status(201).json(await documents.addLink(context, documentId, {
+        ...input,
+        entityId: company.id,
+        entityTitle: company.title,
+      }));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put('/:id/links', async (request, response, next) => {
+    try {
+      const context = requireRegistryContext(request);
+      const documentId = documentIdSchema.parse(request.params.id);
+      const input = replaceDocumentLinksSchema.parse(request.body);
+      const current = await documents.getById(context, documentId);
+      const selected = await canonicalizeExistingDocumentLinks(
+        context,
+        input.items,
+        crmContext,
+        current.counterpartyId,
+        current.counterpartyName,
       );
+      response.json(await replaceDocumentLinksSafely(
+        context,
+        documentId,
+        current.links,
+        selected,
+        documents,
+      ));
     } catch (error) {
       next(error);
     }
@@ -399,18 +459,24 @@ async function canonicalizeDocumentCreate(
   input: ReturnType<typeof createDocumentSchema.parse>,
   crmContext: CrmContextService,
 ) {
-  const company = await canonicalizeCompanyCreate(context, input, crmContext);
-  const [links, taskLinks] = await Promise.all([
-    Promise.all(company.links.map(async (link) => ({
-      ...link,
-      entityTitle: await crmContext.resolveEntityTitle(
+  const [resolvedLinks, taskLinks, responsible] = await Promise.all([
+    Promise.all(input.links.map(async (link) => {
+      if (link.entityType === 'deal') {
+        const deal = await crmContext.resolveDealSelection(
+          context,
+          link.entityId,
+          link.entityTitle,
+        );
+        return { ...link, entityId: deal.id, entityTitle: deal.title, companyId: deal.companyId };
+      }
+      const company = await crmContext.resolveCompanySelection(
         context,
-        link.entityType,
         link.entityId,
         link.entityTitle,
-      ),
-    }))),
-    Promise.all(company.taskLinks.map(async (link) => {
+      );
+      return { ...link, entityId: company.id, entityTitle: company.title, companyId: company.id };
+    })),
+    Promise.all(input.taskLinks.map(async (link) => {
       const task = await crmContext.resolveTaskSelection(
         context,
         link.taskId,
@@ -418,13 +484,76 @@ async function canonicalizeDocumentCreate(
       );
       return { taskId: task.id, taskTitle: task.title };
     })),
+    input.responsibleId
+      ? crmContext.resolveUserSelection(context, input.responsibleId, input.responsibleName)
+      : Promise.resolve({ id: context.userId, name: context.userName || `Пользователь #${context.userId}` }),
   ]);
+  const liveDealCompanyIds = resolvedLinks
+    .filter((link) => link.entityType === 'deal' && link.companyId !== undefined)
+    .map((link) => link.companyId);
+  if (liveDealCompanyIds.some((companyId) => companyId === null)) {
+    throw new ApiError(
+      409,
+      'deal_company_required',
+      'Every selected deal must be linked to a Bitrix24 company.',
+    );
+  }
+  const dealCompanyIds = new Set(liveDealCompanyIds.filter((id): id is number => id !== null));
+  const selectedCompanyIds = new Set(
+    resolvedLinks.filter((link) => link.entityType === 'company').map((link) => link.entityId),
+  );
+  if (dealCompanyIds.size > 1 || selectedCompanyIds.size > 1) {
+    throw new ApiError(
+      409,
+      'crm_company_scope_mismatch',
+      'All selected deals and company links must belong to one company.',
+    );
+  }
+  const inferredCompanyId = [...selectedCompanyIds][0] ?? [...dealCompanyIds][0] ?? null;
+  if (input.counterpartyId && inferredCompanyId && input.counterpartyId !== inferredCompanyId) {
+    throw new ApiError(
+      409,
+      'counterparty_company_link_mismatch',
+      'The selected deals and company must match the document counterparty.',
+    );
+  }
+  const company = await canonicalizeCompanyCreate(
+    context,
+    {
+      ...input,
+      counterpartyId: input.counterpartyId ?? inferredCompanyId,
+      counterpartyName: input.counterpartyName
+        ?? resolvedLinks.find((link) => link.entityType === 'company')?.entityTitle
+        ?? null,
+    },
+    crmContext,
+  );
+  if (dealCompanyIds.size && !dealCompanyIds.has(company.counterpartyId!)) {
+    throw new ApiError(
+      409,
+      'crm_company_scope_mismatch',
+      'All selected deals must belong to the document counterparty company.',
+    );
+  }
+  const links = resolvedLinks
+    .filter((link) => link.entityType === 'deal')
+    .map(({ companyId: _companyId, ...link }) => link);
+  if (company.counterpartyId && company.counterpartyName) {
+    links.push({
+      entityType: 'company',
+      entityId: company.counterpartyId,
+      entityTitle: company.counterpartyName,
+      linkRole: 'counterparty',
+    });
+  }
   return {
     ...company,
     legalEntityId: null,
     legalEntityName: null,
     links,
     taskLinks,
+    responsibleId: responsible.id,
+    responsibleName: responsible.name,
   };
 }
 
@@ -456,7 +585,26 @@ async function canonicalizeCompanyUpdate(
   input: ReturnType<typeof updateDocumentSchema.parse>,
   crmContext: CrmContextService,
 ) {
-  if (input.counterpartyId === undefined && input.counterpartyName === undefined) return input;
+  let normalized = input;
+  if (input.responsibleId !== undefined) {
+    const responsible = await crmContext.resolveUserSelection(
+      context,
+      input.responsibleId,
+      input.responsibleName,
+    );
+    normalized = {
+      ...normalized,
+      responsibleId: responsible.id,
+      responsibleName: responsible.name,
+    };
+  } else if (input.responsibleName !== undefined) {
+    throw new ApiError(
+      400,
+      'responsible_user_selection_required',
+      'Responsible must be selected from Bitrix24 users.',
+    );
+  }
+  if (input.counterpartyId === undefined && input.counterpartyName === undefined) return normalized;
   if (!input.counterpartyId) {
     if (input.counterpartyName) {
       throw new ApiError(
@@ -465,12 +613,159 @@ async function canonicalizeCompanyUpdate(
         'Counterparty must be selected from Bitrix24 companies.',
       );
     }
-    return { ...input, counterpartyId: null, counterpartyName: null };
+    return { ...normalized, counterpartyId: null, counterpartyName: null };
   }
   const company = await crmContext.resolveCompanySelection(
     context,
     input.counterpartyId,
     input.counterpartyName,
   );
-  return { ...input, counterpartyId: company.id, counterpartyName: company.title };
+  return { ...normalized, counterpartyId: company.id, counterpartyName: company.title };
+}
+
+async function canonicalizeExistingDocumentLinks(
+  context: ReturnType<typeof requireRegistryContext>,
+  items: Array<ReturnType<typeof addDocumentLinkSchema.parse>>,
+  crmContext: CrmContextService,
+  counterpartyId: number | null,
+  counterpartyName: string | null,
+) {
+  const resolved = await Promise.all(items.map(async (item) => {
+    if (item.entityType === 'deal') {
+      const deal = await crmContext.resolveDealSelection(
+        context,
+        item.entityId,
+        item.entityTitle,
+      );
+      if (deal.companyId !== undefined && deal.companyId !== counterpartyId) {
+        throw new ApiError(
+          409,
+          'crm_company_scope_mismatch',
+          'The selected deal must belong to the document counterparty company.',
+          { dealId: deal.id, dealCompanyId: deal.companyId, counterpartyId },
+        );
+      }
+      return {
+        ...item,
+        entityId: deal.id,
+        entityTitle: deal.title,
+        dealCompanyId: deal.companyId,
+      };
+    }
+    const company = await crmContext.resolveCompanySelection(
+      context,
+      item.entityId,
+      item.entityTitle,
+    );
+    if (company.id !== counterpartyId) {
+      throw new ApiError(
+        409,
+        'counterparty_company_link_mismatch',
+        'The company link is managed through the document counterparty field.',
+      );
+    }
+    return { ...item, entityId: company.id, entityTitle: company.title };
+  }));
+  const withoutCompanies = resolved.filter((item) => item.entityType !== 'company');
+  if (counterpartyId) {
+    withoutCompanies.push({
+      entityType: 'company',
+      entityId: counterpartyId,
+      entityTitle: counterpartyName || `Компания #${counterpartyId}`,
+      linkRole: 'counterparty',
+    });
+  }
+  return withoutCompanies;
+}
+
+async function assertDealCompanyCompatibility(
+  context: ReturnType<typeof requireRegistryContext>,
+  links: Array<{
+    entityType: 'deal' | 'company';
+    entityId: number;
+    entityTitle: string;
+  }>,
+  counterpartyId: number | null,
+  crmContext: CrmContextService,
+) {
+  const deals = await Promise.all(
+    links
+      .filter((link) => link.entityType === 'deal')
+      .map((link) => crmContext.resolveDealSelection(
+        context,
+        link.entityId,
+        link.entityTitle,
+      )),
+  );
+  const mismatch = deals.find((deal) =>
+    deal.companyId !== undefined && deal.companyId !== counterpartyId);
+  if (mismatch) {
+    throw new ApiError(
+      409,
+      'crm_company_scope_mismatch',
+      'Change the linked deals first: every deal must belong to the selected counterparty company.',
+      {
+        dealId: mismatch.id,
+        dealCompanyId: mismatch.companyId,
+        counterpartyId,
+      },
+    );
+  }
+}
+
+async function replaceDocumentLinksSafely(
+  context: ReturnType<typeof requireRegistryContext>,
+  documentId: string,
+  currentLinks: Array<{
+    id: string;
+    entityType: 'deal' | 'company';
+    entityId: number;
+    entityTitle: string;
+    linkRole: string | null;
+  }>,
+  selected: Array<{
+    entityType: 'deal' | 'company';
+    entityId: number;
+    entityTitle: string;
+    linkRole?: string | null;
+    dealCompanyId?: number | null;
+  }>,
+  documents: ReturnType<typeof createDocumentsService>,
+) {
+  const keyOf = (item: { entityType: string; entityId: number }) =>
+    `${item.entityType}:${item.entityId}`;
+  const currentByKey = new Map(currentLinks.map((item) => [keyOf(item), item]));
+  const selectedByKey = new Map(selected.map((item) => [keyOf(item), item]));
+  const additions = [...selectedByKey.entries()]
+    .filter(([key]) => !currentByKey.has(key))
+    .map(([, item]) => item);
+  const removals = [...currentByKey.entries()]
+    .filter(([key]) => !selectedByKey.has(key))
+    .map(([, item]) => item)
+    .filter((item) => item.entityType !== 'company');
+  const addedKeys: string[] = [];
+  const removed: typeof removals = [];
+  try {
+    for (const item of additions) {
+      await documents.addLink(context, documentId, item);
+      addedKeys.push(keyOf(item));
+    }
+    for (const item of removals) {
+      await documents.removeLink(context, documentId, item.id);
+      removed.push(item);
+    }
+    return documents.getById(context, documentId);
+  } catch (error) {
+    for (const item of [...removed].reverse()) {
+      await documents.addLink(context, documentId, item).catch(() => undefined);
+    }
+    const fresh = await documents.getById(context, documentId).catch(() => null);
+    if (fresh) {
+      for (const key of [...addedKeys].reverse()) {
+        const link = fresh.links.find((item) => keyOf(item) === key);
+        if (link) await documents.removeLink(context, documentId, link.id).catch(() => undefined);
+      }
+    }
+    throw error;
+  }
 }

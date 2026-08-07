@@ -1,4 +1,8 @@
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
+import {
+  missingRequiredBitrixScopes,
+  normalizeBitrixScopes,
+} from '../bitrix/bitrix-scopes.js';
 import { ApiError } from '../http/api-error.js';
 import type { RegistryContext } from '../http/registry-context.js';
 
@@ -16,7 +20,6 @@ interface BitrixPlacementBinding {
   HANDLER?: string;
 }
 
-const REQUIRED_SCOPES = ['crm', 'placement', 'user', 'department', 'disk', 'im', 'task'] as const;
 const CRM_EVENTS = [
   'ONCRMDEALUPDATE',
   'ONCRMDEALDELETE',
@@ -106,9 +109,7 @@ export class BitrixIntegrationsService {
       this.bitrix.call<BitrixEventBinding[]>(domain, accessToken, 'event.get'),
       this.bitrix.call<unknown>(domain, accessToken, 'placement.get'),
     ]);
-    const scopes = Array.isArray(rawScopes)
-      ? rawScopes.map((scope) => String(scope).toLowerCase())
-      : [];
+    const scopes = normalizeBitrixScopes(rawScopes);
     const eventBindings = Array.isArray(rawEventBindings) ? rawEventBindings : [];
     const registeredEvents = new Set(
       eventBindings
@@ -126,7 +127,7 @@ export class BitrixIntegrationsService {
 
     return {
       scopes,
-      missingScopes: REQUIRED_SCOPES.filter((scope) => !scopes.includes(scope)),
+      missingScopes: missingRequiredBitrixScopes(scopes),
       eventHandlerUrl: this.eventHandlerUrl,
       events: CRM_EVENTS.map((event) => ({
         event,

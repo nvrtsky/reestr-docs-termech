@@ -17,6 +17,9 @@ interface BitrixProfile {
 interface BitrixUser {
   ID: string;
   ACTIVE: boolean;
+  NAME?: string;
+  LAST_NAME?: string;
+  SECOND_NAME?: string;
   UF_DEPARTMENT?: Array<string | number> | string | number;
 }
 
@@ -27,6 +30,7 @@ interface CachedSession {
 
 export interface BitrixSessionResolver {
   resolve(domain: string, accessToken: string, memberId?: string): Promise<RegistryContext>;
+  invalidatePortal?(portalUrl: string): void;
 }
 
 export class BitrixSessionService implements BitrixSessionResolver {
@@ -37,6 +41,15 @@ export class BitrixSessionService implements BitrixSessionResolver {
     private readonly database: Database,
     private readonly client: BitrixApiClient,
   ) {}
+
+  invalidatePortal(portalUrl: string) {
+    const normalized = portalUrl.replace(/\/$/, '').toLowerCase();
+    for (const [key, item] of this.cache) {
+      if (item.context.portalUrl.replace(/\/$/, '').toLowerCase() === normalized) {
+        this.cache.delete(key);
+      }
+    }
+  }
 
   async resolve(domainInput: string, accessToken: string, memberId?: string) {
     const domain = this.client.normalizeDomain(domainInput);
@@ -106,6 +119,7 @@ export class BitrixSessionService implements BitrixSessionResolver {
     const context: RegistryContext = {
       portalUrl,
       userId,
+      userName: bitrixUserName(user) || `Пользователь #${userId}`,
       roleCode: role.roleCode,
       roleSource: role.roleSource,
       ...('roleDepartmentId' in role ? { roleDepartmentId: role.roleDepartmentId } : {}),
@@ -179,4 +193,11 @@ export class BitrixSessionService implements BitrixSessionResolver {
       .filter((id) => Number.isSafeInteger(id) && id > 0))]
       .sort((left, right) => left - right);
   }
+}
+
+export function bitrixUserName(user: Pick<BitrixUser, 'LAST_NAME' | 'NAME' | 'SECOND_NAME'>) {
+  return [user.LAST_NAME, user.NAME, user.SECOND_NAME]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(' ');
 }

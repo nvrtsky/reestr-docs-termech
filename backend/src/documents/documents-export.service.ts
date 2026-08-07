@@ -127,7 +127,7 @@ export class DocumentsExportService {
         row.counterparty = item.counterpartyName || '';
       }
       if (query.columns === undefined || query.columns.includes('status')) {
-        row.status = statusLabels.get(item.status) || item.status;
+        row.status = statusLabels.get(`${item.lifecycleCode}:${item.status}`) || item.status;
       }
       if ((query.columns === undefined || query.columns.includes('amount')) && !item.moneyHidden) {
         row.amount = item.amount == null ? null : Number(item.amount);
@@ -233,13 +233,13 @@ export class DocumentsExportService {
       .map((column) => column.slice('field:'.length));
     if (!keys.length) return [];
 
-    const rows = typeCode
-      ? await this.dependencies.database
+    const rows = await this.dependencies.database
           .select({
             key: registryFieldDefinitions.key,
             label: registryFieldDefinitions.label,
             labelOverride: registryTypeFields.labelOverride,
             dataType: registryFieldDefinitions.dataType,
+            typeCode: registryDocumentTypes.code,
           })
           .from(registryTypeFields)
           .innerJoin(
@@ -255,20 +255,7 @@ export class DocumentsExportService {
             eq(registryFieldDefinitions.portalUrl, context.portalUrl),
             eq(registryFieldDefinitions.isActive, true),
             eq(registryDocumentTypes.portalUrl, context.portalUrl),
-            eq(registryDocumentTypes.code, typeCode),
-            inArray(registryFieldDefinitions.key, keys),
-          ))
-      : await this.dependencies.database
-          .select({
-            key: registryFieldDefinitions.key,
-            label: registryFieldDefinitions.label,
-            labelOverride: registryFieldDefinitions.label,
-            dataType: registryFieldDefinitions.dataType,
-          })
-          .from(registryFieldDefinitions)
-          .where(and(
-            eq(registryFieldDefinitions.portalUrl, context.portalUrl),
-            eq(registryFieldDefinitions.isActive, true),
+            ...(typeCode ? [eq(registryDocumentTypes.code, typeCode)] : []),
             inArray(registryFieldDefinitions.key, keys),
           ));
     const rowByKey = new Map(rows.map((row) => [row.key, row]));
@@ -276,14 +263,18 @@ export class DocumentsExportService {
     if (unknown.length) {
       throw new ApiError(400, 'unknown_document_fields', 'Unknown dynamic export columns.', { keys: unknown });
     }
+    const accessibleRows = rows.filter((field) =>
+      !isDocumentFieldHidden(policy, field, field.typeCode)
+      && isTypePermissionGranted(policy, field.typeCode, 'export', policy.permissions.export));
+    const accessibleRowByKey = new Map(accessibleRows.map((row) => [row.key, row]));
     const forbidden = rows
-      .filter((field) => isDocumentFieldHidden(policy, field, typeCode))
+      .filter((field) => !accessibleRowByKey.has(field.key))
       .map((field) => field.key);
     if (forbidden.length) {
       throw new ApiError(403, 'document_fields_access_denied', 'Dynamic export columns are hidden for this role.', { keys: forbidden });
     }
     return keys.map((key, index) => {
-      const field = rowByKey.get(key)!;
+      const field = accessibleRowByKey.get(key)!;
       return {
         header: field.labelOverride || field.label,
         key: `dynamic_${index}`,
@@ -304,13 +295,13 @@ export class DocumentsExportService {
 
   private async loadStatusLabels(portalUrl: string) {
     const lifecycles = await this.dependencies.database
-      .select({ config: registryLifecycles.config })
+      .select({ code: registryLifecycles.code, config: registryLifecycles.config })
       .from(registryLifecycles)
       .where(eq(registryLifecycles.portalUrl, portalUrl));
     const labels = new Map<string, string>();
     for (const lifecycle of lifecycles) {
       for (const state of lifecycle.config.states) {
-        if (!labels.has(state.code)) labels.set(state.code, state.label);
+        labels.set(`${lifecycle.code}:${state.code}`, state.label);
       }
     }
     return labels;

@@ -4,6 +4,7 @@ import { and, asc, count, eq } from 'drizzle-orm';
 import { Router } from 'express';
 
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
+import type { BitrixSessionResolver } from '../auth/bitrix-session.service.js';
 import { loadKnownBitrixAdminIds } from '../bitrix/bitrix-admin-users.repository.js';
 import { loadBitrixEventTokenHash } from '../bitrix/bitrix-event-token.repository.js';
 import type { Database } from '../db/database.js';
@@ -15,6 +16,7 @@ import {
   registryLifecycles,
   registryRolePolicies,
   registrySections,
+  registryTypeFields,
   registryUserRoles,
 } from '../db/schema/index.js';
 import { ApiError } from '../http/api-error.js';
@@ -22,13 +24,16 @@ import { requireRegistryContext } from '../http/registry-context.js';
 import { loadRegistryPolicy } from '../permissions/policy.service.js';
 import { listBitrixDepartments } from '../users/bitrix-departments.service.js';
 import { listBitrixUsers } from '../users/bitrix-users.service.js';
+import { CrmEventsService } from '../webhooks/crm-events.service.js';
 import {
   replaceDepartmentRolesSchema,
+  replaceAccessAssignmentsSchema,
   replaceUserRolesSchema,
   updateRolePolicySchema,
   type UpdateRolePolicyInput,
 } from './administration.schemas.js';
 import { BitrixIntegrationsService } from './bitrix-integrations.service.js';
+import { rolePolicyCapabilities } from './system-roles.js';
 
 interface AdministrationRouterDependencies {
   database: Database;
@@ -36,6 +41,7 @@ interface AdministrationRouterDependencies {
   bitrixEventHandlerUrl: string;
   bitrixPlacementHandlerUrl: string;
   bitrixEventTokenConfigured: boolean;
+  sessions: BitrixSessionResolver;
 }
 
 export async function requireAdministrator(database: Database, request: Parameters<typeof requireRegistryContext>[0]) {
@@ -64,7 +70,7 @@ async function assertRolePolicyReferences(
   }
   assertUnique(input.hiddenFields, 'duplicate_hidden_field', 'Hidden fields');
 
-  const [sections, types, fieldDefinitions] = await Promise.all([
+  const [sections, types, fieldDefinitions, requiredTypeFields] = await Promise.all([
     database
       .select({ code: registrySections.code })
       .from(registrySections)
@@ -95,6 +101,28 @@ async function assertRolePolicyReferences(
           eq(registryFieldDefinitions.isActive, true),
         ),
       ),
+    database
+      .select({
+        typeCode: registryDocumentTypes.code,
+        fieldKey: registryFieldDefinitions.key,
+      })
+      .from(registryTypeFields)
+      .innerJoin(
+        registryDocumentTypes,
+        eq(registryTypeFields.typeId, registryDocumentTypes.id),
+      )
+      .innerJoin(
+        registryFieldDefinitions,
+        eq(registryTypeFields.fieldDefinitionId, registryFieldDefinitions.id),
+      )
+      .where(and(
+        eq(registryTypeFields.portalUrl, portalUrl),
+        eq(registryDocumentTypes.portalUrl, portalUrl),
+        eq(registryFieldDefinitions.portalUrl, portalUrl),
+        eq(registryTypeFields.isRequired, true),
+        eq(registryDocumentTypes.isActive, true),
+        eq(registryFieldDefinitions.isActive, true),
+      )),
   ]);
 
   const knownSections = new Set(sections.map((section) => section.code));
@@ -143,7 +171,70 @@ async function assertRolePolicyReferences(
     }
   }
 
-  return { knownSections };
+  const visibleTypes = input.visibleTypeCodes
+    ? new Set(input.visibleTypeCodes)
+    : new Set(typeSectionsByCode.keys());
+  const hiddenFields = new Set(input.hiddenFields);
+  const conflictingRequiredFields = requiredTypeFields.filter(({ typeCode, fieldKey }) => {
+    if (!visibleTypes.has(typeCode) || !hiddenFields.has(fieldKey)) return false;
+    const typeSections = typeSectionsByCode.get(typeCode) ?? new Set<string>();
+    if (![...typeSections].some((sectionCode) => visibleSections.has(sectionCode))) return false;
+    return input.permissions.byType[typeCode]?.create ?? input.permissions.create;
+  });
+  if (conflictingRequiredFields.length) {
+    throw new ApiError(
+      400,
+      'required_document_field_hidden',
+      'A field required for document creation cannot be hidden from a role that may create that document type.',
+      { conflicts: conflictingRequiredFields },
+    );
+  }
+
+}
+
+async function assertRoleCanBeDeactivated(
+  database: Database,
+  portalUrl: string,
+  roleCode: string,
+) {
+  const [userUsage, departmentUsage, lifecycles] = await Promise.all([
+    database
+      .select({ value: count(registryUserRoles.id) })
+      .from(registryUserRoles)
+      .where(and(
+        eq(registryUserRoles.portalUrl, portalUrl),
+        eq(registryUserRoles.roleCode, roleCode),
+      ))
+      .then((rows) => rows[0]),
+    database
+      .select({ value: count(registryDepartmentRoles.id) })
+      .from(registryDepartmentRoles)
+      .where(and(
+        eq(registryDepartmentRoles.portalUrl, portalUrl),
+        eq(registryDepartmentRoles.roleCode, roleCode),
+      ))
+      .then((rows) => rows[0]),
+    database
+      .select({ name: registryLifecycles.name, config: registryLifecycles.config })
+      .from(registryLifecycles)
+      .where(eq(registryLifecycles.portalUrl, portalUrl)),
+  ]);
+  if ((userUsage?.value ?? 0) > 0 || (departmentUsage?.value ?? 0) > 0) {
+    throw new ApiError(
+      409,
+      'role_policy_in_use',
+      'Нельзя отключить роль, пока она назначена пользователям или подразделениям.',
+    );
+  }
+  const lifecycleUsage = lifecycles.find((lifecycle) =>
+    lifecycle.config.transitions.some((transition) => transition.roles?.includes(roleCode)));
+  if (lifecycleUsage) {
+    throw new ApiError(
+      409,
+      'role_policy_in_lifecycle',
+      `Нельзя отключить роль: она используется в жизненном цикле «${lifecycleUsage.name}».`,
+    );
+  }
 }
 
 export function createAdministrationRouter({
@@ -152,6 +243,7 @@ export function createAdministrationRouter({
   bitrixEventHandlerUrl,
   bitrixPlacementHandlerUrl,
   bitrixEventTokenConfigured,
+  sessions,
 }: AdministrationRouterDependencies) {
   const router = Router();
   const integrations = new BitrixIntegrationsService(
@@ -159,6 +251,7 @@ export function createAdministrationRouter({
     bitrixEventHandlerUrl,
     bitrixPlacementHandlerUrl,
   );
+  const crmEvents = new CrmEventsService(database, bitrix);
 
   router.get('/integrations', async (request, response, next) => {
     try {
@@ -187,7 +280,9 @@ export function createAdministrationRouter({
           'Bitrix24 event token is not configured.',
         );
       }
-      response.json(await integrations.ensure(context));
+      const ensured = await integrations.ensure(context);
+      const reconciliation = await crmEvents.reconcilePending(context);
+      response.json({ ...ensured, reconciliation });
     } catch (error) {
       next(error);
     }
@@ -210,7 +305,12 @@ export function createAdministrationRouter({
         .from(registryRolePolicies)
         .where(eq(registryRolePolicies.portalUrl, context.portalUrl))
         .orderBy(asc(registryRolePolicies.roleName));
-      response.json({ items });
+      response.json({
+        items: items.map((item) => ({
+          ...item,
+          capabilities: rolePolicyCapabilities(item.roleCode),
+        })),
+      });
     } catch (error) {
       next(error);
     }
@@ -264,12 +364,16 @@ export function createAdministrationRouter({
       const roleCode = request.params.roleCode?.trim();
       if (!roleCode) throw new ApiError(400, 'role_code_required', 'Role code is required.');
       const input = updateRolePolicySchema.parse(request.body);
-      if (roleCode === 'admin' && (!input.isActive || !input.permissions.administer)) {
+      const capabilities = rolePolicyCapabilities(roleCode);
+      if (!capabilities.canEditPolicy) {
         throw new ApiError(
           409,
-          'cannot_disable_administrator_policy',
-          'The Bitrix24 administrator policy must remain active with administration access.',
+          'system_role_policy_read_only',
+          'The system role policy is read-only.',
         );
+      }
+      if (!capabilities.canEditName && input.roleName !== capabilities.fixedName) {
+        throw new ApiError(409, 'system_role_name_fixed', 'The system role name cannot be changed.');
       }
       if (roleCode !== 'admin' && input.permissions.administer) {
         throw new ApiError(
@@ -278,32 +382,10 @@ export function createAdministrationRouter({
           'Administration access is reserved for Bitrix24 administrators.',
         );
       }
-      const references = await assertRolePolicyReferences(database, context.portalUrl, input);
-      if (roleCode === 'admin') {
-        const visibleSections = new Set(input.visibleSectionCodes);
-        const hasAllSections = visibleSections.size === references.knownSections.size
-          && [...references.knownSections].every((code) => visibleSections.has(code));
-        const { byType, ...basePermissions } = input.permissions;
-        const hasAllPermissions = Object.values(basePermissions).every(Boolean)
-          && Object.keys(byType).length === 0;
-        if (
-          input.roleName !== 'Администратор'
-          || !hasAllSections
-          || input.visibleTypeCodes !== null
-          || input.hiddenFields.length > 0
-          || input.hideMoney
-          || !hasAllPermissions
-        ) {
-          throw new ApiError(
-            409,
-            'administrator_policy_must_be_full',
-            'The Bitrix24 administrator policy must keep full registry access.',
-          );
-        }
-      }
+      await assertRolePolicyReferences(database, context.portalUrl, input);
 
       const targetPolicy = await database
-        .select({ id: registryRolePolicies.id })
+        .select({ id: registryRolePolicies.id, isActive: registryRolePolicies.isActive })
         .from(registryRolePolicies)
         .where(
           and(
@@ -314,6 +396,9 @@ export function createAdministrationRouter({
         .limit(1)
         .then((rows) => rows[0]);
       if (!targetPolicy) throw new ApiError(404, 'role_policy_not_found', 'Role policy was not found.');
+      if (targetPolicy.isActive && !input.isActive) {
+        await assertRoleCanBeDeactivated(database, context.portalUrl, roleCode);
+      }
 
       const [updated] = await database
         .update(registryRolePolicies)
@@ -349,11 +434,11 @@ export function createAdministrationRouter({
       const { context } = await requireAdministrator(database, request);
       const roleCode = request.params.roleCode?.trim();
       if (!roleCode) throw new ApiError(400, 'role_code_required', 'Role code is required.');
-      if (roleCode === 'admin') {
+      if (!rolePolicyCapabilities(roleCode).canDelete) {
         throw new ApiError(
           409,
-          'cannot_delete_administrator_policy',
-          'Роль администратора Bitrix24 удалить нельзя.',
+          'system_role_delete_denied',
+          'Системную роль удалить нельзя.',
         );
       }
       const policy = await database
@@ -472,7 +557,15 @@ export function createAdministrationRouter({
           .filter((user) => user.isBitrixAdmin || knownBitrixAdminIds.has(user.id))
           .map((user) => user.id),
       );
+      const bitrixUsersById = new Map(users.map((user) => [user.id, user]));
       for (const item of input.items) {
+        if (context.source === 'bitrix' && !bitrixUsersById.has(item.userId)) {
+          throw new ApiError(
+            400,
+            'bitrix_user_not_found',
+            `User ${item.userId} was not found or is inactive in Bitrix24.`,
+          );
+        }
         if (bitrixAdminIds.has(item.userId)) {
           throw new ApiError(
             400,
@@ -484,14 +577,18 @@ export function createAdministrationRouter({
           throw new ApiError(400, 'role_policy_not_found', `Active role ${item.roleCode} was not found.`);
         }
       }
+      const canonicalItems = input.items.map((item) => ({
+        ...item,
+        userName: bitrixUsersById.get(item.userId)?.name ?? item.userName ?? null,
+      }));
 
       await database.transaction(async (transaction) => {
         await transaction
           .delete(registryUserRoles)
           .where(eq(registryUserRoles.portalUrl, context.portalUrl));
-        if (input.items.length) {
+        if (canonicalItems.length) {
           await transaction.insert(registryUserRoles).values(
-            input.items.map((item) => ({
+            canonicalItems.map((item) => ({
               portalUrl: context.portalUrl,
               userId: item.userId,
               userName: item.userName ?? null,
@@ -501,7 +598,8 @@ export function createAdministrationRouter({
           );
         }
       });
-      response.json({ items: input.items });
+      sessions.invalidatePortal?.(context.portalUrl);
+      response.json({ items: canonicalItems });
     } catch (error) {
       next(error);
     }
@@ -599,7 +697,112 @@ export function createAdministrationRouter({
           );
         }
       });
+      sessions.invalidatePortal?.(context.portalUrl);
       response.json({ items: input.items });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put('/access-assignments', async (request, response, next) => {
+    try {
+      const { context } = await requireAdministrator(database, request);
+      const input = replaceAccessAssignmentsSchema.parse(request.body);
+      const [activePolicies, users, knownBitrixAdminIds, departments] = await Promise.all([
+        database
+          .select({ roleCode: registryRolePolicies.roleCode })
+          .from(registryRolePolicies)
+          .where(and(
+            eq(registryRolePolicies.portalUrl, context.portalUrl),
+            eq(registryRolePolicies.isActive, true),
+          )),
+        listBitrixUsers(context, bitrix),
+        loadKnownBitrixAdminIds(database, context.portalUrl),
+        listBitrixDepartments(context, bitrix),
+      ]);
+      const activeRoleCodes = new Set(
+        activePolicies
+          .map((policy) => policy.roleCode)
+          .filter((roleCode) => roleCode !== 'admin'),
+      );
+      const bitrixAdminIds = new Set(
+        users
+          .filter((user) => user.isBitrixAdmin || knownBitrixAdminIds.has(user.id))
+          .map((user) => user.id),
+      );
+      const bitrixUsersById = new Map(users.map((user) => [user.id, user]));
+      const knownDepartmentIds = new Set(departments.map((department) => department.id));
+      for (const item of input.userRoles.items) {
+        if (context.source === 'bitrix' && !bitrixUsersById.has(item.userId)) {
+          throw new ApiError(
+            400,
+            'bitrix_user_not_found',
+            `User ${item.userId} was not found or is inactive in Bitrix24.`,
+          );
+        }
+        if (bitrixAdminIds.has(item.userId)) {
+          throw new ApiError(
+            400,
+            'bitrix_admin_role_fixed',
+            'Администратору Bitrix24 нельзя назначить другую роль: полный доступ к реестру предоставляется автоматически.',
+          );
+        }
+        if (!activeRoleCodes.has(item.roleCode)) {
+          throw new ApiError(400, 'role_policy_not_found', `Active role ${item.roleCode} was not found.`);
+        }
+      }
+      for (const item of input.departmentRoles.items) {
+        if (!activeRoleCodes.has(item.roleCode)) {
+          throw new ApiError(400, 'role_policy_not_found', `Active role ${item.roleCode} was not found.`);
+        }
+        if (context.source === 'bitrix' && !knownDepartmentIds.has(item.departmentId)) {
+          throw new ApiError(
+            400,
+            'bitrix_department_not_found',
+            `Department ${item.departmentId} was not found in Bitrix24.`,
+          );
+        }
+      }
+
+      const canonicalUserRoles = input.userRoles.items.map((item) => ({
+        ...item,
+        userName: bitrixUsersById.get(item.userId)?.name ?? item.userName ?? null,
+      }));
+
+      await database.transaction(async (transaction) => {
+        await transaction
+          .delete(registryUserRoles)
+          .where(eq(registryUserRoles.portalUrl, context.portalUrl));
+        await transaction
+          .delete(registryDepartmentRoles)
+          .where(eq(registryDepartmentRoles.portalUrl, context.portalUrl));
+        if (canonicalUserRoles.length) {
+          await transaction.insert(registryUserRoles).values(
+            canonicalUserRoles.map((item) => ({
+              portalUrl: context.portalUrl,
+              userId: item.userId,
+              userName: item.userName ?? null,
+              roleCode: item.roleCode,
+              assignedBy: context.userId,
+            })),
+          );
+        }
+        if (input.departmentRoles.items.length) {
+          await transaction.insert(registryDepartmentRoles).values(
+            input.departmentRoles.items.map((item) => ({
+              portalUrl: context.portalUrl,
+              departmentId: item.departmentId,
+              roleCode: item.roleCode,
+              priority: item.priority,
+            })),
+          );
+        }
+      });
+      sessions.invalidatePortal?.(context.portalUrl);
+      response.json({
+        userRoles: canonicalUserRoles,
+        departmentRoles: input.departmentRoles.items,
+      });
     } catch (error) {
       next(error);
     }

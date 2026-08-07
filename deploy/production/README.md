@@ -31,6 +31,12 @@ Database migrations run automatically before the backend starts. Seed is a
 separate one-time command because repeated seed runs would overwrite catalog
 and role changes made by registry administrators.
 
+Keep the release directory owned by the deployment account and not writable by
+other users. Recommended host modes are `0750` for
+`/var/www/termech-doc-registry`, `0750` for
+`/var/backups/termech-doc-registry`, `0600` for `env.production`, and `0600`
+for database dumps/checksums. Do not use `0777` or world-readable backups.
+
 ## Host nginx
 
 Copy `deploy/production/nginx/termech-doc-registry.conf` to
@@ -42,6 +48,35 @@ include /etc/nginx/snippets/termech-doc-registry.conf;
 ```
 
 Run `nginx -t` before reloading nginx.
+
+The registry upload route deliberately uses `client_max_body_size 0`: files are
+streamed to Bitrix24 Disk and the effective size policy is defined by the
+approved requirements and Bitrix24, not by nginx.
+
+## Automated backup and restore test
+
+Install the timer without touching any other application on the host:
+
+```bash
+chmod 0750 deploy/production/scripts/*.sh
+install -m 0644 deploy/production/systemd/termech-registry-backup.service /etc/systemd/system/
+install -m 0644 deploy/production/systemd/termech-registry-backup.timer /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now termech-registry-backup.timer
+```
+
+The backup script writes only to `/var/backups/termech-doc-registry`, applies
+`0600`, writes a SHA-256 checksum, verifies every new dump in a disposable
+database, and retains the last two days by default. A dump can also be checked
+manually before a release:
+
+```bash
+deploy/production/scripts/verify-registry-backup.sh \
+  /var/backups/termech-doc-registry/registry-YYYYmmdd-HHMMSS.dump
+```
+
+The verifier never restores over the production database: it creates a
+temporary `registry_restore_test_*` database and drops it on exit.
 
 ## Health checks
 

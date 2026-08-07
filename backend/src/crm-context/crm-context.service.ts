@@ -1,6 +1,7 @@
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
 import type { RegistryContext } from '../http/registry-context.js';
 import type { DocumentEntityReference } from '../documents/documents.service.js';
+import { ApiError } from '../http/api-error.js';
 
 interface BitrixDeal {
   ID?: string | number;
@@ -30,6 +31,21 @@ interface BitrixTask {
 interface BitrixTaskResult {
   task?: BitrixTask;
   tasks?: BitrixTask[];
+}
+
+interface BitrixUser {
+  ID?: string | number;
+  NAME?: string;
+  LAST_NAME?: string;
+  SECOND_NAME?: string;
+  ACTIVE?: string | boolean | number;
+}
+
+export interface CrmDealSelection {
+  id: number;
+  title: string;
+  /** undefined means that a live Bitrix24 lookup was unavailable. */
+  companyId: number | null | undefined;
 }
 
 export interface CrmDealContext {
@@ -92,6 +108,24 @@ export class CrmContextService {
     return this.entityTitle(company.TITLE, defaultTitle);
   }
 
+  async resolveDealSelection(
+    context: RegistryContext,
+    dealId: number,
+    fallbackTitle?: string | null,
+  ): Promise<CrmDealSelection> {
+    const defaultTitle = fallbackTitle || this.defaultTitle('deal', dealId);
+    if (!context.bitrix) {
+      return { id: dealId, title: defaultTitle, companyId: undefined };
+    }
+    const deal = await this.call<BitrixDeal>(context, 'crm.deal.get', { id: dealId });
+    const resolvedId = this.positiveId(deal.ID) || dealId;
+    return {
+      id: resolvedId,
+      title: this.entityTitle(deal.TITLE, defaultTitle),
+      companyId: this.positiveId(deal.COMPANY_ID),
+    };
+  }
+
   async resolveCompanySelection(
     context: RegistryContext,
     companyId: number,
@@ -126,6 +160,39 @@ export class CrmContextService {
       id: resolvedId,
       title: this.entityTitle(rawTask?.title ?? rawTask?.TITLE, defaultTitle),
     };
+  }
+
+  async resolveUserSelection(
+    context: RegistryContext,
+    userId: number,
+    fallbackName?: string | null,
+  ) {
+    const defaultName = fallbackName || `Пользователь #${userId}`;
+    if (!context.bitrix) return { id: userId, name: defaultName };
+    const result = await this.call<BitrixUser[]>(context, 'user.get', {
+      FILTER: { ID: userId },
+      start: 0,
+    });
+    const user = result.find((item) => this.positiveId(item.ID) === userId);
+    const active = user?.ACTIVE;
+    if (
+      !user
+      || active === false
+      || active === 0
+      || (typeof active === 'string' && ['n', '0', 'false'].includes(active.toLowerCase()))
+    ) {
+      throw new ApiError(
+        400,
+        'bitrix_responsible_not_found',
+        'The responsible user was not found or is inactive in Bitrix24.',
+        { userId },
+      );
+    }
+    const name = [user.LAST_NAME, user.NAME, user.SECOND_NAME]
+      .filter((part): part is string => typeof part === 'string' && !!part.trim())
+      .map((part) => part.trim())
+      .join(' ');
+    return { id: userId, name: this.entityTitle(name, defaultName) };
   }
 
   async searchTasks(context: RegistryContext, search: string, limit: number) {
@@ -165,8 +232,10 @@ export class CrmContextService {
     const companyTitle = companyId
       ? this.entityTitle(company?.TITLE, this.defaultTitle('company', companyId))
       : null;
+    // The deal placement must show documents linked to this exact deal. The
+    // company remains creation context, but must not broaden the list to every
+    // document linked only to the same company.
     const references: DocumentEntityReference[] = [{ entityType: 'deal', entityId: dealId }];
-    if (companyId) references.push({ entityType: 'company', entityId: companyId });
     return {
       entityType: 'deal',
       entityId: dealId,
