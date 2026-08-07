@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
 import type { Database } from '../db/database.js';
@@ -183,15 +183,23 @@ export class AttachmentsService {
 
     const attachmentIds = attachments.map((attachment) => attachment.id);
     const existing = await this.database
-      .select({ attachmentId: registryAttachmentCopies.attachmentId })
+      .select({
+        id: registryAttachmentCopies.id,
+        attachmentId: registryAttachmentCopies.attachmentId,
+        deletedAt: registryAttachmentCopies.deletedAt,
+      })
       .from(registryAttachmentCopies)
       .where(and(
         eq(registryAttachmentCopies.portalUrl, context.portalUrl),
         eq(registryAttachmentCopies.dealId, dealId),
         inArray(registryAttachmentCopies.attachmentId, attachmentIds),
-        isNull(registryAttachmentCopies.deletedAt),
       ));
-    const existingAttachmentIds = new Set(existing.map((copy) => copy.attachmentId));
+    const existingAttachmentIds = new Set(
+      existing.filter((copy) => !copy.deletedAt).map((copy) => copy.attachmentId),
+    );
+    const deletedCopyByAttachment = new Map(
+      existing.filter((copy) => !!copy.deletedAt).map((copy) => [copy.attachmentId, copy]),
+    );
     const missing = attachments.filter((attachment) => !existingAttachmentIds.has(attachment.id));
     if (!missing.length) return { created: 0 };
 
@@ -204,17 +212,51 @@ export class AttachmentsService {
         });
       }
       await this.database.transaction(async (transaction) => {
-        await transaction.insert(registryAttachmentCopies).values(prepared.map((copy) => ({
-          portalUrl: context.portalUrl,
-          attachmentId: copy.attachmentId,
-          dealId: copy.dealId,
-          dealTitle: copy.dealTitle,
-          diskFileId: copy.diskFileId,
-          diskFolderId: copy.diskFolderId,
-          storagePath: copy.storagePath,
-          url: copy.url,
-          createdBy: context.userId,
-        })));
+        const restored = prepared.filter((copy) => deletedCopyByAttachment.has(copy.attachmentId));
+        const created = prepared.filter((copy) => !deletedCopyByAttachment.has(copy.attachmentId));
+        for (const copy of restored) {
+          const previous = deletedCopyByAttachment.get(copy.attachmentId)!;
+          const [reactivated] = await transaction
+            .update(registryAttachmentCopies)
+            .set({
+              dealTitle: copy.dealTitle,
+              diskFileId: copy.diskFileId,
+              diskFolderId: copy.diskFolderId,
+              storagePath: copy.storagePath,
+              url: copy.url,
+              createdBy: context.userId,
+              createdAt: new Date(),
+              deletedAt: null,
+            })
+            .where(and(
+              eq(registryAttachmentCopies.id, previous.id),
+              eq(registryAttachmentCopies.portalUrl, context.portalUrl),
+              eq(registryAttachmentCopies.attachmentId, copy.attachmentId),
+              eq(registryAttachmentCopies.dealId, dealId),
+              isNotNull(registryAttachmentCopies.deletedAt),
+            ))
+            .returning({ id: registryAttachmentCopies.id });
+          if (!reactivated) {
+            throw new ApiError(
+              409,
+              'attachment_copy_sync_conflict',
+              'Physical attachment copy was already restored by another action.',
+            );
+          }
+        }
+        if (created.length) {
+          await transaction.insert(registryAttachmentCopies).values(created.map((copy) => ({
+            portalUrl: context.portalUrl,
+            attachmentId: copy.attachmentId,
+            dealId: copy.dealId,
+            dealTitle: copy.dealTitle,
+            diskFileId: copy.diskFileId,
+            diskFolderId: copy.diskFolderId,
+            storagePath: copy.storagePath,
+            url: copy.url,
+            createdBy: context.userId,
+          })));
+        }
         await transaction.insert(registryAuditLog).values({
           portalUrl: context.portalUrl,
           documentId,
@@ -226,6 +268,7 @@ export class AttachmentsService {
             dealTitle: deal.entityTitle,
             attachmentIds: prepared.map((copy) => copy.attachmentId),
             physicalCopyCount: prepared.length,
+            restoredCopyCount: restored.length,
           },
         });
       });

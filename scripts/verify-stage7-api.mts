@@ -282,6 +282,23 @@ try {
   assert.equal(disk.deletedFileIds.includes(synchronizedCopies[0].diskFileId), true);
   checks.push('deal_link_removal_deletes_its_physical_copies');
 
+  const afterDealRestore = await documents.addLink(context, document.id, {
+    entityType: 'deal',
+    entityId: 7103,
+    entityTitle: 'Stage7 Deal Gamma',
+  });
+  const restoredGammaCopies = await database.db.select().from(registryAttachmentCopies)
+    .where(and(
+      eq(registryAttachmentCopies.attachmentId, second.id),
+      eq(registryAttachmentCopies.dealId, 7103),
+      isNull(registryAttachmentCopies.deletedAt),
+    ));
+  assert.equal(restoredGammaCopies.length, 1);
+  assert.equal(restoredGammaCopies[0].id, synchronizedCopies[0].id);
+  assert.notEqual(restoredGammaCopies[0].diskFileId, synchronizedCopies[0].diskFileId);
+  assert.equal(afterDealRestore.attachments[0].storageCopies.length, 3);
+  checks.push('previously_removed_deal_link_restores_its_unique_copy_without_http_500');
+
   const beforeFailedAttachmentCount = await database.db.select({ id: registryAttachments.id })
     .from(registryAttachments)
     .where(eq(registryAttachments.documentId, document.id));

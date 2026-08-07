@@ -22,6 +22,7 @@ class NoopBitrixClient implements BitrixApiClient {
 class FakeCrmBitrixClient implements BitrixApiClient {
   normalizeDomain(value: string) { return value; }
   async call<T>(_domain: string, _token: string, method: string, params: Record<string, unknown>): Promise<T> {
+    if (method === 'scope') return ['task'] as T;
     if (method === 'crm.company.get') {
       return { ID: params.id, TITLE: `Verified company ${params.id}` } as T;
     }

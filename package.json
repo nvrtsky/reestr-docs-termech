@@ -11,7 +11,7 @@
     "dev": "npm run app:build && concurrently -k -n api,web -c yellow,cyan \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "build": "npm run app:build && npm run build -w backend && npm run build -w frontend",
     "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
-    "test": "npm run test -w backend",
+    "test": "npm run test -w backend && npm run test -w frontend",
     "verify:visual": "node scripts/verify-baseline.mjs",
     "verify:crm-selector": "node --import tsx scripts/verify-bitrix-crm-selector.mts",
     "verify:stage1-api": "node --import tsx scripts/verify-stage1-api.mts",

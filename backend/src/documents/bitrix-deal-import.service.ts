@@ -196,6 +196,7 @@ export class BitrixDealImportService {
         status: registryDocuments.status,
         deletedAt: registryDocuments.deletedAt,
         updatedAt: registryDocuments.updatedAt,
+        updatedAtVersion: sql<string>`extract(epoch from ${registryDocuments.updatedAt})::numeric::text`,
       })
       .from(registryDocuments)
       .where(and(
@@ -209,7 +210,7 @@ export class BitrixDealImportService {
       && sourceKeys.has(`${document.source}:${document.entityTypeId}:${document.externalId}`));
     const expectedUpdatedAt = new Map(existingForSync.map((document) => [
       document.id,
-      document.updatedAt,
+      document.updatedAtVersion,
     ]));
     const relocations: Array<{
       documentId: string;
@@ -382,7 +383,7 @@ export class BitrixDealImportService {
     uniqueItems: Map<string, NormalizedExternalDocument>;
     sourceDuplicatesIgnored: number;
     syncedAt: Date;
-    expectedUpdatedAt: Map<string, Date>;
+    expectedUpdatedAt: Map<string, string>;
     relocationByDocument: Map<string, Awaited<ReturnType<AttachmentsService['prepareCounterpartyRelocation']>>>;
     obsoleteDealLinks: Array<{ documentId: string; entityId: number }>;
     obsoleteCopies: Array<{
@@ -505,6 +506,7 @@ export class BitrixDealImportService {
             responsibleId: registryDocuments.responsibleId,
             responsibleName: registryDocuments.responsibleName,
             updatedAt: registryDocuments.updatedAt,
+            updatedAtVersion: sql<string>`extract(epoch from ${registryDocuments.updatedAt})::numeric::text`,
             externalStatus: registryDocuments.externalStatus,
             externalUpdatedAt: registryDocuments.externalUpdatedAt,
             deletedAt: registryDocuments.deletedAt,
@@ -606,7 +608,7 @@ export class BitrixDealImportService {
           const preparedUpdatedAt = expectedUpdatedAt.get(documentId);
           if (
             preparedUpdatedAt
-            && preparedUpdatedAt.getTime() !== existing.updatedAt.getTime()
+            && preparedUpdatedAt !== existing.updatedAtVersion
           ) {
             throw new ApiError(
               409,
@@ -627,7 +629,7 @@ export class BitrixDealImportService {
             .where(and(
               eq(registryDocuments.portalUrl, context.portalUrl),
               eq(registryDocuments.id, documentId),
-              eq(registryDocuments.updatedAt, existing.updatedAt),
+              sql`extract(epoch from ${registryDocuments.updatedAt})::numeric::text = ${existing.updatedAtVersion}`,
             ))
             .returning({ id: registryDocuments.id });
           if (!synchronized) {

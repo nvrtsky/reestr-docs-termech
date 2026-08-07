@@ -2,6 +2,7 @@ import type { ApiError } from './api-error.js';
 
 const messages: Record<string, string> = {
   attachment_disk_file_missing: 'Для вложения не указан файл на Диске Bitrix24.',
+  attachment_copy_sync_conflict: 'Физическая копия файла уже восстановлена другим действием. Обновите документ и повторите попытку.',
   attachment_field_mismatch: 'Новая версия файла должна оставаться в том же поле документа.',
   attachment_name_invalid: 'Некорректное название вложения.',
   attachment_not_found: 'Вложение не найдено.',

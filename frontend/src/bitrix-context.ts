@@ -1,6 +1,7 @@
 import { initializeB24Frame, type B24Frame } from '@bitrix24/b24jssdk';
 
 export interface RegistryBitrixContext {
+  deepLinkDocumentId: string | null;
   auth: {
     accessToken: string;
     domain: string;
@@ -98,12 +99,27 @@ async function callFrame<T>(frame: B24Frame, method: string, params: object = {}
 
 export async function getRegistryBitrixContext(refresh = false): Promise<RegistryBitrixContext> {
   const frame = await getFrame();
-  if (!frame) return { auth: null, application: null, placement: null };
+  if (!frame) {
+    return {
+      deepLinkDocumentId: extractDeepLinkDocumentId({
+        search: window.location.search,
+        referrer: document.referrer,
+      }),
+      auth: null,
+      application: null,
+      placement: null,
+    };
+  }
   if (refresh) await frame.auth.refreshAuth();
   const auth = frame.auth.getAuthData();
   const appInfo = await getApplicationInfo(frame);
   const appId = positiveEntityId(appInfo.ID);
   return {
+    deepLinkDocumentId: extractDeepLinkDocumentId({
+      search: window.location.search,
+      referrer: document.referrer,
+      placementOptions: frame.placement.options,
+    }),
     auth: auth
       ? {
           accessToken: auth.access_token,
@@ -125,6 +141,21 @@ export async function getRegistryBitrixContext(refresh = false): Promise<Registr
       isSliderMode: frame.placement.isSliderMode,
     },
   };
+}
+
+export function extractDeepLinkDocumentId({
+  search = '',
+  referrer = '',
+  placementOptions,
+}: {
+  search?: string;
+  referrer?: string;
+  placementOptions?: unknown;
+}) {
+  return documentIdFromQuery(search)
+    || documentIdFromUrl(referrer)
+    || documentIdFromPlacementOptions(placementOptions)
+    || null;
 }
 
 function getApplicationInfo(frame: B24Frame) {
@@ -175,6 +206,68 @@ function parseJsonValue(value: unknown): unknown {
   } catch {
     return value;
   }
+}
+
+const DOCUMENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DOCUMENT_QUERY_KEYS = ['document', 'documentId', 'document_id', 'DOCUMENT_ID'];
+
+function documentIdFromQuery(value: string) {
+  const source = value.trim().replace(/^\?/, '');
+  if (!source) return null;
+  try {
+    const params = new URLSearchParams(source);
+    for (const key of DOCUMENT_QUERY_KEYS) {
+      const candidate = params.get(key)?.trim();
+      if (candidate && DOCUMENT_ID_PATTERN.test(candidate)) return candidate;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function documentIdFromUrl(value: string) {
+  if (!value.trim()) return null;
+  try {
+    const url = new URL(value);
+    return documentIdFromQuery(url.search)
+      || documentIdFromQuery(url.hash.replace(/^#/, ''));
+  } catch {
+    return documentIdFromQuery(value);
+  }
+}
+
+function documentIdFromPlacementOptions(value: unknown, depth = 0): string | null {
+  if (depth > 5 || value === null || value === undefined) return null;
+  const parsed = parseJsonValue(value);
+  if (typeof parsed === 'string') return documentIdFromUrl(parsed);
+  if (Array.isArray(parsed)) {
+    for (const item of parsed) {
+      const id = documentIdFromPlacementOptions(item, depth + 1);
+      if (id) return id;
+    }
+    return null;
+  }
+  if (typeof parsed !== 'object') return null;
+
+  const record = parsed as Record<string, unknown>;
+  for (const key of DOCUMENT_QUERY_KEYS) {
+    const candidate = String(record[key] || '').trim();
+    if (DOCUMENT_ID_PATTERN.test(candidate)) return candidate;
+  }
+  for (const key of [
+    'PLACEMENT_OPTIONS',
+    'placementOptions',
+    'options',
+    'PARAMS',
+    'params',
+    'APP_PARAMS',
+    'appParams',
+  ]) {
+    const id = documentIdFromPlacementOptions(record[key], depth + 1);
+    if (id) return id;
+  }
+  return null;
 }
 
 function positiveEntityId(value: unknown): string | null {

@@ -27,7 +27,13 @@ const RETRYABLE_READ_METHODS = new Set([
 
 export interface BitrixApiClient {
   normalizeDomain(value: string): string;
-  call<T>(domainInput: string, accessToken: string, method: string, params?: object): Promise<T>;
+  call<T>(
+    domainInput: string,
+    accessToken: string,
+    method: string,
+    params?: object,
+    apiVersion?: 'legacy' | 'v3',
+  ): Promise<T>;
   upload<T>(
     domainInput: string,
     uploadUrlInput: string,
@@ -56,7 +62,13 @@ export class BitrixClient implements BitrixApiClient {
     return domain;
   }
 
-  async call<T>(domainInput: string, accessToken: string, method: string, params: object = {}) {
+  async call<T>(
+    domainInput: string,
+    accessToken: string,
+    method: string,
+    params: object = {},
+    apiVersion: 'legacy' | 'v3' = 'legacy',
+  ) {
     const domain = this.normalizeDomain(domainInput);
     const retryableRead = RETRYABLE_READ_METHODS.has(method);
     const attemptTimeouts = retryableRead
@@ -71,7 +83,10 @@ export class BitrixClient implements BitrixApiClient {
     let requestError: unknown;
     for (const timeoutMs of attemptTimeouts) {
       try {
-        response = await fetch(`https://${domain}/rest/${method}.json`, {
+        const restPath = apiVersion === 'v3'
+          ? `/rest/api/${method}`
+          : `/rest/${method}.json`;
+        response = await fetch(`https://${domain}${restPath}`, {
           method: 'POST',
           headers: { 'content-type': 'application/json', accept: 'application/json' },
           body: JSON.stringify({ ...params, auth: accessToken }),

@@ -196,7 +196,7 @@ async function createType(name: string) {
 }
 
 async function createDocument(typeCode: string, title: string, number: string) {
-  return api('/documents', 'admin', {
+  const document = await api('/documents', 'admin', {
     method: 'POST',
     body: {
       sectionCode: 'client',
@@ -211,6 +211,7 @@ async function createDocument(typeCode: string, title: string, number: string) {
       fields: {},
     },
   }, 201);
+  return api(`/documents/${document.id}/finalize`, 'admin', { method: 'POST' });
 }
 
 async function api(

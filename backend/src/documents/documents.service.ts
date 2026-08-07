@@ -520,17 +520,28 @@ export class DocumentsService {
       policy.visibleSectionCodes.map((code) => [code, 0]),
     ) as Record<string, number>;
     for (const row of sectionRows) sections[row.code] = row.value;
+    const responsiblesById = new Map<number, { id: number; name: string; count: number }>();
+    for (const row of responsibleRows) {
+      const fallbackName = `Пользователь #${row.id}`;
+      const candidateName = row.name?.trim() || fallbackName;
+      const existing = responsiblesById.get(row.id);
+      if (!existing) {
+        responsiblesById.set(row.id, { id: row.id, name: candidateName, count: row.value });
+        continue;
+      }
+      existing.count += row.value;
+      if (isResponsiblePlaceholder(existing.name) && !isResponsiblePlaceholder(candidateName)) {
+        existing.name = candidateName;
+      }
+    }
 
     return {
       scopeTotal: all,
       archiveTotal,
       sections,
       views: { all, mine, work, draft },
-      responsibles: responsibleRows.map((row) => ({
-        id: row.id,
-        name: row.name || `Пользователь #${row.id}`,
-        count: row.value,
-      })),
+      responsibles: [...responsiblesById.values()].sort((left, right) =>
+        left.name.localeCompare(right.name, 'ru') || left.id - right.id),
     };
   }
 
@@ -2316,7 +2327,7 @@ export class DocumentsService {
       )) {
         throw new ApiError(403, 'restore_access_denied', 'Восстановление документов недоступно для вашей роли.');
       }
-      if (!document.deletedAt) {
+      if (!document.deletedAt && document.status !== 'archived') {
         throw new ApiError(409, 'document_not_deleted', 'Документ не находится в архиве.');
       }
     }
@@ -2325,10 +2336,12 @@ export class DocumentsService {
       await this.loadArchiveParticipants(context, document.id, document.createdBy),
     ] as const)));
 
-    const restoredStatuses = new Map(documents.map((document) => [
+    const restoredStatuses = new Map(await Promise.all(documents.map(async (document) => [
       document.id,
-      document.status,
-    ] as const));
+      !document.deletedAt && document.status === 'archived'
+        ? await this.legacyArchiveRestoreStatus(context, document.id, document.lifecycleConfig)
+        : document.status,
+    ] as const)));
     const restoredAt = new Date();
     await this.database.transaction(async (transaction) => {
       for (const document of documents) {
@@ -2341,13 +2354,16 @@ export class DocumentsService {
             updatedBy: context.userId,
             updatedAt: restoredAt,
           })
-          .where(
-            and(
-              eq(registryDocuments.id, document.id),
-              eq(registryDocuments.portalUrl, context.portalUrl),
-              isNotNull(registryDocuments.deletedAt),
-            ),
-          )
+          .where(and(
+            eq(registryDocuments.id, document.id),
+            eq(registryDocuments.portalUrl, context.portalUrl),
+            !document.deletedAt && document.status === 'archived'
+              ? and(
+                  eq(registryDocuments.status, 'archived'),
+                  isNull(registryDocuments.deletedAt),
+                )
+              : isNotNull(registryDocuments.deletedAt),
+          ))
           .returning({ id: registryDocuments.id });
         if (!restored) {
           throw new ApiError(409, 'document_restore_conflict', 'One of the documents was already restored. Refresh and retry.');
@@ -2364,6 +2380,7 @@ export class DocumentsService {
             fileUploaderIds: participants.get(document.id)!.fileUploaderIds,
             notificationRecipientIds: participants.get(document.id)!.recipientIds,
             restoredStatus: restoredStatuses.get(document.id),
+            legacyArchived: !document.deletedAt && document.status === 'archived',
           },
         });
       }
@@ -2724,10 +2741,13 @@ export class DocumentsService {
     )) {
       throw new ApiError(403, 'restore_access_denied', 'Restore is not allowed.');
     }
-    if (!current.deletedAt) {
+    const legacyArchived = !current.deletedAt && current.status === 'archived';
+    if (!current.deletedAt && !legacyArchived) {
       throw new ApiError(409, 'document_not_deleted', 'Документ не находится в архиве.');
     }
-    const restoredStatus = current.status;
+    const restoredStatus = legacyArchived
+      ? await this.legacyArchiveRestoreStatus(context, id, current.lifecycleConfig)
+      : current.status;
     const participants = await this.loadArchiveParticipants(
       context,
       id,
@@ -2744,13 +2764,16 @@ export class DocumentsService {
           updatedBy: context.userId,
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(registryDocuments.id, id),
-            eq(registryDocuments.portalUrl, context.portalUrl),
-            isNotNull(registryDocuments.deletedAt),
-          ),
-        )
+        .where(and(
+          eq(registryDocuments.id, id),
+          eq(registryDocuments.portalUrl, context.portalUrl),
+          legacyArchived
+            ? and(
+                eq(registryDocuments.status, 'archived'),
+                isNull(registryDocuments.deletedAt),
+              )
+            : isNotNull(registryDocuments.deletedAt),
+        ))
         .returning({ id: registryDocuments.id });
       if (!restored) {
         throw new ApiError(409, 'document_restore_conflict', 'Document was already restored. Refresh and retry.');
@@ -2766,6 +2789,7 @@ export class DocumentsService {
           fileUploaderIds: participants.fileUploaderIds,
           notificationRecipientIds: participants.recipientIds,
           restoredStatus,
+          legacyArchived,
         },
       });
     });
@@ -3324,17 +3348,26 @@ export class DocumentsService {
     const populated = new Set(values
       .filter((item) => !this.isEmptyFieldValue(item.value))
       .map((item) => item.fieldDefinitionId));
-    const missing = requiredFields
-      .filter((field) => field.dataType === 'file'
-        ? !attached.has(field.id)
-        : !populated.has(field.id))
+    const missingValueKeys = requiredValueFields
+      .filter((field) => !populated.has(field.id))
       .map((field) => field.key);
-    if (missing.length) {
+    if (missingValueKeys.length) {
       throw new ApiError(
         409,
         'required_document_fields_incomplete',
         'Required document fields have not been completed yet.',
-        { keys: missing },
+        { keys: missingValueKeys },
+      );
+    }
+    const missingFileKeys = requiredFileFields
+      .filter((field) => !attached.has(field.id))
+      .map((field) => field.key);
+    if (missingFileKeys.length) {
+      throw new ApiError(
+        409,
+        'required_file_fields_incomplete',
+        'Required file fields have not been uploaded yet.',
+        { keys: missingFileKeys },
       );
     }
   }
@@ -3583,6 +3616,10 @@ export class DocumentsService {
       type: { code: typeCode, name: typeName, isFinancial },
     };
   }
+}
+
+function isResponsiblePlaceholder(value: string) {
+  return /^Пользователь\s+#\d+$/iu.test(value.trim());
 }
 
 export function createDocumentsService({ database, bitrix }: DocumentsServiceDependencies) {

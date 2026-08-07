@@ -9,6 +9,7 @@ import { loadConfig } from '../backend/src/config.js';
 import { createDatabase } from '../backend/src/db/database.js';
 import type { RolePermissions } from '../backend/src/db/schema/access.js';
 import {
+  registryAttachments,
   registryDepartmentRoles,
   registryDocumentLinks,
   registryDocuments,
@@ -207,7 +208,10 @@ try {
       { entityType: 'deal', entityId: 7002, entityTitle: 'Закрытая сделка' },
     ],
   });
-  const checkedAt = new Date();
+  // Development-context verification has no live Bitrix token. Keep the
+  // synthetic state inside its explicit verification window even though the
+  // production access cache intentionally has a zero TTL.
+  const checkedAt = new Date(Date.now() + 60_000);
   await database.db.update(registryDocumentLinks)
     .set({ dealClosed: true, dealStateCheckedAt: checkedAt })
     .where(
@@ -230,7 +234,7 @@ try {
   assert.equal(visibleWithOpenDeal.meta.total, 1);
 
   await database.db.update(registryDocumentLinks)
-    .set({ dealClosed: true, dealStateCheckedAt: new Date() })
+    .set({ dealClosed: true, dealStateCheckedAt: new Date(Date.now() + 60_000) })
     .where(
       and(
         eq(registryDocumentLinks.portalUrl, portalUrl),
@@ -257,10 +261,19 @@ try {
 }
 
 async function createDocument(role: string, partial: Record<string, unknown>) {
-  return api('/documents', role, {
+  const document = await api('/documents', role, {
     method: 'POST',
     body: documentInput(partial),
   }, 201);
+  await database.db.insert(registryAttachments).values({
+    portalUrl,
+    documentId: document.id,
+    kind: 'link',
+    name: 'Stage1 QA verification source',
+    url: `https://example.com/stage1/${document.id}`,
+    createdBy: 501,
+  });
+  return api(`/documents/${document.id}/finalize`, role, { method: 'POST' });
 }
 
 function documentInput(partial: Record<string, unknown>) {
