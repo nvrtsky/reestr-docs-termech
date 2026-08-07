@@ -746,6 +746,7 @@ export function createCatalogsRouter({ database }: CatalogsRouterDependencies) {
               .where(and(
                 eq(registryDocuments.portalUrl, context.portalUrl),
                 eq(registryDocuments.typeId, documentType.id),
+                eq(registryDocuments.isFinalized, true),
               ))
           : [];
         const uniquenessKeys = new Map<string, string>();

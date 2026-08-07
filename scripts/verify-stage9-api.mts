@@ -44,6 +44,13 @@ class FakeBitrixImportClient implements BitrixApiClient {
     if (method === 'crm.company.get') {
       return { ID: 77, TITLE: 'Stage9 Company' } as T;
     }
+    if (method === 'user.get') {
+      return [
+        { ID: 501, ACTIVE: true, NAME: 'Stage9', LAST_NAME: 'Administrator' },
+        { ID: 502, ACTIVE: true, NAME: 'Stage9', LAST_NAME: 'Sales' },
+      ] as T;
+    }
+    if (method === 'im.notify.system.add') return 1 as T;
     if (method === 'crm.item.list') {
       const entityTypeId = Number(params.entityTypeId);
       const filter = params.filter as Record<string, unknown>;
@@ -112,6 +119,7 @@ class FakeSessions implements BitrixSessionResolver {
     return {
       portalUrl: `https://${normalized}`,
       userId: accessToken.startsWith('sales') ? 502 : 501,
+      userName: accessToken.startsWith('sales') ? 'Stage9 Sales' : 'Stage9 Administrator',
       roleCode: accessToken.startsWith('sales') ? 'sales' : 'admin',
       roleSource: accessToken.startsWith('sales') ? 'user' : 'bitrix_admin',
       departmentIds: [],

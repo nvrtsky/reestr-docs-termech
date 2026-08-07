@@ -177,10 +177,16 @@ try {
 
   const manualNumber = `${createdType.code}-2026-0099`;
   await createDocument(createdType.code, 'Stage2 QA manual', 101, {}, manualNumber);
-  await api('/documents', {
+  const duplicate = await api('/documents', {
     method: 'POST',
     body: documentInput(createdType.code, 'Stage2 QA duplicate', 101, {}, manualNumber),
-  }, 409, 'document_number_conflict');
+  }, 201);
+  await api(
+    `/documents/${duplicate.id}/finalize`,
+    { method: 'POST' },
+    409,
+    'document_number_conflict',
+  );
   await createDocument(createdType.code, 'Stage2 QA duplicate other company', 102, {}, manualNumber);
   checks.push('manual_number_and_scoped_uniqueness');
 
@@ -367,17 +373,18 @@ function documentInput(
   };
 }
 
-function createDocument(
+async function createDocument(
   typeCode: string,
   title: string,
   counterpartyId: number,
   fields: Record<string, unknown>,
   number: string | null = null,
 ) {
-  return api('/documents', {
+  const document = await api('/documents', {
     method: 'POST',
     body: documentInput(typeCode, title, counterpartyId, fields, number),
   }, 201);
+  return api(`/documents/${document.id}/finalize`, { method: 'POST' });
 }
 
 async function api(

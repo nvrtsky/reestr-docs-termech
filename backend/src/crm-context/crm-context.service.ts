@@ -29,6 +29,8 @@ interface BitrixTask {
 }
 
 interface BitrixTaskResult {
+  item?: BitrixTask;
+  items?: BitrixTask[];
   task?: BitrixTask;
   tasks?: BitrixTask[];
 }
@@ -71,6 +73,8 @@ export interface CrmEntityContext {
 const FALLBACK_STAGE_COLOR = '#d97706';
 const BITRIX_PAGE_SIZE = 50;
 const MAX_DEAL_PAGES = 20;
+const BITRIX_V3_TASK_PAGE_SIZE = 1_000;
+const MAX_TASK_SEARCH_PAGES = 50;
 
 export class CrmContextService {
   constructor(private readonly bitrix: BitrixApiClient) {}
@@ -147,13 +151,19 @@ export class CrmContextService {
   ) {
     const defaultTitle = fallbackTitle || `Задача #${taskId}`;
     if (!context.bitrix) return { id: taskId, title: defaultTitle };
+    const taskApiVersion = await this.taskApiVersion(context);
     const result = await this.call<BitrixTask | BitrixTaskResult>(
       context,
       'tasks.task.get',
-      { taskId, select: ['ID', 'TITLE'] },
+      taskApiVersion === 'v3'
+        ? { id: taskId, select: ['id', 'title'] }
+        : { taskId, select: ['ID', 'TITLE'] },
+      taskApiVersion,
     );
-    const rawTask = result && typeof result === 'object' && 'task' in result
-      ? result.task
+    const rawTask = result && typeof result === 'object'
+      ? ('item' in result
+          ? result.item
+          : ('task' in result ? result.task : result as BitrixTask))
       : result as BitrixTask;
     const resolvedId = this.positiveId(rawTask?.id ?? rawTask?.ID) || taskId;
     return {
@@ -197,25 +207,109 @@ export class CrmContextService {
 
   async searchTasks(context: RegistryContext, search: string, limit: number) {
     if (!context.bitrix) return [];
-    const filter = search ? { TITLE: `%${search}%` } : {};
-    const result = await this.call<BitrixTask[] | BitrixTaskResult>(
-      context,
-      'tasks.task.list',
-      {
-        order: { ID: 'DESC' },
-        filter,
-        select: ['ID', 'TITLE'],
-        start: 0,
-      },
-    );
-    const tasks = Array.isArray(result) ? result : result.tasks || [];
+    const taskApiVersion = await this.taskApiVersion(context);
+    const normalizedSearch = search.trim().toLocaleLowerCase('ru');
+    const exactTaskId = /^\d+$/.test(normalizedSearch)
+      ? this.positiveId(normalizedSearch)
+      : null;
+
+    if (taskApiVersion === 'legacy') {
+      const result = await this.call<BitrixTask[] | BitrixTaskResult>(
+        context,
+        'tasks.task.list',
+        {
+          order: { ID: 'DESC' },
+          filter: exactTaskId
+            ? { ID: exactTaskId }
+            : (normalizedSearch ? { TITLE: `%${search.trim()}%` } : {}),
+          select: ['ID', 'TITLE'],
+          start: 0,
+        },
+        taskApiVersion,
+      );
+      const tasks = Array.isArray(result) ? result : result.tasks || result.items || [];
+      return this.normalizeTasks(tasks)
+        .filter((task) => !normalizedSearch
+          || task.id === exactTaskId
+          || task.title.toLocaleLowerCase('ru').includes(normalizedSearch))
+        .slice(0, limit);
+    }
+
+    // REST v3 only supports filtering tasks by `id`. Resolve an entered numeric
+    // identifier directly; for title search, scan the accessible pages and
+    // apply the case-insensitive title filter locally.
+    if (exactTaskId) {
+      const result = await this.call<BitrixTask[] | BitrixTaskResult>(
+        context,
+        'tasks.task.list',
+        {
+          order: { id: 'DESC' },
+          filter: [['id', exactTaskId]],
+          select: ['id', 'title'],
+          pagination: { page: 1, limit: 1, offset: 0 },
+        },
+        taskApiVersion,
+      );
+      const tasks = Array.isArray(result) ? result : result.items || result.tasks || [];
+      return this.normalizeTasks(tasks)
+        .filter((task) => task.id === exactTaskId)
+        .slice(0, limit);
+    }
+
+    const matches = new Map<number, { id: number; title: string }>();
+    let cursorId = 0;
+    for (let page = 1; page <= MAX_TASK_SEARCH_PAGES; page += 1) {
+      const result = await this.call<BitrixTask[] | BitrixTaskResult>(
+        context,
+        'tasks.task.list',
+        {
+          order: { id: 'ASC' },
+          filter: [['id', '>', cursorId]],
+          select: ['id', 'title'],
+          pagination: { page: 1, limit: BITRIX_V3_TASK_PAGE_SIZE, offset: 0 },
+        },
+        taskApiVersion,
+      );
+      const tasks = Array.isArray(result) ? result : result.items || result.tasks || [];
+      const normalizedTasks = this.normalizeTasks(tasks);
+      const pageMatches = normalizedTasks.filter((task) => !normalizedSearch
+        || task.title.toLocaleLowerCase('ru').includes(normalizedSearch));
+      for (const task of pageMatches) matches.set(task.id, task);
+      const exactTitleFound = !!normalizedSearch && pageMatches.some(
+        (task) => task.title.toLocaleLowerCase('ru') === normalizedSearch,
+      );
+      const nextCursorId = normalizedTasks.reduce(
+        (maximum, task) => Math.max(maximum, task.id),
+        cursorId,
+      );
+      // Some Bitrix24 portals cap a page below the requested REST v3 limit and
+      // do not advance reliably when page and offset are combined. The only
+      // supported task filter is id, so keyset pagination guarantees progress.
+      if (
+        exactTitleFound
+        || matches.size >= limit
+        || tasks.length === 0
+        || nextCursorId <= cursorId
+      ) break;
+      cursorId = nextCursorId;
+    }
+    return [...matches.values()].slice(0, limit);
+  }
+
+  private normalizeTasks(tasks: BitrixTask[]) {
     return tasks
       .map((task) => ({
         id: this.positiveId(task.id ?? task.ID),
         title: this.entityTitle(task.title ?? task.TITLE, ''),
       }))
-      .filter((task): task is { id: number; title: string } => !!task.id && !!task.title)
-      .slice(0, limit);
+      .filter((task): task is { id: number; title: string } => !!task.id && !!task.title);
+  }
+
+  private async taskApiVersion(context: RegistryContext): Promise<'legacy' | 'v3'> {
+    const scopes = await this.call<string[]>(context, 'scope', {});
+    return scopes.some((scope) => String(scope).trim().toLowerCase() === 'tasks')
+      ? 'v3'
+      : 'legacy';
   }
 
   private async resolveDeal(context: RegistryContext, entityId: number): Promise<CrmEntityContext> {
@@ -346,12 +440,18 @@ export class CrmContextService {
     };
   }
 
-  private call<T>(context: RegistryContext, method: string, params: object) {
+  private call<T>(
+    context: RegistryContext,
+    method: string,
+    params: object,
+    apiVersion: 'legacy' | 'v3' = 'legacy',
+  ) {
     return this.bitrix.call<T>(
       context.bitrix!.domain,
       context.bitrix!.accessToken,
       method,
       params,
+      apiVersion,
     );
   }
 

@@ -27,6 +27,16 @@ class FakeNotificationClient implements BitrixApiClient {
     method: string,
     params: Record<string, unknown> = {},
   ): Promise<T> {
+    if (method === 'user.get') {
+      const filter = params.FILTER as { ID?: unknown } | undefined;
+      const id = Number(filter?.ID);
+      return [{
+        ID: id,
+        ACTIVE: true,
+        NAME: id === 610 ? 'Creator' : `User ${id}`,
+        LAST_NAME: 'Stage10',
+      }] as T;
+    }
     if (method === 'crm.deal.list' || method === 'crm.company.list') {
       const filter = params.filter as { '@ID'?: unknown[] } | undefined;
       return (filter?.['@ID'] ?? []).map((id) => ({ ID: id })) as T;
@@ -129,9 +139,11 @@ try {
     isCurrent: true,
     createdBy: 620,
   });
+  await api(`/documents/${document.id}/finalize`, 'creator-access-token', { method: 'POST' });
 
+  const beforeArchiveCalls = bitrix.notificationCalls.length;
   await api(`/documents/${document.id}`, 'actor-access-token', { method: 'DELETE' }, 204);
-  const archiveCalls = bitrix.notificationCalls.slice();
+  const archiveCalls = bitrix.notificationCalls.slice(beforeArchiveCalls);
   assert.deepEqual(archiveCalls.map((call) => call.userId).sort(), [610, 620]);
   assert.equal(archiveCalls.every((call) => call.message.includes('архивирован')), true);
   assert.equal(archiveCalls.every((call) => call.message.includes('Действие выполнил Иван Петров.')), true);
@@ -229,6 +241,15 @@ try {
       fields: { payment_due_date: '2026-08-20' },
     },
   }, 201);
+  await database.db.insert(registryAttachments).values({
+    portalUrl,
+    documentId: financial.id,
+    kind: 'link',
+    name: 'Stage10 finance source',
+    url: 'https://example.com/stage10-finance-source',
+    createdBy: 610,
+  });
+  await api(`/documents/${financial.id}/finalize`, 'creator-access-token', { method: 'POST' });
   const salesView = await api(`/documents/${financial.id}`, 'sales-access-token');
   assert.equal(salesView.amount, null);
   assert.equal(salesView.currency, null);
@@ -237,6 +258,18 @@ try {
   assert.equal(serializedHistory.includes('"amount"'), false);
   assert.equal(serializedHistory.includes('"currency"'), false);
   checks.push('immutable_history_does_not_leak_hidden_financial_fields');
+
+  await database.db.update(registryDocuments).set({
+    responsibleName: 'Пользователь #610',
+  }).where(eq(registryDocuments.id, financial.id));
+  const options = await api('/documents/options', 'actor-access-token');
+  const responsibleOptions = options.responsibles.filter(
+    (item: { id: number }) => item.id === 610,
+  );
+  assert.equal(responsibleOptions.length, 1);
+  assert.equal(responsibleOptions[0].name, 'Stage10 Creator');
+  assert.equal(responsibleOptions[0].count, 2);
+  checks.push('responsible_filter_merges_historical_placeholder_and_real_name_by_user_id');
 
   process.stdout.write(`${JSON.stringify({ ok: true, checks }, null, 2)}\n`);
 } finally {

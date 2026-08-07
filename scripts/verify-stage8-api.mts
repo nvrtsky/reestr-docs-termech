@@ -115,7 +115,7 @@ try {
   ] as const;
   const documents = [];
   for (const [title, documentDate, amount, currency] of inputs) {
-    documents.push(await api('/documents', 'admin', {
+    const document = await api('/documents', 'admin', {
       method: 'POST',
       body: {
         sectionCode: 'client',
@@ -131,7 +131,8 @@ try {
         taskLinks: [],
         fields: {},
       },
-    }, 201));
+    }, 201);
+    documents.push(await api(`/documents/${document.id}/finalize`, 'admin', { method: 'POST' }));
   }
   await database.db.insert(registryDocumentLinks).values(documents.map((document) => ({
     portalUrl,
@@ -140,7 +141,10 @@ try {
     entityId: 8101,
     entityTitle: 'Stage8 QA Deal',
     dealClosed: false,
-    dealStateCheckedAt: new Date(),
+    // The production rule intentionally uses a zero-TTL deal-state check.
+    // Development-role tests have no Bitrix token to refresh it, so keep the
+    // synthetic open state valid for the duration of this isolated request.
+    dealStateCheckedAt: new Date(Date.now() + 60_000),
   })));
 
   const [foreignSection] = await database.db.insert(registrySections).values({

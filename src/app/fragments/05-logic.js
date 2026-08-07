@@ -99,7 +99,12 @@ class Component extends DCLogic {
       return;
     }
     if (event.data.type !== 'registry-bitrix-context') return;
-    this.bitrixContext = event.data.context || { auth: null, placement: null };
+    this.bitrixContext = event.data.context || {
+      auth: null,
+      application: null,
+      placement: null,
+      deepLinkDocumentId: null,
+    };
     const previousKey = this.placementEntity
       ? `${this.placementEntity.entityType}:${this.placementEntity.entityId}`
       : '';
@@ -287,8 +292,9 @@ class Component extends DCLogic {
   async openDeepLinkedDocument() {
     if (this.deepLinkHandled) return;
     this.deepLinkHandled = true;
-    const id = new URLSearchParams(window.location.search).get('document');
-    if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return;
+    const id = new URLSearchParams(window.location.search).get('document')
+      || (this.bitrixContext && this.bitrixContext.deepLinkDocumentId);
+    if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return;
     const openedActive = await this.openDocument(id, false, false, false);
     if (!openedActive) await this.openDocument(id, false, true, true);
   }
@@ -393,10 +399,21 @@ class Component extends DCLogic {
   async manageDocumentLinks(documentId, currentLinks) {
     try {
       const selected = await this.requestCrmSelection(currentLinks);
-      await this.api(`/api/v1/registry/documents/${documentId}/links`, {
+      const payload = await this.api(`/api/v1/registry/documents/${documentId}/links`, {
         method: 'PUT',
         body: JSON.stringify({ items: selected }),
       });
+      const index = this.docs.findIndex(document => document.id === documentId);
+      const current = index !== -1
+        ? this.docs[index]
+        : (this.drawerDocument && this.drawerDocument.id === documentId
+          ? this.drawerDocument
+          : {});
+      const updated = this.toDocument(payload, current);
+      if (index !== -1) this.docs[index] = updated;
+      if (this.state.drawerId === documentId) this.drawerDocument = updated;
+      this.setState({ drawerActionError: '' });
+      this.forceUpdate();
       if (this.placementEntity) {
         await this.loadContextDocuments();
         if (this.docs.some(document => document.id === documentId)) {
@@ -409,6 +426,11 @@ class Component extends DCLogic {
       }
     } catch (error) {
       console.error('Failed to update CRM links', error);
+      this.setState({
+        drawerActionError: error instanceof Error
+          ? error.message
+          : 'Не удалось обновить привязки Bitrix24.',
+      });
     }
   }
 
@@ -1566,6 +1588,7 @@ class Component extends DCLogic {
     search: '',
     view: 'all',
     registryPage: 0,
+    documentsLoading: false,
     sel: {},
     registryUsers: [],
     bulkAssignOpen: false,
@@ -3023,6 +3046,7 @@ class Component extends DCLogic {
   async loadDocuments(required = false) {
     const requestId = (this.documentsRequestId || 0) + 1;
     this.documentsRequestId = requestId;
+    this.setState({ documentsLoading: true });
     try {
       const payload = await this.api(`/api/v1/registry/documents?${this.documentQueryParams().toString()}`);
       if (requestId !== this.documentsRequestId) return;
@@ -3040,6 +3064,10 @@ class Component extends DCLogic {
       this.documentsSource = 'error';
       console.error('Failed to load registry documents', error);
       if (required) throw error;
+    } finally {
+      if (requestId === this.documentsRequestId) {
+        this.setState({ documentsLoading: false });
+      }
     }
   }
 
@@ -6140,6 +6168,7 @@ class Component extends DCLogic {
           sel: {},
           rowMenuId: null,
           drawerId: null,
+          documentsLoading: true,
           filters: { sections: {}, statuses: {}, type: 'all', responsible: 'all', cp: '', from: '', to: '', dynamic: {} },
         });
         this.scheduleDocumentsReload();
@@ -6153,6 +6182,7 @@ class Component extends DCLogic {
           sel: {},
           rowMenuId: null,
           drawerId: null,
+          documentsLoading: true,
           filters: { sections: {}, statuses: {}, type: 'all', responsible: 'all', cp: '', from: '', to: '', dynamic: {} },
         });
         this.scheduleDocumentsReload();
@@ -6392,7 +6422,11 @@ class Component extends DCLogic {
       search: S.search, setSearch: (e) => this.updateRegistrySearch(e.target.value),
       ...this.registryControls(scoped),
       filterResultLabel: this.documentsMeta.total + ' найдено',
-      savedViews, rows, rowCount: rows.length, isEmpty: rows.length === 0,
+      savedViews,
+      rows: S.documentsLoading ? [] : rows,
+      rowCount: S.documentsLoading ? 0 : rows.length,
+      isLoading: S.documentsLoading,
+      isEmpty: !S.documentsLoading && rows.length === 0,
       filteredTotal: this.documentsMeta.total,
       canExportRegistry,
       canCreateAnyDocument,

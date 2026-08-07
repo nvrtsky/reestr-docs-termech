@@ -11,6 +11,7 @@ class FakeBitrixClient implements BitrixApiClient {
   }
 
   async call<T>(_domain: string, _token: string, method: string): Promise<T> {
+    if (method === 'scope') return ['task'] as T;
     if (method === 'crm.deal.get') {
       return {
         ID: '1234',
@@ -27,6 +28,57 @@ class FakeBitrixClient implements BitrixApiClient {
     }
     if (method === 'user.get') {
       return [{ ID: '82', ACTIVE: true, NAME: 'Иван', LAST_NAME: 'Иванов' }] as T;
+    }
+    throw new Error(`Unexpected Bitrix method: ${method}`);
+  }
+
+  async upload<T>(): Promise<T> {
+    throw new Error('Upload is not used by this test.');
+  }
+}
+
+class FakeBitrixV3TasksClient implements BitrixApiClient {
+  calls: Array<{ method: string; params: object; apiVersion: string }> = [];
+
+  normalizeDomain(value: string) {
+    return value;
+  }
+
+  async call<T>(
+    _domain: string,
+    _token: string,
+    method: string,
+    params: object = {},
+    apiVersion: 'legacy' | 'v3' = 'legacy',
+  ): Promise<T> {
+    this.calls.push({ method, params, apiVersion });
+    if (method === 'scope') return ['crm', 'tasks'] as T;
+    if (method === 'tasks.task.list') {
+      const taskParams = params as {
+        filter?: Array<[string, string | number, number?]>;
+        pagination?: { page?: number };
+      };
+      const taskFilter = taskParams.filter?.[0];
+      if (taskFilter?.length === 2) {
+        return { items: [{ id: 1796, title: 'QA-REG задача' }] } as T;
+      }
+      if (taskFilter?.[2] === 0) {
+        return {
+          // The production portal may return fewer items than the requested
+          // 1000-item limit while still having another page.
+          items: Array.from({ length: 50 }, (_, index) => ({
+            id: index + 1,
+            title: `Посторонняя задача ${index}`,
+          })),
+        } as T;
+      }
+      if (taskFilter?.[2] === 50) {
+        return { items: [{ id: 1796, title: 'QA-REG задача' }] } as T;
+      }
+      return { items: [] } as T;
+    }
+    if (method === 'tasks.task.get') {
+      return { item: { id: 1796, title: 'QA-REG задача' } } as T;
     }
     throw new Error(`Unexpected Bitrix method: ${method}`);
   }
@@ -79,5 +131,51 @@ describe('CRM placement context', () => {
       .resolveUserSelection(context, 82, 'Client supplied name');
 
     assert.deepEqual(resolved, { id: 82, name: 'Иванов Иван' });
+  });
+
+  it('uses the REST 3.0 task route and searches subsequent pages by title', async () => {
+    const bitrix = new FakeBitrixV3TasksClient();
+    const service = new CrmContextService(bitrix);
+
+    const tasks = await service.searchTasks(context, 'qa-reg', 20);
+    const selected = await service.resolveTaskSelection(context, 1796);
+
+    assert.deepEqual(tasks, [{ id: 1796, title: 'QA-REG задача' }]);
+    assert.deepEqual(selected, { id: 1796, title: 'QA-REG задача' });
+    const taskCalls = bitrix.calls.filter((call) => call.method.startsWith('tasks.task.'));
+    assert.equal(taskCalls.every((call) => call.apiVersion === 'v3'), true);
+    assert.deepEqual(
+      taskCalls[0].params,
+      {
+        order: { id: 'ASC' },
+        filter: [['id', '>', 0]],
+        select: ['id', 'title'],
+        pagination: { page: 1, limit: 1_000, offset: 0 },
+      },
+    );
+    assert.deepEqual(
+      (taskCalls[1].params as { filter: unknown }).filter,
+      [['id', '>', 50]],
+    );
+    assert.deepEqual(
+      (taskCalls[2].params as { filter: unknown }).filter,
+      [['id', '>', 1796]],
+    );
+    assert.equal('id' in taskCalls[3].params, true);
+  });
+
+  it('uses the supported REST 3.0 id filter for an exact numeric search', async () => {
+    const bitrix = new FakeBitrixV3TasksClient();
+    const tasks = await new CrmContextService(bitrix).searchTasks(context, '1796', 20);
+
+    assert.deepEqual(tasks, [{ id: 1796, title: 'QA-REG задача' }]);
+    const taskCall = bitrix.calls.find((call) => call.method === 'tasks.task.list');
+    assert.deepEqual(taskCall?.params, {
+      order: { id: 'DESC' },
+      filter: [['id', 1796]],
+      select: ['id', 'title'],
+      pagination: { page: 1, limit: 1, offset: 0 },
+    });
+    assert.equal(taskCall?.apiVersion, 'v3');
   });
 });
