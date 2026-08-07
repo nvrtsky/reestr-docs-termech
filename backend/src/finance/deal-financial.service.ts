@@ -45,6 +45,10 @@ export class DealFinancialService {
   }
 
   async summarize(context: RegistryContext, dealId: number, targetCurrency: string) {
+    targetCurrency = targetCurrency.trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(targetCurrency)) {
+      throw new ApiError(400, 'currency_invalid', 'Currency code is invalid.');
+    }
     await this.assertBitrixDealAccess(context, dealId);
     const policy = await loadRegistryPolicy(this.database, context);
     const crmEntityScope = await this.crmEntityAccess.prepare(context);
@@ -53,6 +57,7 @@ export class DealFinancialService {
 
     const conditions: SQL[] = [
       eq(registryDocuments.portalUrl, context.portalUrl),
+      eq(registryDocuments.isFinalized, true),
       isNull(registryDocuments.deletedAt),
       ne(registryDocuments.status, 'archived'),
       eq(registryDocumentLinks.portalUrl, context.portalUrl),
@@ -134,11 +139,13 @@ export class DealFinancialService {
       for (const [date, quotes] of resolved) ratesByDate.set(date, quotes);
     }
 
-    let total = 0;
+    let totalMinor = 0n;
     const details = rows.map((row) => {
       const emptyAmount = row.amount === null;
-      const originalAmount = emptyAmount ? 0 : Number(row.amount);
-      if (!Number.isFinite(originalAmount)) {
+      let originalMinor = 0n;
+      try {
+        originalMinor = emptyAmount ? 0n : decimalToMinor(row.amount!, 2);
+      } catch {
         throw new ApiError(409, 'financial_amount_invalid', 'Document amount is invalid.', {
           documentId: row.id,
         });
@@ -170,8 +177,14 @@ export class DealFinancialService {
         throw new ApiError(503, 'cbr_rates_incomplete', 'Required exchange rates are missing.');
       }
       const conversionRate = source.rubPerUnit / target.rubPerUnit;
-      const convertedAmount = roundMoney(originalAmount * conversionRate);
-      total = roundMoney(total + convertedAmount);
+      const convertedMinor = divideRounded(
+        originalMinor
+          * decimalToMinor(source.rubValue.toFixed(8), 8)
+          * BigInt(target.nominal),
+        BigInt(source.nominal)
+          * decimalToMinor(target.rubValue.toFixed(8), 8),
+      );
+      totalMinor += convertedMinor;
       return {
         documentId: row.id,
         number: row.number,
@@ -180,20 +193,20 @@ export class DealFinancialService {
         typeName: row.typeName,
         documentDate: row.documentDate,
         emptyAmount: false,
-        originalAmount: originalAmount.toFixed(2),
+        originalAmount: formatMinor(originalMinor, 2),
         originalCurrency,
         sourceRate: source.rubPerUnit.toFixed(8),
         targetRate: target.rubPerUnit.toFixed(8),
         conversionRate: conversionRate.toFixed(10),
         rateDate: source.rateDate,
-        convertedAmount: convertedAmount.toFixed(2),
+        convertedAmount: formatMinor(convertedMinor, 2),
         targetCurrency,
       };
     });
     return {
       dealId,
       targetCurrency,
-      total: total.toFixed(2),
+      total: formatMinor(totalMinor, 2),
       documentCount: details.length,
       zeroAmountCount: details.filter((row) => row.emptyAmount).length,
       source: 'CBR',
@@ -227,6 +240,29 @@ export class DealFinancialService {
   }
 }
 
-function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+function decimalToMinor(value: string, scale: number) {
+  const normalized = value.trim();
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(normalized);
+  if (!match) throw new Error('invalid decimal');
+  const fraction = (match[3] || '').padEnd(scale, '0');
+  if (fraction.length > scale) throw new Error('invalid scale');
+  const minor = BigInt(match[2]) * (10n ** BigInt(scale)) + BigInt(fraction || '0');
+  return match[1] ? -minor : minor;
+}
+
+function divideRounded(numerator: bigint, denominator: bigint) {
+  if (denominator <= 0n) throw new Error('invalid denominator');
+  const negative = numerator < 0n;
+  const absolute = negative ? -numerator : numerator;
+  const quotient = absolute / denominator;
+  const remainder = absolute % denominator;
+  const rounded = quotient + (remainder * 2n >= denominator ? 1n : 0n);
+  return negative ? -rounded : rounded;
+}
+
+function formatMinor(value: bigint, scale: number) {
+  const negative = value < 0n;
+  const absolute = negative ? -value : value;
+  const base = 10n ** BigInt(scale);
+  return `${negative ? '-' : ''}${absolute / base}.${String(absolute % base).padStart(scale, '0')}`;
 }

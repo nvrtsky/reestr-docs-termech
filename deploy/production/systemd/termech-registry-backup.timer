@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily backup of the Termech document registry
+
+[Timer]
+OnCalendar=*-*-* 02:15:00
+Persistent=true
+RandomizedDelaySec=10m
+Unit=termech-registry-backup.service
+
+[Install]
+WantedBy=timers.target

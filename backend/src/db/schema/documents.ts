@@ -57,6 +57,7 @@ export const registryDocuments = pgTable(
     externalUpdatedAt: timestamp('external_updated_at', { withTimezone: true }),
     externalSyncedAt: timestamp('external_synced_at', { withTimezone: true }),
     supersedesId: uuid('supersedes_id'),
+    isFinalized: boolean('is_finalized').notNull().default(true),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
     deletedBy: bigint('deleted_by', { mode: 'number' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

@@ -12,7 +12,10 @@ interface BitrixDealState {
   STAGE_SEMANTIC_ID?: string;
 }
 
-const STATE_TTL_MS = 5 * 60 * 1_000;
+// Access revocation and deal closure must take effect on the next request.
+// Batching remains; a smarter scoped cache can be introduced later without
+// weakening this fail-closed rule.
+const STATE_TTL_MS = 0;
 const BATCH_SIZE = 50;
 
 export class SalesDealAccessService {

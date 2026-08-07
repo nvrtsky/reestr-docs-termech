@@ -167,3 +167,8 @@ export const replaceDepartmentRolesSchema = z.object({
     departmentIds.add(item.departmentId);
   }
 });
+
+export const replaceAccessAssignmentsSchema = z.object({
+  userRoles: replaceUserRolesSchema,
+  departmentRoles: replaceDepartmentRolesSchema,
+});

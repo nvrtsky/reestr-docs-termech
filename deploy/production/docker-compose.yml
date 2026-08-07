@@ -17,6 +17,11 @@ services:
       retries: 10
     networks:
       - registry-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   backend:
     build:
@@ -36,6 +41,7 @@ services:
       BITRIX_REQUEST_TIMEOUT_MS: ${BITRIX_REQUEST_TIMEOUT_MS:-10000}
       BITRIX_UPLOAD_TIMEOUT_MS: ${BITRIX_UPLOAD_TIMEOUT_MS:-600000}
       BITRIX_EVENT_APPLICATION_TOKEN: ${BITRIX_EVENT_APPLICATION_TOKEN:-}
+      PORTAL_TIME_ZONE: ${PORTAL_TIME_ZONE:-Europe/Minsk}
     ports:
       - "127.0.0.1:${BACKEND_HOST_PORT:-3103}:3001"
     healthcheck:
@@ -52,6 +58,11 @@ services:
       retries: 10
     networks:
       - registry-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   frontend:
     build:
@@ -68,6 +79,11 @@ services:
       - "127.0.0.1:${FRONTEND_HOST_PORT:-3102}:8080"
     networks:
       - registry-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 networks:
   registry-network:

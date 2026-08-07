@@ -25,6 +25,9 @@ class FakeBitrixClient implements BitrixApiClient {
     if (method === 'crm.status.list') {
       return [{ STATUS_ID: 'C1:NEW', NAME: 'Новая', COLOR: '#2563eb' }] as T;
     }
+    if (method === 'user.get') {
+      return [{ ID: '82', ACTIVE: true, NAME: 'Иван', LAST_NAME: 'Иванов' }] as T;
+    }
     throw new Error(`Unexpected Bitrix method: ${method}`);
   }
 
@@ -58,5 +61,23 @@ describe('CRM placement context', () => {
       id: 77,
       title: 'ООО «Ромашка»',
     });
+  });
+
+  it('returns the canonical deal company for server-side link validation', async () => {
+    const resolved = await new CrmContextService(new FakeBitrixClient())
+      .resolveDealSelection(context, 1234, 'Client supplied title');
+
+    assert.deepEqual(resolved, {
+      id: 1234,
+      title: 'Поставка оборудования',
+      companyId: 77,
+    });
+  });
+
+  it('uses the live active Bitrix24 user name for responsible assignments', async () => {
+    const resolved = await new CrmContextService(new FakeBitrixClient())
+      .resolveUserSelection(context, 82, 'Client supplied name');
+
+    assert.deepEqual(resolved, { id: 82, name: 'Иванов Иван' });
   });
 });

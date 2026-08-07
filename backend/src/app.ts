@@ -133,6 +133,7 @@ export function createApp({
       bitrixEventHandlerUrl: new URL('/api/v1/bitrix/events', config.WEB_ORIGIN).toString(),
       bitrixPlacementHandlerUrl: new URL('/registry/', config.WEB_ORIGIN).toString(),
       bitrixEventTokenConfigured: !!config.BITRIX_EVENT_APPLICATION_TOKEN,
+      sessions,
     }));
     registryRouter.use(createCatalogsRouter({ database }));
     registryRouter.use('/users', createUsersRouter({ bitrix }));

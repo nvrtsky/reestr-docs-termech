@@ -2,15 +2,41 @@ import { z } from 'zod';
 
 import { validateNumberingConfiguration } from '../documents/document-numbering.service.js';
 
-const documentTypeFieldSchema = z.object({
+const documentTypeFieldBaseSchema = z.object({
   name: z.string().trim().min(1).max(200),
   dataType: z.enum(['text', 'number', 'date', 'money', 'select', 'boolean', 'file']),
   isRequired: z.boolean().default(false),
+  options: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
 });
 
-const updatedDocumentTypeFieldSchema = documentTypeFieldSchema.extend({
+function validateDocumentTypeField(
+  field: z.infer<typeof documentTypeFieldBaseSchema>,
+  context: z.RefinementCtx,
+) {
+  if (field.dataType !== 'select') return;
+  if (!field.options?.length) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['options'],
+      message: 'Для поля вида «Список» добавьте хотя бы один вариант.',
+    });
+    return;
+  }
+  const normalized = field.options.map((option) => option.toLocaleLowerCase('ru'));
+  if (new Set(normalized).size !== normalized.length) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['options'],
+      message: 'Варианты списка не должны повторяться.',
+    });
+  }
+}
+
+const documentTypeFieldSchema = documentTypeFieldBaseSchema.superRefine(validateDocumentTypeField);
+
+const updatedDocumentTypeFieldSchema = documentTypeFieldBaseSchema.extend({
   key: z.string().trim().min(1).max(200).optional(),
-});
+}).superRefine(validateDocumentTypeField);
 
 const createDocumentTypeBaseSchema = z.object({
   sectionCode: z.string().trim().min(1).max(100).optional(),

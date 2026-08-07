@@ -47,7 +47,7 @@ export function createCrmEventsRouter({
       if (!validToken) {
         throw new ApiError(401, 'bitrix_event_token_invalid', 'Invalid Bitrix24 event token.');
       }
-      response.json(await events.process(event, domain));
+      response.json(await events.processTracked(event, domain));
     } catch (error) {
       next(error);
     }

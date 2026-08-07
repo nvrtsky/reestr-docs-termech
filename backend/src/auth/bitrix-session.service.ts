@@ -30,6 +30,7 @@ interface CachedSession {
 
 export interface BitrixSessionResolver {
   resolve(domain: string, accessToken: string, memberId?: string): Promise<RegistryContext>;
+  invalidatePortal?(portalUrl: string): void;
 }
 
 export class BitrixSessionService implements BitrixSessionResolver {
@@ -40,6 +41,15 @@ export class BitrixSessionService implements BitrixSessionResolver {
     private readonly database: Database,
     private readonly client: BitrixApiClient,
   ) {}
+
+  invalidatePortal(portalUrl: string) {
+    const normalized = portalUrl.replace(/\/$/, '').toLowerCase();
+    for (const [key, item] of this.cache) {
+      if (item.context.portalUrl.replace(/\/$/, '').toLowerCase() === normalized) {
+        this.cache.delete(key);
+      }
+    }
+  }
 
   async resolve(domainInput: string, accessToken: string, memberId?: string) {
     const domain = this.client.normalizeDomain(domainInput);

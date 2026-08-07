@@ -42,7 +42,7 @@ export class BitrixNotificationsService {
       context,
       document.responsibleId,
       `registry-status-${document.id}-${this.tagPart(statusCode)}`,
-      `[B]Реестр документов[/B]\nСтатус документа «${this.label(document)}» изменён: «${previousStatusLabel}» → «${nextStatusLabel}».`,
+      `[B]Реестр документов[/B]\nСтатус документа «${this.label(document)}» изменён: «${this.escapeBbCode(previousStatusLabel)}» → «${this.escapeBbCode(nextStatusLabel)}».`,
     );
   }
 
@@ -53,7 +53,9 @@ export class BitrixNotificationsService {
     recipientIds: number[],
   ): Promise<NotificationDelivery[]> {
     const actionLabel = action === 'archived' ? 'архивирован' : 'восстановлен из архива';
-    const actorLabel = context.userName?.trim() || `Пользователь #${context.userId}`;
+    const actorLabel = this.escapeBbCode(
+      context.userName?.trim() || `Пользователь #${context.userId}`,
+    );
     const eventNonce = Date.now().toString(36);
     const recipients = [...new Set(recipientIds)]
       .filter((userId) => Number.isSafeInteger(userId) && userId > 0)
@@ -105,7 +107,16 @@ export class BitrixNotificationsService {
   }
 
   private label(document: NotificationDocument) {
-    return document.number ? `${document.number} · ${document.title}` : document.title;
+    return this.escapeBbCode(
+      document.number ? `${document.number} · ${document.title}` : document.title,
+    );
+  }
+
+  private escapeBbCode(value: string) {
+    return String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('[', '&#91;')
+      .replaceAll(']', '&#93;');
   }
 
   private tagPart(value: string) {

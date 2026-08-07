@@ -145,6 +145,8 @@ export function createAdminCatalogsRouter({ database }: AdminCatalogsRouterDepen
             name: registryFieldDefinitions.label,
             labelOverride: registryTypeFields.labelOverride,
             dataType: registryFieldDefinitions.dataType,
+            defaultOptions: registryFieldDefinitions.options,
+            optionsOverride: registryTypeFields.optionsOverride,
             isRequired: registryTypeFields.isRequired,
             sortOrder: registryTypeFields.sortOrder,
           })
@@ -202,6 +204,7 @@ export function createAdminCatalogsRouter({ database }: AdminCatalogsRouterDepen
               key: field.key,
               name: field.labelOverride || field.name,
               dataType: field.dataType,
+              options: field.optionsOverride ?? field.defaultOptions,
               isRequired: field.isRequired,
               sortOrder: field.sortOrder,
             })),
@@ -445,6 +448,7 @@ export function createAdminCatalogsRouter({ database }: AdminCatalogsRouterDepen
           .select({
             id: registryRolePolicies.id,
             visibleTypeCodes: registryRolePolicies.visibleTypeCodes,
+            permissions: registryRolePolicies.permissions,
           })
           .from(registryRolePolicies)
           .where(eq(registryRolePolicies.portalUrl, context.portalUrl)),
@@ -455,11 +459,18 @@ export function createAdminCatalogsRouter({ database }: AdminCatalogsRouterDepen
       ]);
       await database.transaction(async (transaction) => {
         for (const policy of policies) {
-          if (!policy.visibleTypeCodes?.includes(code)) continue;
+          const visibleTypeCodes = policy.visibleTypeCodes?.includes(code)
+            ? policy.visibleTypeCodes.filter((item) => item !== code)
+            : policy.visibleTypeCodes;
+          const byType = { ...(policy.permissions.byType ?? {}) };
+          const hadTypeOverride = Object.hasOwn(byType, code);
+          if (hadTypeOverride) delete byType[code];
+          if (visibleTypeCodes === policy.visibleTypeCodes && !hadTypeOverride) continue;
           await transaction
             .update(registryRolePolicies)
             .set({
-              visibleTypeCodes: policy.visibleTypeCodes.filter((item) => item !== code),
+              visibleTypeCodes,
+              permissions: { ...policy.permissions, byType },
               updatedAt: new Date(),
             })
             .where(eq(registryRolePolicies.id, policy.id));

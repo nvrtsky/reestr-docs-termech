@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { parseCbrDailyXml } from './cbr-rates.service.js';
+import { localIsoDate, parseCbrDailyXml } from './cbr-rates.service.js';
 
 describe('Bank of Russia daily XML parser', () => {
   it('normalizes the effective date, decimal comma and nominal', () => {
@@ -20,6 +20,13 @@ describe('Bank of Russia daily XML parser', () => {
     assert.throws(
       () => parseCbrDailyXml('<ValCurs Date="03.04.2026"></ValCurs>'),
       /no rates/i,
+    );
+  });
+
+  it('compares the current date in the portal time zone instead of UTC', () => {
+    assert.equal(
+      localIsoDate(new Date('2026-08-06T21:30:00.000Z'), 'Europe/Minsk'),
+      '2026-08-07',
     );
   });
 });

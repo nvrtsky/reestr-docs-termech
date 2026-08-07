@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
 import type { Database } from '../db/database.js';
@@ -24,11 +24,10 @@ import { CrmEntityAccessService } from '../permissions/crm-entity-access.service
 import { SalesDealAccessService } from '../permissions/sales-deal-access.service.js';
 import {
   assertSectionVisible,
-  assertTypePermission,
   assertTypeVisible,
   isDocumentFieldHidden,
+  isTypePermissionGranted,
   loadRegistryPolicy,
-  type RegistryPolicy,
 } from '../permissions/policy.service.js';
 import type {
   AddExternalLinkInput,
@@ -78,6 +77,24 @@ interface PreparedAttachmentCopy {
   url: string | null;
 }
 
+export interface PreparedCounterpartyRelocation {
+  attachmentUpdates: Array<{
+    id: string;
+    diskFolderId: number;
+    url: string | null;
+  }>;
+  copyUpdates: Array<{
+    id: string;
+    diskFolderId: number;
+    storagePath: string;
+    url: string | null;
+  }>;
+  movedFiles: Array<{
+    diskFileId: number;
+    previousFolderId: number;
+  }>;
+}
+
 const ROOT_FOLDER_SETTING = 'bitrix_disk_root_folder_id';
 const FOLDER_CACHE_PREFIX = 'bitrix_disk_folder_id:';
 const UPLOAD_SESSION_TTL_MS = 10 * 60 * 1000;
@@ -123,6 +140,7 @@ export class AttachmentsService {
         documentId,
         event: 'attachment_added',
         actorId: context.userId,
+        actorName: context.userName ?? null,
         after: this.toAttachmentResponse(created),
         metadata: { kind: 'link', documentType: document.typeCode },
       });
@@ -202,6 +220,7 @@ export class AttachmentsService {
           documentId,
           event: 'attachment_deal_copies_synced',
           actorId: context.userId,
+          actorName: context.userName ?? null,
           metadata: {
             dealId,
             dealTitle: deal.entityTitle,
@@ -279,6 +298,139 @@ export class AttachmentsService {
     return { uploadId: id, fieldName, name, expiresAt: new Date(expiresAt).toISOString() };
   }
 
+  async prepareCounterpartyRelocation(
+    context: RegistryContext,
+    documentId: string,
+    counterpartyId: number | null,
+    counterpartyName: string | null,
+  ): Promise<PreparedCounterpartyRelocation> {
+    const document = await this.loadEditableDocument(context, documentId);
+    const [attachments, copies] = await Promise.all([
+      this.database
+        .select({
+          id: registryAttachments.id,
+          diskFileId: registryAttachments.diskFileId,
+          diskFolderId: registryAttachments.diskFolderId,
+        })
+        .from(registryAttachments)
+        .where(and(
+          eq(registryAttachments.portalUrl, context.portalUrl),
+          eq(registryAttachments.documentId, documentId),
+          eq(registryAttachments.kind, 'file'),
+          isNull(registryAttachments.deletedAt),
+        )),
+      this.database
+        .select({
+          id: registryAttachmentCopies.id,
+          dealId: registryAttachmentCopies.dealId,
+          dealTitle: registryAttachmentCopies.dealTitle,
+          diskFileId: registryAttachmentCopies.diskFileId,
+          diskFolderId: registryAttachmentCopies.diskFolderId,
+        })
+        .from(registryAttachmentCopies)
+        .innerJoin(
+          registryAttachments,
+          eq(registryAttachmentCopies.attachmentId, registryAttachments.id),
+        )
+        .where(and(
+          eq(registryAttachmentCopies.portalUrl, context.portalUrl),
+          eq(registryAttachments.portalUrl, context.portalUrl),
+          eq(registryAttachments.documentId, documentId),
+          isNull(registryAttachmentCopies.deletedAt),
+          isNull(registryAttachments.deletedAt),
+        )),
+    ]);
+    if (!attachments.length && !copies.length) {
+      return { attachmentUpdates: [], copyUpdates: [], movedFiles: [] };
+    }
+    if (attachments.some((item) => !item.diskFileId || !item.diskFolderId)) {
+      throw new ApiError(
+        409,
+        'attachment_storage_metadata_missing',
+        'Stored file metadata is incomplete; the company cannot be changed safely.',
+      );
+    }
+    const bitrixContext = this.requireBitrixContext(context);
+    const targetDocument = { ...document, counterpartyId, counterpartyName };
+    const movedFiles: PreparedCounterpartyRelocation['movedFiles'] = [];
+    const attachmentUpdates: PreparedCounterpartyRelocation['attachmentUpdates'] = [];
+    const copyUpdates: PreparedCounterpartyRelocation['copyUpdates'] = [];
+    try {
+      const sourceFolderId = await this.resolveDocumentFolder(context, targetDocument);
+      for (const attachment of attachments) {
+        const moved = await this.moveDiskFile(
+          bitrixContext.domain,
+          bitrixContext.accessToken,
+          attachment.diskFileId!,
+          sourceFolderId,
+        );
+        if (attachment.diskFolderId !== sourceFolderId) {
+          movedFiles.push({
+            diskFileId: attachment.diskFileId!,
+            previousFolderId: attachment.diskFolderId!,
+          });
+        }
+        attachmentUpdates.push({
+          id: attachment.id,
+          diskFolderId: sourceFolderId,
+          url: this.bitrixFileUrl(
+            moved.DETAIL_URL || moved.DOWNLOAD_URL,
+            bitrixContext.domain,
+          ),
+        });
+      }
+      for (const copy of copies) {
+        const target = await this.resolveDealFolder(context, targetDocument, {
+          entityId: copy.dealId,
+          entityTitle: copy.dealTitle,
+        });
+        const moved = await this.moveDiskFile(
+          bitrixContext.domain,
+          bitrixContext.accessToken,
+          copy.diskFileId,
+          target.folderId,
+        );
+        if (copy.diskFolderId !== target.folderId) {
+          movedFiles.push({
+            diskFileId: copy.diskFileId,
+            previousFolderId: copy.diskFolderId,
+          });
+        }
+        copyUpdates.push({
+          id: copy.id,
+          diskFolderId: target.folderId,
+          storagePath: target.path,
+          url: this.bitrixFileUrl(
+            moved.DETAIL_URL || moved.DOWNLOAD_URL,
+            bitrixContext.domain,
+          ),
+        });
+      }
+      return { attachmentUpdates, copyUpdates, movedFiles };
+    } catch (error) {
+      await this.rollbackCounterpartyRelocation(context, { attachmentUpdates, copyUpdates, movedFiles });
+      throw error;
+    }
+  }
+
+  async rollbackCounterpartyRelocation(
+    context: RegistryContext,
+    relocation: PreparedCounterpartyRelocation,
+  ) {
+    if (!relocation.movedFiles.length || !context.bitrix) return;
+    for (const moved of [...relocation.movedFiles].reverse()) {
+      await this.bitrix.call(
+        context.bitrix.domain,
+        context.bitrix.accessToken,
+        'disk.file.moveto',
+        { id: moved.diskFileId, targetFolderId: moved.previousFolderId },
+      ).catch((error) => logger.error(
+        { error, portalUrl: context.portalUrl, diskFileId: moved.diskFileId },
+        'Could not roll back Bitrix24 Disk counterparty relocation',
+      ));
+    }
+  }
+
   async uploadFile(
     context: RegistryContext,
     documentId: string,
@@ -303,34 +455,60 @@ export class AttachmentsService {
     const bitrixContext = this.requireBitrixContext(context);
     this.uploadSessions.delete(uploadId);
 
-    const uploaded = await this.bitrix.upload<DiskObject>(
-      bitrixContext.domain,
-      session.uploadUrl,
-      body,
-      contentType,
-      contentLength,
-    );
-    const uploadedId = this.positiveInteger(uploaded.ID);
-    if (!uploadedId) {
-      throw new ApiError(502, 'bitrix_uploaded_file_invalid', 'Bitrix24 returned invalid file metadata.');
-    }
-
-    const file = await this.bitrix.call<DiskObject>(
-      bitrixContext.domain,
-      bitrixContext.accessToken,
-      'disk.file.get',
-      { id: uploadedId },
-    );
-    this.assertUploadedFile(file, session);
-
+    let uploadedId: number | null = null;
     let preparedCopies: PreparedAttachmentCopy[] = [];
     try {
+      const uploaded = await this.bitrix.upload<DiskObject>(
+        bitrixContext.domain,
+        session.uploadUrl,
+        body,
+        contentType,
+        contentLength,
+      );
+      uploadedId = this.positiveInteger(uploaded.ID);
+      if (!uploadedId) {
+        throw new ApiError(502, 'bitrix_uploaded_file_invalid', 'Bitrix24 returned invalid file metadata.');
+      }
+
+      const file = await this.bitrix.call<DiskObject>(
+        bitrixContext.domain,
+        bitrixContext.accessToken,
+        'disk.file.get',
+        { id: uploadedId },
+      );
+      this.assertUploadedFile(file, session);
       preparedCopies = await this.createDealCopies(
         context,
         document,
         uploadedId,
       );
       const { attachment, copies } = await this.database.transaction(async (transaction) => {
+        if (session.fieldDefinitionId) {
+          await transaction.execute(
+            sql`select pg_advisory_xact_lock(hashtextextended(${`${context.portalUrl}\u001f${documentId}\u001f${session.fieldDefinitionId}`}, 0))`,
+          );
+          if (!session.replacesAttachment) {
+            const [occupied] = await transaction
+              .select({ id: registryAttachments.id })
+              .from(registryAttachments)
+              .where(and(
+                eq(registryAttachments.portalUrl, context.portalUrl),
+                eq(registryAttachments.documentId, documentId),
+                eq(registryAttachments.fieldDefinitionId, session.fieldDefinitionId),
+                eq(registryAttachments.isCurrent, true),
+                isNull(registryAttachments.deletedAt),
+              ))
+              .limit(1);
+            if (occupied) {
+              throw new ApiError(
+                409,
+                'document_file_field_occupied',
+                'The file field already contains a file. Replace its current version instead.',
+                { key: session.fieldKey, attachmentId: occupied.id },
+              );
+            }
+          }
+        }
         if (session.replacesAttachment) {
           const replaced = await transaction
             .update(registryAttachments)
@@ -416,6 +594,7 @@ export class AttachmentsService {
           documentId,
           event: session.replacesAttachment ? 'attachment_replaced' : 'attachment_added',
           actorId: context.userId,
+          actorName: context.userName ?? null,
           before: session.replacesAttachment
             ? this.toAttachmentResponse(session.replacesAttachment)
             : null,
@@ -432,7 +611,7 @@ export class AttachmentsService {
       return this.toAttachmentResponse(attachment, session.fieldKey, copies);
     } catch (error) {
       await Promise.all([
-        uploadedId,
+        ...(uploadedId ? [uploadedId] : []),
         ...preparedCopies.map((copy) => copy.diskFileId),
       ].map((id) => this.bitrix
         .call(bitrixContext.domain, bitrixContext.accessToken, 'disk.file.markdeleted', { id })
@@ -458,6 +637,13 @@ export class AttachmentsService {
     if (!attachment) {
       throw new ApiError(404, 'attachment_not_found', 'Attachment was not found.');
     }
+    if (!attachment.isCurrent) {
+      throw new ApiError(
+        409,
+        'historical_attachment_delete_denied',
+        'Previous file versions are immutable and cannot be deleted.',
+      );
+    }
 
     let dynamicField: { key: string; isRequired: boolean } | null = null;
     if (attachment.fieldDefinitionId) {
@@ -480,6 +666,17 @@ export class AttachmentsService {
         )
         .limit(1);
       dynamicField = field ?? null;
+      if (field) {
+        const policy = await loadRegistryPolicy(this.database, context);
+        if (isDocumentFieldHidden(policy, { ...field, dataType: 'file' }, document.typeCode)) {
+          throw new ApiError(
+            403,
+            'document_fields_access_denied',
+            'The requested document field is hidden for this role.',
+            { keys: [field.key] },
+          );
+        }
+      }
       if (attachment.isCurrent && field?.isRequired) {
         throw new ApiError(
           409,
@@ -610,6 +807,7 @@ export class AttachmentsService {
           documentId,
           event: 'attachment_deleted',
           actorId: context.userId,
+          actorName: context.userName ?? null,
           before: this.toAttachmentResponse(attachment, dynamicField?.key, storageCopies),
         });
       });
@@ -639,12 +837,13 @@ export class AttachmentsService {
   }
 
   async getAccess(context: RegistryContext, documentId: string, attachmentId: string) {
-    await this.loadVisibleDocument(context, documentId);
+    const document = await this.loadVisibleDocument(context, documentId);
     const [attachment] = await this.database
       .select({
         kind: registryAttachments.kind,
         url: registryAttachments.url,
         diskFileId: registryAttachments.diskFileId,
+        fieldDefinitionId: registryAttachments.fieldDefinitionId,
       })
       .from(registryAttachments)
       .where(
@@ -658,6 +857,27 @@ export class AttachmentsService {
       .limit(1);
     if (!attachment) {
       throw new ApiError(404, 'attachment_not_found', 'Attachment was not found.');
+    }
+    if (attachment.fieldDefinitionId) {
+      const [field] = await this.database
+        .select({ key: registryFieldDefinitions.key, dataType: registryFieldDefinitions.dataType })
+        .from(registryTypeFields)
+        .innerJoin(
+          registryFieldDefinitions,
+          eq(registryTypeFields.fieldDefinitionId, registryFieldDefinitions.id),
+        )
+        .where(and(
+          eq(registryTypeFields.portalUrl, context.portalUrl),
+          eq(registryTypeFields.typeId, document.typeId),
+          eq(registryTypeFields.fieldDefinitionId, attachment.fieldDefinitionId),
+          eq(registryFieldDefinitions.portalUrl, context.portalUrl),
+          eq(registryFieldDefinitions.isActive, true),
+        ))
+        .limit(1);
+      const policy = await loadRegistryPolicy(this.database, context);
+      if (!field || isDocumentFieldHidden(policy, field, document.typeCode)) {
+        throw new ApiError(404, 'attachment_not_found', 'Attachment was not found.');
+      }
     }
     if (attachment.kind === 'link') {
       if (!attachment.url) {
@@ -827,6 +1047,7 @@ export class AttachmentsService {
         createdBy: registryDocuments.createdBy,
         responsibleId: registryDocuments.responsibleId,
         status: registryDocuments.status,
+        isFinalized: registryDocuments.isFinalized,
         deletedAt: registryDocuments.deletedAt,
         counterpartyId: registryDocuments.counterpartyId,
         counterpartyName: registryDocuments.counterpartyName,
@@ -850,8 +1071,28 @@ export class AttachmentsService {
     if (!document) {
       throw new ApiError(404, 'document_not_found', 'Document was not found.');
     }
+    if (!document.isFinalized && document.createdBy !== context.userId) {
+      throw new ApiError(404, 'document_not_found', 'Document was not found.');
+    }
     assertSectionVisible(policy, document.sectionCode);
     assertTypeVisible(policy, document.typeCode);
+    const own = document.createdBy === context.userId
+      || document.responsibleId === context.userId;
+    const editScope = policy.permissions.editAny
+      || (policy.permissions.editOwn && own);
+    const contentAllowed = isTypePermissionGranted(
+      policy,
+      document.typeCode,
+      'content',
+      requireEdit ? editScope : true,
+    );
+    if (!contentAllowed) {
+      throw new ApiError(
+        403,
+        'document_content_access_denied',
+        'Document files and links are not available for this role.',
+      );
+    }
     if (requireEdit) {
       if (document.deletedAt || document.status === 'archived') {
         throw new ApiError(
@@ -860,8 +1101,6 @@ export class AttachmentsService {
           'Archived documents are read-only.',
         );
       }
-      assertTypePermission(policy, document.typeCode, 'content');
-      this.assertCanEdit(policy, context, document);
     }
 
     const deals = await this.database
@@ -879,18 +1118,6 @@ export class AttachmentsService {
       )
       .orderBy(asc(registryDocumentLinks.createdAt));
     return { ...document, deals };
-  }
-
-  private assertCanEdit(
-    policy: RegistryPolicy,
-    context: RegistryContext,
-    document: { createdBy: number; responsibleId: number },
-  ) {
-    const own =
-      document.createdBy === context.userId || document.responsibleId === context.userId;
-    if (!policy.permissions.editAny && !(policy.permissions.editOwn && own)) {
-      throw new ApiError(403, 'edit_access_denied', 'Document editing is not allowed.');
-    }
   }
 
   private requireBitrixContext(context: RegistryContext) {
@@ -1045,6 +1272,49 @@ export class AttachmentsService {
     };
   }
 
+  private async moveDiskFile(
+    domain: string,
+    accessToken: string,
+    diskFileId: number,
+    targetFolderId: number,
+  ) {
+    const current = await this.bitrix.call<DiskObject>(
+      domain,
+      accessToken,
+      'disk.file.get',
+      { id: diskFileId },
+    );
+    const currentParentId = this.positiveInteger(current.PARENT_ID);
+    if (currentParentId === targetFolderId) return current;
+    const moved = await this.bitrix.call<DiskObject>(
+      domain,
+      accessToken,
+      'disk.file.moveto',
+      { id: diskFileId, targetFolderId },
+    );
+    if (
+      this.positiveInteger(moved.ID) !== diskFileId
+      || this.positiveInteger(moved.PARENT_ID) !== targetFolderId
+      || moved.TYPE !== 'file'
+      || String(moved.DELETED_TYPE ?? '0') !== '0'
+    ) {
+      if (currentParentId) {
+        await this.bitrix.call(
+          domain,
+          accessToken,
+          'disk.file.moveto',
+          { id: diskFileId, targetFolderId: currentParentId },
+        ).catch(() => undefined);
+      }
+      throw new ApiError(
+        502,
+        'bitrix_file_move_invalid',
+        'Bitrix24 returned invalid metadata after moving a file.',
+      );
+    }
+    return moved;
+  }
+
   private async loadRootFolderId(portalUrl: string) {
     const [setting] = await this.database
       .select({ value: registrySettings.value })
@@ -1082,7 +1352,10 @@ export class AttachmentsService {
     const cacheKey = this.folderCacheKey(parentId, name);
     const memoryKey = `${portalUrl}\0${cacheKey}`;
     const memoryId = this.folderCache.get(memoryKey);
-    if (memoryId) return memoryId;
+    if (memoryId && await this.isExpectedFolder(domain, accessToken, memoryId, parentId, name)) {
+      return memoryId;
+    }
+    if (memoryId) this.folderCache.delete(memoryKey);
 
     const [cached] = await this.database
       .select({ value: registrySettings.value })
@@ -1099,9 +1372,17 @@ export class AttachmentsService {
         ? (cached.value as { id: unknown }).id
         : null,
     );
-    if (cachedId) {
+    if (cachedId && await this.isExpectedFolder(domain, accessToken, cachedId, parentId, name)) {
       this.folderCache.set(memoryKey, cachedId);
       return cachedId;
+    }
+    if (cachedId) {
+      await this.database
+        .delete(registrySettings)
+        .where(and(
+          eq(registrySettings.portalUrl, portalUrl),
+          eq(registrySettings.key, cacheKey),
+        ));
     }
 
     let folder = await this.findFolder(domain, accessToken, parentId, name);
@@ -1151,6 +1432,29 @@ export class AttachmentsService {
       { id: parentId, filter: { NAME: name, TYPE: 'folder' } },
     );
     return children.find((item) => item.TYPE === 'folder' && item.NAME === name) || null;
+  }
+
+  private async isExpectedFolder(
+    domain: string,
+    accessToken: string,
+    folderId: number,
+    parentId: number,
+    name: string,
+  ) {
+    try {
+      const folder = await this.bitrix.call<DiskObject>(
+        domain,
+        accessToken,
+        'disk.folder.get',
+        { id: folderId },
+      );
+      return folder.TYPE === 'folder'
+        && folder.NAME === name
+        && this.positiveInteger(folder.PARENT_ID) === parentId
+        && String(folder.DELETED_TYPE ?? '0') === '0';
+    } catch {
+      return false;
+    }
   }
 
   private assertUploadedFile(file: DiskObject, session: UploadSession) {

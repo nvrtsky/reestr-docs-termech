@@ -36,7 +36,10 @@ interface BitrixAppInfo {
 async function getFrame() {
   if (window.self === window.top) return null;
   if (!framePromise) {
-    framePromise = initializeB24Frame().catch(() => null);
+    framePromise = initializeB24Frame().catch((error) => {
+      framePromise = null;
+      throw error;
+    });
   }
   return framePromise;
 }

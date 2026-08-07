@@ -17,6 +17,13 @@ interface InstallRouterOptions {
   webOrigin: string;
 }
 
+interface BitrixApplicationInfo {
+  ID?: string | number;
+  CODE?: string;
+  STATUS?: string;
+  INSTALLED?: boolean;
+}
+
 export function createBitrixInstallRouter({
   database,
   bitrix,
@@ -65,7 +72,11 @@ export function createBitrixInstallRouter({
       );
       const memberId = readOptional([payload.member_id, payload.memberId, auth.member_id]);
       const portalUrl = `https://${domain}`;
-      const scopes = await bitrix.call<string[]>(domain, accessToken, 'scope');
+      const [scopes, administrator, application] = await Promise.all([
+        bitrix.call<string[]>(domain, accessToken, 'scope'),
+        bitrix.call<boolean | number | string>(domain, accessToken, 'user.admin'),
+        bitrix.call<BitrixApplicationInfo>(domain, accessToken, 'app.info'),
+      ]);
       const normalizedScopes = normalizeBitrixScopes(scopes);
       const missingScopes = missingRequiredBitrixScopes(normalizedScopes);
       if (missingScopes.length) {
@@ -74,6 +85,21 @@ export function createBitrixInstallRouter({
           'bitrix_install_scopes_missing',
           'Bitrix24 application permissions are incomplete.',
           { missingScopes },
+        );
+      }
+      if (!isEnabled(administrator)) {
+        throw new ApiError(
+          403,
+          'bitrix_install_administrator_required',
+          'Only a Bitrix24 administrator can install or reinstall the application.',
+        );
+      }
+      const applicationId = Number(application?.ID);
+      if (!Number.isSafeInteger(applicationId) || applicationId <= 0) {
+        throw new ApiError(
+          400,
+          'bitrix_install_application_invalid',
+          'Bitrix24 did not confirm the application identity.',
         );
       }
 
@@ -85,7 +111,14 @@ export function createBitrixInstallRouter({
       );
 
       if (request.is('application/json')) {
-        response.status(200).json({ status: 'ready' });
+        response.status(200).json({
+          status: 'ready',
+          application: {
+            id: applicationId,
+            code: application.CODE || null,
+            installed: application.INSTALLED === true,
+          },
+        });
         return;
       }
       response
@@ -244,4 +277,10 @@ function readOptional(values: unknown[]) {
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return undefined;
+}
+
+function isEnabled(value: boolean | number | string) {
+  if (value === true || value === 1) return true;
+  return typeof value === 'string'
+    && ['1', 'Y', 'YES', 'TRUE'].includes(value.trim().toUpperCase());
 }
