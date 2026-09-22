@@ -39,6 +39,7 @@ export const documentListQuerySchema = z.object({
   statuses: commaSeparated,
   type: z.string().trim().max(100).optional(),
   responsibleId: z.coerce.number().int().positive().optional(),
+  counterpartyId: z.coerce.number().int().positive().optional(),
   counterparty: z.string().trim().max(200).optional(),
   from: z.string().date().optional(),
   to: z.string().date().optional(),
@@ -130,6 +131,10 @@ export const replaceDocumentLinksSchema = z.object({
 export const taskSearchQuerySchema = z.object({
   search: z.string().trim().max(200).default(''),
   limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export const companyDealsQuerySchema = z.object({
+  companyId: z.coerce.number().int().positive(),
 });
 
 export const addTaskLinkSchema = z.object({

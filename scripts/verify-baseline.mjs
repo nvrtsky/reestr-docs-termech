@@ -198,7 +198,7 @@ const documentItems = [
     status: 'on_review',
     counterpartyId: 77,
     counterpartyName: 'ООО «Ромашка»',
-    amount: '10500000.00',
+    amount: '0.00',
     currency: 'RUB',
     documentDate: '2026-04-12',
     responsibleId: 3,
@@ -486,6 +486,28 @@ function mockPayload(url) {
       items: [],
     };
   }
+  if (pathname.endsWith('/deals')) {
+    const companyId = Number(parsed.searchParams.get('companyId'));
+    return {
+      companyId,
+      companyTitle: 'ООО «Ромашка»',
+      items: companyId === 77 ? [{
+        id: 1234,
+        title: 'Поставка оборудования',
+        companyId: 77,
+        stageId: 'C1:WON',
+        stageName: 'Сделка успешна',
+        stageColor: '#15803d',
+      }, {
+        id: 5678,
+        title: 'Монтаж и пусконаладка',
+        companyId: 77,
+        stageId: 'C1:PREPARATION',
+        stageName: 'Подготовка документов',
+        stageColor: '#2563eb',
+      }] : [],
+    };
+  }
   if (pathname.endsWith('/by-entity')) {
     const entityType = parsed.searchParams.get('entityType');
     const entityId = Number(parsed.searchParams.get('entityId'));
@@ -544,10 +566,14 @@ function mockPayload(url) {
   if (documentMatch) return documentItems.find(item => item.id === documentMatch[1]) || {};
   if (pathname.endsWith('/documents')) {
     const search = (parsed.searchParams.get('search') || '').trim().toLocaleLowerCase('ru');
-    const items = search
-      ? documentItems.filter(item => [item.number, item.title, item.counterpartyName, item.type.name]
-          .some(value => String(value || '').toLocaleLowerCase('ru').includes(search)))
+    const counterpartyId = Number(parsed.searchParams.get('counterpartyId')) || null;
+    const scopedItems = counterpartyId
+      ? documentItems.filter(item => Number(item.counterpartyId) === counterpartyId)
       : documentItems;
+    const items = search
+      ? scopedItems.filter(item => [item.number, item.title, item.counterpartyName, item.type.name]
+          .some(value => String(value || '').toLocaleLowerCase('ru').includes(search)))
+      : scopedItems;
     return { items, meta: { total: items.length, limit: 50, offset: 0 } };
   }
   return {};
@@ -696,13 +722,23 @@ await command('Page.navigate', { url: appUrl });
 await waitFor(`document.querySelector('iframe')?.contentDocument?.body?.innerText.includes('Договор поставки оборудования')`, 'registry baseline');
 await screenshot('registry-1440x1000.png', 1440, 1000);
 await screenshot('registry-1280x900.png', 1280, 900);
+await screenshot('registry-1024x900.png', 1024, 900);
+await evaluate(`document.querySelector('iframe').contentDocument.documentElement.style.zoom = '1.25'`);
+await screenshot('registry-1024x900-zoom125.png', 1024, 900);
 const registryEvidence = await evaluate(`(() => {
-  const text = document.querySelector('iframe').contentDocument.body.innerText;
+  const doc = document.querySelector('iframe').contentDocument;
+  const text = doc.body.innerText;
+  const create = [...doc.querySelectorAll('button')].find(button => button.innerText.includes('Создать документ'));
+  const bulk = [...doc.querySelectorAll('button')].find(button => button.innerText.includes('Массовая загрузка'));
   return {
     loaded: text.includes('Реестр документов'),
     documentCount: text.includes('Показано 5 из 5 документов'),
+    narrowActions: !!create && !!bulk
+      && create.getBoundingClientRect().right <= doc.documentElement.clientWidth
+      && bulk.getBoundingClientRect().right <= doc.documentElement.clientWidth,
   };
 })()`);
+await evaluate(`document.querySelector('iframe').contentDocument.documentElement.style.zoom = '1'`);
 
 await clickIframeText('Договор поставщика Acme Trading');
 await waitFor(`document.querySelector('iframe').contentDocument.querySelector('[data-document-requisites="true"]')?.innerText.includes('SUP-19')`, 'visible empty amount requisites');
@@ -806,7 +842,8 @@ const relationEditorEvidence = await evaluate(`(() => {
   return dialog?.innerText.includes('Добавить зависимый документ')
     && dialog?.innerText.includes('Вид зависимости')
     && !!dialog.querySelector('input[placeholder="Например, К-2026/45"]')
-    && !!dialog.querySelector('select');
+    && !!dialog.querySelector('select')
+    && !dialog.innerText.includes('Acme Trading');
 })()`);
 await evaluate(`document.querySelector('iframe').contentDocument.querySelector('button[aria-label="Закрыть выбор связанного документа"]')?.click()`);
 await waitFor(`!document.querySelector('iframe').contentDocument.querySelector('[aria-labelledby="document-relation-editor-title"]')`, 'relation editor close');
@@ -1141,13 +1178,61 @@ const companyMultiDealCardsEvidence = await evaluate(`(() => {
 })()`);
 await evaluate(`(() => {
   const doc = document.querySelector('iframe').contentDocument;
+  const cell = [...doc.querySelectorAll('button[title]')]
+    .find(button => button.title.startsWith('Подписан:') && button.title !== 'Подписан: 0');
+  cell?.click();
+  return !!cell;
+})()`);
+await waitFor(`!!document.querySelector('iframe').contentDocument.querySelector('[data-company-matrix-filter="true"]')`, 'company matrix filter');
+await screenshot('company-matrix-filter-1280x900.png', 1280, 900);
+const companyMatrixFilterEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const filter = doc.querySelector('[data-company-matrix-filter="true"]');
+  return filter?.innerText.includes('Клиентские · Подписан')
+    && filter?.innerText.includes('Сбросить')
+    && doc.body.innerText.includes('Договор поставки оборудования')
+    && !doc.body.innerText.includes('Счёт на предоплату 50%');
+})()`);
+await evaluate(`document.querySelector('iframe').contentDocument.querySelector('[data-company-matrix-filter="true"] button')?.click()`);
+await waitFor(`!document.querySelector('iframe').contentDocument.querySelector('[data-company-matrix-filter="true"]')`, 'company matrix filter reset');
+
+await clickIframeButton('Массовая загрузка');
+await waitFor(`!!document.querySelector('iframe').contentDocument.querySelector('[aria-labelledby="bulk-upload-title"]')`, 'company bulk upload');
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const button = doc.querySelector('[data-bulk-common-grid="true"] button[title^="Выбрать одну или несколько сделок"]');
+  button?.click();
+  return !!button;
+})()`);
+await waitFor(`!!document.querySelector('iframe').contentDocument.querySelector('[aria-labelledby="company-deal-picker-title"]')`, 'company-scoped deal picker');
+const companyDealPickerEvidence = await evaluate(`(() => {
+  const dialog = document.querySelector('iframe').contentDocument.querySelector('[aria-labelledby="company-deal-picker-title"]');
+  const text = dialog?.innerText || '';
+  return text.includes('#1234 · Поставка оборудования')
+    && text.includes('#5678 · Монтаж и пусконаладка')
+    && !text.includes('Acme Trading');
+})()`);
+await screenshot('company-deal-picker-1024x900.png', 1024, 900);
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const dialog = doc.querySelector('[aria-labelledby="company-deal-picker-title"]');
+  [...dialog.querySelectorAll('button[role="checkbox"]')][0]?.click();
+  [...dialog.querySelectorAll('button')].find(button => button.innerText.trim() === 'Применить')?.click();
+})()`);
+await waitFor(`document.querySelector('iframe').contentDocument.querySelector('[data-bulk-common-grid="true"]')?.innerText.includes('Поставка оборудования')`, 'selected company deal in bulk upload');
+await evaluate(`document.querySelector('iframe').contentDocument.querySelector('button[aria-label="Закрыть массовую загрузку"]')?.click()`);
+await waitFor(`!document.querySelector('iframe').contentDocument.querySelector('[aria-labelledby="bulk-upload-title"]')`, 'close company bulk upload');
+
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
   [...doc.querySelectorAll('button')].find(button => button.innerText.trim() === 'По документам')?.click();
 })()`);
 await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.includes('#1234, #5678')`, 'company multi-deal label');
 const companyMultiDealTableEvidence = await evaluate(`(() => {
   const doc = document.querySelector('iframe').contentDocument;
   return doc.body.innerText.includes('Сделки')
-    && doc.body.innerText.includes('#1234, #5678');
+    && doc.body.innerText.includes('#1234, #5678')
+    && doc.body.innerText.includes('0,00 ₽');
 })()`);
 await screenshot('company-context-1440x1000.png', 1440, 1000);
 await screenshot('company-context-1280x900.png', 1280, 900);
@@ -1695,6 +1780,7 @@ const evidence = await evaluate(`(() => {
   return {
     loaded: ${JSON.stringify(registryEvidence.loaded)},
     documentCount: ${JSON.stringify(registryEvidence.documentCount)},
+    narrowRegistryActionsAt1024: ${JSON.stringify(registryEvidence.narrowActions)},
     noRuntimeError: !document.getElementById('__bundler_err') && !doc.getElementById('__bundler_err'),
     helpSixMaterials: ${JSON.stringify(helpMaterialsEvidence.total && helpMaterialsEvidence.articles && helpMaterialsEvidence.videos)},
     userTrainingGuide: ${JSON.stringify(trainingEvidence.userGuide)},
@@ -1770,6 +1856,8 @@ const evidence = await evaluate(`(() => {
     companyGlobalDropZones: ${JSON.stringify(companyGlobalDropEvidence)},
     companyGlobalDropHighlight: ${JSON.stringify(companyDropHighlightEvidence)},
     companyMultiDealCards: ${JSON.stringify(companyMultiDealCardsEvidence)},
+    companyMatrixCellFilter: ${JSON.stringify(companyMatrixFilterEvidence)},
+    companyScopedDealPicker: ${JSON.stringify(companyDealPickerEvidence)},
     companyMultiDealTable: ${JSON.stringify(companyMultiDealTableEvidence)},
     companyLayoutAt1280: ${JSON.stringify(companyLayoutEvidence)},
   };

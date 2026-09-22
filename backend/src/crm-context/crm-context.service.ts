@@ -79,6 +79,28 @@ const MAX_TASK_SEARCH_PAGES = 50;
 export class CrmContextService {
   constructor(private readonly bitrix: BitrixApiClient) {}
 
+  async listCompanyDeals(context: RegistryContext, companyId: number) {
+    if (!context.bitrix) {
+      return { companyId, items: [] as CrmDealContext[] };
+    }
+    const [company, rawDeals, stages] = await Promise.all([
+      this.call<BitrixCompany>(context, 'crm.company.get', { id: companyId }),
+      this.loadCompanyDeals(context, companyId),
+      this.loadStageMap(context).catch(() => new Map<string, BitrixStatus>()),
+    ]);
+    const resolvedCompanyId = this.positiveId(company.ID) || companyId;
+    if (resolvedCompanyId !== companyId) {
+      throw new ApiError(409, 'crm_company_mismatch', 'Bitrix24 returned another company.');
+    }
+    return {
+      companyId,
+      companyTitle: this.entityTitle(company.TITLE, this.defaultTitle('company', companyId)),
+      items: rawDeals
+        .map((deal) => this.normalizeDeal(deal, this.positiveId(deal.ID)!, stages))
+        .filter((deal) => deal.companyId === companyId),
+    };
+  }
+
   async resolve(
     context: RegistryContext,
     entityType: 'deal' | 'company',

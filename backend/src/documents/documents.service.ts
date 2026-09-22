@@ -217,6 +217,9 @@ export class DocumentsService {
     if (query.responsibleId) {
       conditions.push(eq(registryDocuments.responsibleId, query.responsibleId));
     }
+    if (query.counterpartyId) {
+      conditions.push(eq(registryDocuments.counterpartyId, query.counterpartyId));
+    }
     if (query.counterparty) {
       conditions.push(
         ilike(registryDocuments.counterpartyName, `%${query.counterparty}%`),
@@ -877,6 +880,15 @@ export class DocumentsService {
       assertSectionVisible(policy, document.sectionCode);
       assertTypeVisible(policy, document.typeCode);
       this.assertCanEdit(policy, context, document);
+    }
+    const child = documents.find((document) => document.id === childDocumentId)!;
+    const parent = documents.find((document) => document.id === input.parentDocumentId)!;
+    if (child.counterpartyId !== parent.counterpartyId) {
+      throw new ApiError(
+        409,
+        'document_relation_company_mismatch',
+        'Related documents must belong to the same company.',
+      );
     }
 
     await this.database.transaction(async (transaction) => {
