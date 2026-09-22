@@ -22,7 +22,7 @@ describe('system role policy capabilities', () => {
     assert.equal(capabilities.canEditName, false);
     assert.equal(capabilities.canDelete, false);
     assert.equal(capabilities.fixedName, 'Менеджер продаж');
-    assert.match(capabilities.systemNote || '', /закрытия всех связанных сделок/);
+    assert.match(capabilities.systemNote || '', /остаются доступны для чтения/);
   });
 
   it('leaves a custom role fully configurable', () => {

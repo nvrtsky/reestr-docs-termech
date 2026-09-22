@@ -8,6 +8,7 @@ interface BitrixDeal {
   TITLE?: string;
   COMPANY_ID?: string | number;
   STAGE_ID?: string;
+  ASSIGNED_BY_ID?: string | number;
 }
 
 interface BitrixCompany {
@@ -66,6 +67,7 @@ export interface CrmEntityContext {
   company: { id: number; title: string } | null;
   deal: CrmDealContext | null;
   deals: CrmDealContext[];
+  responsible: { id: number; name: string } | null;
   references: DocumentEntityReference[];
   syncUnavailable: boolean;
 }
@@ -316,11 +318,15 @@ export class CrmContextService {
     const deal = await this.call<BitrixDeal>(context, 'crm.deal.get', { id: entityId });
     const dealId = this.positiveId(deal.ID) || entityId;
     const companyId = this.positiveId(deal.COMPANY_ID);
-    const [company, stages] = await Promise.all([
+    const responsibleId = this.positiveId(deal.ASSIGNED_BY_ID);
+    const [company, stages, responsible] = await Promise.all([
       companyId
         ? this.call<BitrixCompany>(context, 'crm.company.get', { id: companyId }).catch(() => null)
         : Promise.resolve(null),
       this.loadStageMap(context).catch(() => new Map<string, BitrixStatus>()),
+      responsibleId
+        ? this.resolveUserSelection(context, responsibleId).catch(() => null)
+        : Promise.resolve(null),
     ]);
     const normalizedDeal = this.normalizeDeal(deal, dealId, stages);
     const companyTitle = companyId
@@ -337,6 +343,7 @@ export class CrmContextService {
       company: companyId ? { id: companyId, title: companyTitle! } : null,
       deal: normalizedDeal,
       deals: [normalizedDeal],
+      responsible,
       references,
       syncUnavailable: false,
     };
@@ -363,6 +370,7 @@ export class CrmContextService {
       company: { id: companyId, title: companyTitle },
       deal: null,
       deals,
+      responsible: null,
       references: [
         { entityType: 'company', entityId: companyId },
         ...deals.map((deal) => ({ entityType: 'deal' as const, entityId: deal.id })),
@@ -435,6 +443,7 @@ export class CrmContextService {
       company: entityType === 'company' ? { id: entityId, title: entityTitle } : null,
       deal,
       deals: deal ? [deal] : [],
+      responsible: null,
       references: [{ entityType, entityId }],
       syncUnavailable: false,
     };

@@ -25,7 +25,8 @@ const typePermissions = overrides => ({
   create: true,
   edit: true,
   transition: true,
-  content: true,
+  contentRead: true,
+  contentWrite: true,
   archive: true,
   restore: true,
   export: true,
@@ -326,7 +327,7 @@ const rolePolicies = [
       restore: false,
       byType: {
         client_contract: typePermissions({ archive: false, restore: false, finance: false }),
-        client_invoice: typePermissions({ edit: false, content: false, finance: false }),
+        client_invoice: typePermissions({ edit: false, contentRead: false, contentWrite: false, finance: false }),
         internal_memo: typePermissions({ transition: false, export: false, finance: false }),
       },
     },
@@ -338,7 +339,7 @@ const rolePolicies = [
       canEditName: false,
       canDelete: false,
       fixedName: 'Менеджер продаж',
-      systemNote: 'После закрытия всех связанных сделок доступ к карточке и файлам снимается независимо от остальных настроек роли.',
+      systemNote: 'Менеджер видит назначенные ему документы. После закрытия всех доступных связанных сделок карточка и файлы остаются доступны для чтения, а изменения блокируются.',
     },
   },
   {
@@ -1228,7 +1229,9 @@ const roleEvidence = await evaluate(`(() => {
     .find(input => input.closest('label')?.innerText.includes('Название роли'));
   return {
     departmentMapping: text.includes('Назначение подразделений'),
-    typePermissionMatrix: text.includes('Права по типам документов'),
+    typePermissionMatrix: text.includes('Права по типам документов')
+      && dialog?.innerText.includes('Скачивание')
+      && dialog?.innerText.includes('Изменение файлов'),
     systemBadges: salesCard?.innerText.includes('Системная роль')
       && adminCard?.innerText.includes('Системная роль'),
     systemRolesFirst: orderedRoleCodes[0] === 'admin' && orderedRoleCodes[1] === 'sales',
@@ -1237,7 +1240,7 @@ const roleEvidence = await evaluate(`(() => {
       && salesCard?.innerText.includes('суммы скрыты')
       && !salesCard?.innerText.includes('для защиты маржи'),
     salesRuleVisible: dialog?.innerText.includes('Неизменяемое системное правило')
-      && dialog?.innerText.includes('После закрытия всех связанных сделок'),
+      && dialog?.innerText.includes('остаются доступны для чтения'),
     salesIdentityLocked: nameInput?.disabled === true,
     salesDeleteHidden: ![...(dialog?.querySelectorAll('button') || [])]
       .some(button => button.innerText.trim() === 'Удалить'),

@@ -14,7 +14,12 @@ export function typePermissionOverride(
   typeCode: string,
   permission: TypePermissionKey,
 ) {
-  return policy.permissions.byType?.[typeCode]?.[permission];
+  const permissions = policy.permissions.byType?.[typeCode];
+  if (!permissions) return undefined;
+  if (permission === 'contentRead' || permission === 'contentWrite') {
+    return permissions[permission] ?? permissions.content;
+  }
+  return permissions[permission];
 }
 
 export function isTypePermissionAllowed(

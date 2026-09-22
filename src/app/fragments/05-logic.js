@@ -571,6 +571,15 @@ class Component extends DCLogic {
   }
 
   defaultResponsibleSelection() {
+    const dealResponsible = this.entityContext
+      && this.entityContext.entityType === 'deal'
+      && this.entityContext.responsible;
+    if (dealResponsible && Number(dealResponsible.id) > 0) {
+      return {
+        responsibleId: String(dealResponsible.id),
+        responsibleName: dealResponsible.name || `Пользователь #${dealResponsible.id}`,
+      };
+    }
     const userId = Number(this.serverPolicy && this.serverPolicy.userId);
     const user = (this.state.registryUsers || [])
       .find(item => Number(item.id) === userId);
@@ -1204,7 +1213,7 @@ class Component extends DCLogic {
               canEditName: false,
               canDelete: false,
               fixedName: 'Менеджер продаж',
-              systemNote: 'После закрытия всех связанных сделок доступ к карточке и файлам снимается независимо от остальных настроек роли.',
+              systemNote: 'Менеджер видит назначенные ему документы. После закрытия всех доступных связанных сделок карточка и файлы остаются доступны для чтения, а изменения блокируются.',
             }
           : {
               isSystem: false,
@@ -3419,15 +3428,18 @@ class Component extends DCLogic {
     const own = Number(document.createdBy) === userId
       || Number(document.responsibleId) === userId;
     const scopeAllowed = !!permissions.editAny || (!!permissions.editOwn && own);
-    return this.typePermissionGranted(document.typeCode, 'edit', scopeAllowed);
+    return scopeAllowed && this.typePermissionAllowed(document.typeCode, 'edit');
   }
 
   typePermissionOverride(typeCode, key) {
     const permissions = this.serverPolicy && this.serverPolicy.permissions;
     if (!permissions || !typeCode) return undefined;
-    return permissions.byType && permissions.byType[typeCode]
-      ? permissions.byType[typeCode][key]
-      : undefined;
+    const byType = permissions.byType && permissions.byType[typeCode];
+    if (!byType) return undefined;
+    if (key === 'contentRead' || key === 'contentWrite') {
+      return byType[key] === undefined ? byType.content : byType[key];
+    }
+    return byType[key];
   }
 
   typePermissionAllowed(typeCode, key) {
@@ -3441,7 +3453,12 @@ class Component extends DCLogic {
 
   policyTypePermission(policy, typeCode, key, fallback = true) {
     const byType = policy && policy.permissions && policy.permissions.byType;
-    const override = byType && byType[typeCode] ? byType[typeCode][key] : undefined;
+    const permissions = byType && byType[typeCode];
+    const override = permissions
+      ? ((key === 'contentRead' || key === 'contentWrite')
+          ? (permissions[key] === undefined ? permissions.content : permissions[key])
+          : permissions[key])
+      : undefined;
     return override === undefined ? fallback : override === true;
   }
 
@@ -3453,12 +3470,15 @@ class Component extends DCLogic {
       && !policy.visibleTypeCodes.includes(document.typeCode)) return 'Нет доступа';
     if (!this.policyTypePermission(policy, document.typeCode, 'view', true)) return 'Нет доступа';
     const permissions = policy.permissions || {};
-    const content = this.policyTypePermission(policy, document.typeCode, 'content', true);
+    const contentRead = this.policyTypePermission(policy, document.typeCode, 'contentRead', true);
     const editScope = permissions.editAny === true || permissions.editOwn === true;
-    const edit = this.policyTypePermission(policy, document.typeCode, 'edit', editScope);
-    if (edit && content) return 'Просмотр, скачивание и редактирование';
+    const edit = editScope && this.policyTypePermission(policy, document.typeCode, 'edit', true);
+    const contentWrite = editScope
+      && this.policyTypePermission(policy, document.typeCode, 'contentWrite', true);
+    if (edit && contentRead && contentWrite) return 'Просмотр, скачивание и редактирование';
+    if (contentRead && contentWrite) return 'Просмотр, скачивание и изменение файлов';
     if (edit) return 'Просмотр и редактирование реквизитов';
-    if (content) return 'Просмотр и скачивание';
+    if (contentRead) return 'Просмотр и скачивание';
     return 'Только просмотр карточки';
   }
 
@@ -3486,9 +3506,13 @@ class Component extends DCLogic {
       let detail = 'Политика реестра для этого типа документа.';
       let accessLabel = baseLabel;
       if (policy.roleCode === 'sales') {
-        if (allDealsClosed) {
-          accessLabel = 'Нет доступа к карточке и файлам';
-          detail = 'Все связанные сделки закрыты: действует специальное ограничение менеджера продаж.';
+        if (linkedDeals.length > 0 && !hasOpenDeal) {
+          accessLabel = baseLabel.includes('скачивание')
+            ? 'Просмотр и скачивание без изменений'
+            : 'Только просмотр без изменений';
+          detail = allDealsClosed
+            ? 'Все доступные связанные сделки закрыты: изменения документа запрещены.'
+            : 'Состояние доступных сделок не подтверждено: изменения документа запрещены.';
         } else if (linkedDeals.length === 0) {
           detail = 'Сделка не связана: применяется только политика типа.';
         } else if (hasOpenDeal) {
@@ -3523,15 +3547,12 @@ class Component extends DCLogic {
     const own = Number(document.createdBy) === userId
       || Number(document.responsibleId) === userId;
     const scopeAllowed = !!permissions.transitionAny || (!!permissions.transitionOwn && own);
-    return this.typePermissionGranted(document.typeCode, 'transition', scopeAllowed);
+    return scopeAllowed && this.typePermissionAllowed(document.typeCode, 'transition');
   }
 
   canModifyDocumentContent(document) {
-    return this.typePermissionGranted(
-      document.typeCode,
-      'content',
-      this.canEditDocumentScope(document),
-    );
+    return this.canEditDocumentScope(document)
+      && this.typePermissionAllowed(document.typeCode, 'contentWrite');
   }
 
   canEditDocumentScope(document) {
@@ -5215,7 +5236,13 @@ class Component extends DCLogic {
             },
           });
         }
-        const documentReadOnly = archiveMode || dd.status === 'archived' || !!dd.deletedAt;
+        const linkedDeals = (dd.links || []).filter(link => link.entityType === 'deal');
+        const managerDealsReadOnly = this.serverPolicy
+          && this.serverPolicy.roleCode === 'sales'
+          && linkedDeals.length > 0
+          && !linkedDeals.some(link => link.dealClosed === false);
+        const documentReadOnly = archiveMode || dd.status === 'archived'
+          || !!dd.deletedAt || managerDealsReadOnly;
         const canEdit = !documentReadOnly && this.canEditDocument(dd);
         const canModifyContent = !documentReadOnly && this.canModifyDocumentContent(dd);
         const canTransition = !documentReadOnly && this.canTransitionDocument(dd);
@@ -5250,7 +5277,6 @@ class Component extends DCLogic {
               if (url) window.open(url, '_blank', 'noopener,noreferrer');
             },
           })));
-        const linkedDeals = dd.links.filter(link => link.entityType === 'deal');
         const linkedDealsHaveOpen = linkedDeals.some(link => link.dealClosed === false);
         const linkedDealsAllClosed = linkedDeals.length > 0
           && linkedDeals.every(link => link.dealClosed === true);
@@ -6042,7 +6068,8 @@ class Component extends DCLogic {
       create: roleEdit.permissions.create === true,
       edit: roleEdit.permissions.editAny === true || roleEdit.permissions.editOwn === true,
       transition: roleEdit.permissions.transitionAny === true || roleEdit.permissions.transitionOwn === true,
-      content: roleEdit.permissions.editAny === true || roleEdit.permissions.editOwn === true,
+      contentRead: true,
+      contentWrite: roleEdit.permissions.editAny === true || roleEdit.permissions.editOwn === true,
       archive: roleEdit.permissions.softDelete === true,
       restore: roleEdit.permissions.restore === true,
       export: roleEdit.permissions.export === true,
@@ -6050,6 +6077,20 @@ class Component extends DCLogic {
         && !roleEdit.hiddenFields.includes('amount')
         && !roleEdit.hiddenFields.includes('currency'),
     });
+    const roleTypeCurrent = type => {
+      const defaults = roleTypeDefaults(type);
+      const saved = (roleEdit.permissions.byType || {})[type.code] || {};
+      return {
+        ...defaults,
+        ...saved,
+        contentRead: saved.contentRead === undefined
+          ? (saved.content === undefined ? defaults.contentRead : saved.content)
+          : saved.contentRead,
+        contentWrite: saved.contentWrite === undefined
+          ? (saved.content === undefined ? defaults.contentWrite : saved.content)
+          : saved.contentWrite,
+      };
+    };
     const roleTypeOptions = (S.adminTypes || [])
       .filter(type => type.isActive !== false && this.typeSectionCodes(type).some(sectionCode => roleEdit.visibleSectionCodes.includes(sectionCode)))
       .map(type => {
@@ -6062,7 +6103,7 @@ class Component extends DCLogic {
           onToggle: () => {
             const nextChecked = !checked;
             const currentByType = roleEdit.permissions.byType || {};
-            const current = { ...roleTypeDefaults(type), ...(currentByType[type.code] || {}) };
+            const current = roleTypeCurrent(type);
             this.setState({
               roleEdit: {
                 ...roleEdit,
@@ -6097,7 +6138,8 @@ class Component extends DCLogic {
       ['create', 'Создание'],
       ['edit', 'Правка'],
       ['transition', 'Статусы'],
-      ['content', 'Файлы'],
+      ['contentRead', 'Скачивание'],
+      ['contentWrite', 'Изменение файлов'],
       ['archive', 'Архив'],
       ['restore', 'Восст.'],
       ['export', 'Экспорт'],
@@ -6106,9 +6148,8 @@ class Component extends DCLogic {
     const roleTypePolicyRows = S.editingRoleCode === 'admin' ? [] : (S.adminTypes || [])
       .filter(type => type.isActive !== false && this.typeSectionCodes(type).some(sectionCode => roleEdit.visibleSectionCodes.includes(sectionCode)))
       .map(type => {
-        const defaults = roleTypeDefaults(type);
         const currentByType = roleEdit.permissions.byType || {};
-        const current = { ...defaults, ...(currentByType[type.code] || {}) };
+        const current = roleTypeCurrent(type);
         return {
           code: type.code,
           name: type.name,
