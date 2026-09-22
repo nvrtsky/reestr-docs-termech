@@ -9,11 +9,18 @@ test('marketplace mode accepts official cloud portals', () => {
   assert.equal(client.normalizeDomain('company.bitrix24.com'), 'company.bitrix24.com');
 });
 
-test('marketplace mode rejects arbitrary hosts and IP addresses', () => {
+test('marketplace mode accepts box portals but rejects IP literals', () => {
   const client = new BitrixClient([], 1_000, 1_000, true);
-  assert.throws(() => client.normalizeDomain('evil.example.com'));
+  assert.equal(client.normalizeDomain('portal.example.com'), 'portal.example.com');
   assert.throws(() => client.normalizeDomain('127.0.0.1'));
-  assert.throws(() => client.normalizeDomain('portal.bitrix24.ru.evil.example'));
+});
+
+test('marketplace mode rejects box portals on private networks before fetch', async () => {
+  const client = new BitrixClient([], 1_000, 1_000, true, async () => ['127.0.0.1']);
+  await assert.rejects(
+    client.call('portal.example.com', 'secret', 'scope'),
+    (error: unknown) => error instanceof Error && error.message.includes('public network'),
+  );
 });
 
 test('local mode keeps the explicit portal allowlist', () => {

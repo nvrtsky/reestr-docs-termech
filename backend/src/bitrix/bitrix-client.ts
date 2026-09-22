@@ -1,4 +1,8 @@
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
+
 import { ApiError } from '../http/api-error.js';
+import { logger } from '../logger.js';
 
 interface BitrixResponse<T> {
   result?: T;
@@ -51,6 +55,7 @@ export class BitrixClient implements BitrixApiClient {
     private readonly timeoutMs: number,
     private readonly uploadTimeoutMs = timeoutMs,
     private readonly marketplaceMode = false,
+    private readonly resolveAddresses: (domain: string) => Promise<string[]> = resolveHostAddresses,
   ) {
     this.allowedDomains = new Set(allowedDomains.map((domain) => domain.toLowerCase()));
   }
@@ -59,7 +64,7 @@ export class BitrixClient implements BitrixApiClient {
     const domain = value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
     if (!isSafeHostname(domain) || (
       !this.allowedDomains.has(domain)
-      && !(this.marketplaceMode && isBitrixCloudDomain(domain))
+      && !this.marketplaceMode
     )) {
       throw new ApiError(403, 'bitrix_domain_denied', 'Bitrix24 portal is not allowed.');
     }
@@ -74,6 +79,8 @@ export class BitrixClient implements BitrixApiClient {
     apiVersion: 'legacy' | 'v3' = 'legacy',
   ) {
     const domain = this.normalizeDomain(domainInput);
+    await this.assertPublicMarketplaceDomain(domain);
+    const startedAt = Date.now();
     const retryableRead = RETRYABLE_READ_METHODS.has(method);
     const attemptTimeouts = retryableRead
       ? [
@@ -92,6 +99,7 @@ export class BitrixClient implements BitrixApiClient {
           : `/rest/${method}.json`;
         response = await fetch(`https://${domain}${restPath}`, {
           method: 'POST',
+          redirect: 'error',
           headers: { 'content-type': 'application/json', accept: 'application/json' },
           body: JSON.stringify({ ...params, auth: accessToken }),
           signal: AbortSignal.timeout(timeoutMs),
@@ -102,12 +110,29 @@ export class BitrixClient implements BitrixApiClient {
       }
     }
     if (!response) {
+      logger.warn({
+        event: 'bitrix_rest',
+        domain,
+        method,
+        apiVersion,
+        durationMs: Date.now() - startedAt,
+        error: requestError instanceof Error ? requestError.name : 'unknown',
+      }, 'Bitrix24 REST request failed');
       throw new ApiError(502, 'bitrix_unavailable', 'Bitrix24 REST API is unavailable.', {
         cause: requestError instanceof Error ? requestError.name : 'unknown',
       });
     }
 
     const payload = (await response.json().catch(() => null)) as BitrixResponse<T> | null;
+    logger.info({
+      event: 'bitrix_rest',
+      domain,
+      method,
+      apiVersion,
+      status: response.status,
+      ok: response.ok && !!payload && !payload.error && payload.result !== undefined,
+      durationMs: Date.now() - startedAt,
+    }, 'Bitrix24 REST response');
     if (!response.ok || !payload || payload.error || payload.result === undefined) {
       const authError = response.status === 401 || payload?.error === 'expired_token';
       throw new ApiError(
@@ -130,6 +155,8 @@ export class BitrixClient implements BitrixApiClient {
     contentLength?: string,
   ) {
     const domain = this.normalizeDomain(domainInput);
+    await this.assertPublicMarketplaceDomain(domain);
+    const startedAt = Date.now();
     let uploadUrl: URL;
     try {
       uploadUrl = new URL(uploadUrlInput);
@@ -158,18 +185,34 @@ export class BitrixClient implements BitrixApiClient {
     try {
       response = await fetch(uploadUrl, {
         method: 'POST',
+        redirect: 'error',
         headers,
         body: body as unknown as BodyInit,
         duplex: 'half',
         signal: AbortSignal.timeout(this.uploadTimeoutMs),
       } as RequestInit & { duplex: 'half' });
     } catch (error) {
+      logger.warn({
+        event: 'bitrix_rest',
+        domain,
+        method: 'disk.upload',
+        durationMs: Date.now() - startedAt,
+        error: error instanceof Error ? error.name : 'unknown',
+      }, 'Bitrix24 Disk upload failed');
       throw new ApiError(502, 'bitrix_upload_failed', 'Could not upload the file to Bitrix24 Disk.', {
         cause: error instanceof Error ? error.name : 'unknown',
       });
     }
 
     const payload = (await response.json().catch(() => null)) as BitrixResponse<T> | null;
+    logger.info({
+      event: 'bitrix_rest',
+      domain,
+      method: 'disk.upload',
+      status: response.status,
+      ok: response.ok && !!payload && !payload.error && payload.result !== undefined,
+      durationMs: Date.now() - startedAt,
+    }, 'Bitrix24 Disk upload response');
     if (!response.ok || !payload || payload.error || payload.result === undefined) {
       throw new ApiError(
         502,
@@ -179,6 +222,24 @@ export class BitrixClient implements BitrixApiClient {
       );
     }
     return payload.result;
+  }
+
+  private async assertPublicMarketplaceDomain(domain: string) {
+    if (
+      !this.marketplaceMode
+      || this.allowedDomains.has(domain)
+      || isBitrixCloudDomain(domain)
+    ) return;
+
+    let addresses: string[];
+    try {
+      addresses = await this.resolveAddresses(domain);
+    } catch {
+      throw new ApiError(403, 'bitrix_domain_denied', 'Bitrix24 portal is not publicly reachable.');
+    }
+    if (!addresses.length || addresses.some((address) => !isPublicAddress(address))) {
+      throw new ApiError(403, 'bitrix_domain_denied', 'Bitrix24 portal must use a public network address.');
+    }
   }
 }
 
@@ -204,4 +265,47 @@ function isSafeHostname(value: string) {
 
 function isBitrixCloudDomain(value: string) {
   return BITRIX_CLOUD_SUFFIXES.some((suffix) => value.endsWith(suffix));
+}
+
+async function resolveHostAddresses(domain: string) {
+  const addresses = await lookup(domain, { all: true, verbatim: true });
+  return [...new Set(addresses.map(({ address }) => address))];
+}
+
+function isPublicAddress(address: string) {
+  const version = isIP(address);
+  if (version === 4) return isPublicIpv4(address);
+  if (version !== 6) return false;
+
+  const normalized = address.toLowerCase();
+  if (normalized.startsWith('::ffff:')) {
+    return isPublicIpv4(normalized.slice('::ffff:'.length));
+  }
+  return normalized !== '::'
+    && normalized !== '::1'
+    && !normalized.startsWith('fc')
+    && !normalized.startsWith('fd')
+    && !/^fe[89ab]/.test(normalized)
+    && !normalized.startsWith('ff')
+    && !normalized.startsWith('2001:db8:');
+}
+
+function isPublicIpv4(address: string) {
+  const octets = address.split('.').map(Number);
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return false;
+  }
+  const [first = 0, second = 0, third = 0] = octets;
+  return first !== 0
+    && first !== 10
+    && first !== 127
+    && !(first === 100 && second >= 64 && second <= 127)
+    && !(first === 169 && second === 254)
+    && !(first === 172 && second >= 16 && second <= 31)
+    && !(first === 192 && second === 0)
+    && !(first === 192 && second === 168)
+    && !(first === 198 && (second === 18 || second === 19))
+    && !(first === 198 && second === 51 && third === 100)
+    && !(first === 203 && second === 0 && third === 113)
+    && first < 224;
 }

@@ -3,7 +3,8 @@
 The registry is deployed independently from the commercial-offer application.
 The production instance is a multi-tenant Bitrix24 Marketplace application;
 every installed portal has its own OAuth credentials and all business rows are
-scoped by `portal_url`.
+scoped by `portal_url`. Cloud and box portals are supported; box hosts must
+resolve exclusively to public IP addresses and REST redirects are rejected.
 
 ## Server layout
 
@@ -47,6 +48,11 @@ portal's Bitrix24 Disk.
 
 Keep the release directory mode at `0750`; use `0600` for env files, database
 dumps, and checksums.
+
+Bitrix24 REST audit entries include the portal, method, status and duration but
+never tokens, request bodies or response bodies. Docker retains up to 1 GB per
+service so the production host can preserve at least three days of REST audit
+history; monitor disk usage before raising traffic limits.
 
 ## Host nginx and TLS
 
