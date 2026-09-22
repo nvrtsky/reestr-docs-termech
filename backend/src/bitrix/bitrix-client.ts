@@ -50,13 +50,17 @@ export class BitrixClient implements BitrixApiClient {
     allowedDomains: string[],
     private readonly timeoutMs: number,
     private readonly uploadTimeoutMs = timeoutMs,
+    private readonly marketplaceMode = false,
   ) {
     this.allowedDomains = new Set(allowedDomains.map((domain) => domain.toLowerCase()));
   }
 
   normalizeDomain(value: string) {
     const domain = value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
-    if (!this.allowedDomains.has(domain)) {
+    if (!isSafeHostname(domain) || (
+      !this.allowedDomains.has(domain)
+      && !(this.marketplaceMode && isBitrixCloudDomain(domain))
+    )) {
       throw new ApiError(403, 'bitrix_domain_denied', 'Bitrix24 portal is not allowed.');
     }
     return domain;
@@ -176,4 +180,28 @@ export class BitrixClient implements BitrixApiClient {
     }
     return payload.result;
   }
+}
+
+const BITRIX_CLOUD_SUFFIXES = [
+  '.bitrix24.ru',
+  '.bitrix24.com',
+  '.bitrix24.by',
+  '.bitrix24.kz',
+  '.bitrix24.eu',
+  '.bitrix24.com.br',
+  '.bitrix24.in',
+];
+
+function isSafeHostname(value: string) {
+  return value.length <= 253
+    && value.includes('.')
+    && !value.includes('..')
+    && /^[a-z0-9.-]+$/.test(value)
+    && !/^\d+(?:\.\d+){3}$/.test(value)
+    && !value.startsWith('.')
+    && !value.endsWith('.');
+}
+
+function isBitrixCloudDomain(value: string) {
+  return BITRIX_CLOUD_SUFFIXES.some((suffix) => value.endsWith(suffix));
 }

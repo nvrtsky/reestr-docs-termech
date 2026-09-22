@@ -4,6 +4,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import { saveBitrixAdminStatus } from '../bitrix/bitrix-admin-users.repository.js';
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
+import type { PortalInstallationsService } from '../bitrix/portal-installations.service.js';
 import type { Database } from '../db/database.js';
 import { registryDepartmentRoles, registryUserRoles } from '../db/schema/index.js';
 import { ApiError } from '../http/api-error.js';
@@ -40,6 +41,7 @@ export class BitrixSessionService implements BitrixSessionResolver {
   constructor(
     private readonly database: Database,
     private readonly client: BitrixApiClient,
+    private readonly installations?: PortalInstallationsService,
   ) {}
 
   invalidatePortal(portalUrl: string) {
@@ -80,6 +82,7 @@ export class BitrixSessionService implements BitrixSessionResolver {
     memberId: string | undefined,
     cacheKey: string,
   ) {
+    await this.installations?.assertActive(domain, memberId);
     const profile = await this.client.call<BitrixProfile>(
       domain,
       accessToken,

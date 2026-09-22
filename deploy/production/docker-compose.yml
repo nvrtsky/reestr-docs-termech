@@ -1,4 +1,4 @@
-name: termech-doc-registry
+name: reestr-docs-marketplace
 
 services:
   postgres:
@@ -36,14 +36,23 @@ services:
       API_HOST: 0.0.0.0
       API_PORT: 3001
       WEB_ORIGIN: ${WEB_ORIGIN}
+      BITRIX_APP_PATH: ${BITRIX_APP_PATH:-/}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       BITRIX_ALLOWED_DOMAINS: ${BITRIX_ALLOWED_DOMAINS}
+      BITRIX_MARKETPLACE_MODE: ${BITRIX_MARKETPLACE_MODE:-false}
+      BITRIX_CLIENT_ID: ${BITRIX_CLIENT_ID:-}
+      BITRIX_CLIENT_SECRET: ${BITRIX_CLIENT_SECRET:-}
+      BITRIX_APP_CODE: ${BITRIX_APP_CODE:-}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      BITRIX_OAUTH_URL: ${BITRIX_OAUTH_URL:-https://oauth.bitrix.info/oauth/token/}
+      DATA_RETENTION_DAYS: ${DATA_RETENTION_DAYS:-30}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-alexandr@navrotsky.ru}
       BITRIX_REQUEST_TIMEOUT_MS: ${BITRIX_REQUEST_TIMEOUT_MS:-10000}
       BITRIX_UPLOAD_TIMEOUT_MS: ${BITRIX_UPLOAD_TIMEOUT_MS:-600000}
       BITRIX_EVENT_APPLICATION_TOKEN: ${BITRIX_EVENT_APPLICATION_TOKEN:-}
       PORTAL_TIME_ZONE: ${PORTAL_TIME_ZONE:-Europe/Minsk}
     ports:
-      - "127.0.0.1:${BACKEND_HOST_PORT:-3103}:3001"
+      - "127.0.0.1:${BACKEND_HOST_PORT:-3203}:3001"
     healthcheck:
       test:
         [
@@ -69,14 +78,14 @@ services:
       context: ../..
       dockerfile: frontend/Dockerfile
       args:
-        VITE_APP_BASE_URL: ${VITE_APP_BASE_URL:-/registry/}
+        VITE_APP_BASE_URL: ${VITE_APP_BASE_URL:-/}
         VITE_BITRIX_APP_CODE: ${VITE_BITRIX_APP_CODE:-}
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
     ports:
-      - "127.0.0.1:${FRONTEND_HOST_PORT:-3102}:8080"
+      - "127.0.0.1:${FRONTEND_HOST_PORT:-3202}:8080"
     networks:
       - registry-network
     logging:

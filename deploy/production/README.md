@@ -1,96 +1,86 @@
-# Production deployment
+# Marketplace production deployment
 
 The registry is deployed independently from the commercial-offer application.
+The production instance is a multi-tenant Bitrix24 Marketplace application;
+every installed portal has its own OAuth credentials and all business rows are
+scoped by `portal_url`.
 
 ## Server layout
 
-- source: `/var/www/termech-doc-registry`
-- frontend: `127.0.0.1:3102`
-- backend: `127.0.0.1:3103`
+- source: `/opt/reestr-docs`
+- frontend: `127.0.0.1:3202`
+- backend: `127.0.0.1:3203`
 - PostgreSQL: internal Docker network only
-- public UI: `https://termech.navrotsky.ru/registry/`
-- API: `https://termech.navrotsky.ru/api/v1/registry/`
+- public UI and placement handler: `https://reestr.navrotsky.ru/`
+- install handler: `https://reestr.navrotsky.ru/api/v1/bitrix/install`
+- event handler: `https://reestr.navrotsky.ru/api/v1/bitrix/events`
 
 ## Environment
 
-Create `deploy/production/env.production` from `env.example`. The production
-file must remain outside Git.
+Create `deploy/production/env.production` from `env.example`, set mode `0600`,
+and keep it outside Git. Generate independent secrets:
+
+```bash
+openssl rand -base64 36  # POSTGRES_PASSWORD
+openssl rand -base64 32  # TOKEN_ENCRYPTION_KEY
+```
+
+`BITRIX_CLIENT_ID`, `BITRIX_CLIENT_SECRET`, and `BITRIX_APP_CODE` come from the
+Bitrix24 developer cabinet. Marketplace mode refuses to start without them.
+`BITRIX_ALLOWED_DOMAINS` keeps the first customer explicit; additional portals
+must use an official Bitrix24 cloud domain and must also exist in the encrypted
+installation registry.
 
 ## First start
 
 ```bash
 docker compose --env-file deploy/production/env.production \
   -f deploy/production/docker-compose.yml up -d --build
-
-docker compose --env-file deploy/production/env.production \
-  -f deploy/production/docker-compose.yml run --rm backend \
-  node dist/db/seed.js
 ```
 
-Database migrations run automatically before the backend starts. Seed is a
-separate one-time command because repeated seed runs would overwrite catalog
-and role changes made by registry administrators.
+Database migrations run before the backend starts. Do not run the old global
+seed command in Marketplace production: a clean tenant is initialized during
+its installation, including a dedicated `Реестр документов` folder on that
+portal's Bitrix24 Disk.
 
-Keep the release directory owned by the deployment account and not writable by
-other users. Recommended host modes are `0750` for
-`/var/www/termech-doc-registry`, `0750` for
-`/var/backups/termech-doc-registry`, `0600` for `env.production`, and `0600`
-for database dumps/checksums. Do not use `0777` or world-readable backups.
+Keep the release directory mode at `0750`; use `0600` for env files, database
+dumps, and checksums.
 
-## Host nginx
+## Host nginx and TLS
 
-Copy `deploy/production/nginx/termech-doc-registry.conf` to
-`/etc/nginx/snippets/termech-doc-registry.conf` and include it inside the HTTPS
-`server` block for `termech.navrotsky.ru`:
+Copy `nginx/reestr.navrotsky.ru.conf` to `/etc/nginx/sites-available/`, enable
+it, obtain a Let's Encrypt certificate, run `nginx -t`, and reload nginx. The
+upload route streams files to Bitrix24 Disk, so nginx request buffering and a
+fixed body-size limit are disabled for the API.
 
-```nginx
-include /etc/nginx/snippets/termech-doc-registry.conf;
-```
+## Bitrix24 application
 
-Run `nginx -t` before reloading nginx.
+Request scopes: `crm`, `placement`, `user`, `department`, `disk`, `im`, and
+`task`/`tasks`. Register these URLs in the developer cabinet:
 
-The registry upload route deliberately uses `client_max_body_size 0`: files are
-streamed to Bitrix24 Disk and the effective size policy is defined by the
-approved requirements and Bitrix24, not by nginx.
+- application/install URL: `https://reestr.navrotsky.ru/api/v1/bitrix/install`;
+- application handler: `https://reestr.navrotsky.ru/`;
+- support: `https://reestr.navrotsky.ru/support.html`;
+- privacy: `https://reestr.navrotsky.ru/privacy.html`;
+- licence: `https://reestr.navrotsky.ru/license.html`.
 
-## Automated backup and restore test
+After PR #12 is merged, installation binds `LEFT_MENU`,
+`CRM_DEAL_DETAIL_TAB`, and `CRM_COMPANY_DETAIL_TAB`. The uninstall handler
+verifies the stored application-token hash. `CLEAN=1` purges immediately;
+otherwise the tenant is quarantined for `DATA_RETENTION_DAYS` and restored by
+a reinstall during that period.
 
-Install the timer without touching any other application on the host:
+## Backup and health checks
+
+Install the existing systemd backup timer from `deploy/production/systemd`.
+It writes SHA-256 checksums and verifies each dump in a disposable database.
 
 ```bash
-chmod 0750 deploy/production/scripts/*.sh
-install -m 0644 deploy/production/systemd/termech-registry-backup.service /etc/systemd/system/
-install -m 0644 deploy/production/systemd/termech-registry-backup.timer /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now termech-registry-backup.timer
+curl --fail http://127.0.0.1:3202/
+curl --fail http://127.0.0.1:3203/api/v1/health/live
+curl --fail http://127.0.0.1:3203/api/v1/health/ready
 ```
 
-The backup script writes only to `/var/backups/termech-doc-registry`, applies
-`0600`, writes a SHA-256 checksum, verifies every new dump in a disposable
-database, and retains the last two days by default. A dump can also be checked
-manually before a release:
-
-```bash
-deploy/production/scripts/verify-registry-backup.sh \
-  /var/backups/termech-doc-registry/registry-YYYYmmdd-HHMMSS.dump
-```
-
-The verifier never restores over the production database: it creates a
-temporary `registry_restore_test_*` database and drops it on exit.
-
-## Health checks
-
-```bash
-curl --fail http://127.0.0.1:3102/
-curl --fail http://127.0.0.1:3103/api/v1/health/live
-curl --fail http://127.0.0.1:3103/api/v1/health/ready
-```
-
-## Portable data
-
-For migration to another server, transfer:
-
-1. the exact application source or release archive;
-2. `deploy/production/env.production` through a secure channel;
-3. a PostgreSQL dump created with `pg_dump`;
-4. the Bitrix24 placement URLs if the public hostname changes.
+Before deployment, archive the current test database instead of restoring it
+into the Marketplace volume. Keep that archive until the first customer and
+Marketplace moderation have both been accepted.

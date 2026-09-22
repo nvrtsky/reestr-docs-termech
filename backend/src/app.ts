@@ -16,6 +16,7 @@ import {
 } from './auth/bitrix-session.service.js';
 import { BitrixClient, type BitrixApiClient } from './bitrix/bitrix-client.js';
 import { createBitrixInstallRouter } from './bitrix/bitrix-install.router.js';
+import { PortalInstallationsService } from './bitrix/portal-installations.service.js';
 import { createCatalogsRouter } from './catalogs/catalogs.router.js';
 import type { AppConfig } from './config.js';
 import { createCrmContextRouter } from './crm-context/crm-context.router.js';
@@ -107,14 +108,17 @@ export function createApp({
       config.BITRIX_ALLOWED_DOMAINS,
       config.BITRIX_REQUEST_TIMEOUT_MS,
       config.BITRIX_UPLOAD_TIMEOUT_MS,
+      config.BITRIX_MARKETPLACE_MODE,
     );
+    const installations = new PortalInstallationsService(database, bitrix, config);
     const sessions = bitrixSessionResolver ?? new BitrixSessionService(
       database,
       bitrix,
+      installations,
     );
     app.use(
       '/api/v1/bitrix/events',
-      createCrmEventsRouter({ config, database, bitrix }),
+      createCrmEventsRouter({ config, database, bitrix, installations }),
     );
     app.use(
       '/api/v1/bitrix/install',
@@ -122,8 +126,21 @@ export function createApp({
         database,
         bitrix,
         webOrigin: config.WEB_ORIGIN,
+        appPath: config.BITRIX_APP_PATH,
+        installations,
       }),
     );
+    if (config.BITRIX_MARKETPLACE_MODE) {
+      void installations.purgeExpired().catch((error) => {
+        logger.error({ error }, 'Could not purge expired Marketplace tenants');
+      });
+      const retentionTimer = setInterval(() => {
+        void installations.purgeExpired().catch((error) => {
+          logger.error({ error }, 'Could not purge expired Marketplace tenants');
+        });
+      }, 60 * 60 * 1_000);
+      retentionTimer.unref();
+    }
     const registryRouter = express.Router();
     registryRouter.use(createRegistryContextMiddleware(config, sessions));
     registryRouter.use('/admin', createAdminCatalogsRouter({ database }));
@@ -131,7 +148,7 @@ export function createApp({
       database,
       bitrix,
       bitrixEventHandlerUrl: new URL('/api/v1/bitrix/events', config.WEB_ORIGIN).toString(),
-      bitrixPlacementHandlerUrl: new URL('/registry/', config.WEB_ORIGIN).toString(),
+      bitrixPlacementHandlerUrl: new URL(config.BITRIX_APP_PATH, config.WEB_ORIGIN).toString(),
       bitrixEventTokenConfigured: !!config.BITRIX_EVENT_APPLICATION_TOKEN,
       sessions,
     }));
