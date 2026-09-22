@@ -106,6 +106,13 @@
       "when": 1786122000000,
       "tag": "0014_creation_finalization",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1789970400000,
+      "tag": "0015_optional_document_content",
+      "breakpoints": true
     }
   ]
 }

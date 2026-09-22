@@ -1821,6 +1821,8 @@ export class DocumentsService {
         policy,
       );
     }
+    await this.assertRequiredFieldsComplete(context, id, current.typeId, fields);
+    await this.assertRequiredContentComplete(context, id, current.contentRequired);
     const previousFieldValues = fields
       ? await this.database
           .select({
@@ -3237,15 +3239,12 @@ export class DocumentsService {
       );
     }
 
-    const isEmpty = (value: unknown) =>
-      value === null || value === undefined || value === '' ||
-      (Array.isArray(value) && value.length === 0);
     const missingRequired = definitions
       .filter((definition) => definition.isRequired)
       .filter((definition) =>
         requireAll
-          ? !Object.hasOwn(fields, definition.key) || isEmpty(fields[definition.key])
-          : Object.hasOwn(fields, definition.key) && isEmpty(fields[definition.key]),
+          ? !Object.hasOwn(fields, definition.key) || isEmptyRequiredValue(fields[definition.key])
+          : Object.hasOwn(fields, definition.key) && isEmptyRequiredValue(fields[definition.key]),
       )
       .map((definition) => definition.key);
     if (missingRequired.length) {
@@ -3259,7 +3258,7 @@ export class DocumentsService {
 
     for (const [key, value] of Object.entries(fields)) {
       const definition = definitionByKey.get(key)!;
-      if (isEmpty(value)) continue;
+      if (isEmptyRequiredValue(value)) continue;
       const pendingFile = value && typeof value === 'object' && !Array.isArray(value)
         && (value as { pendingUpload?: unknown }).pendingUpload === true
         && typeof (value as { name?: unknown }).name === 'string'
@@ -3289,6 +3288,7 @@ export class DocumentsService {
     context: RegistryContext,
     documentId: string,
     typeId: string,
+    fieldOverrides: Record<string, unknown> = {},
   ) {
     const requiredFields = await this.database
       .select({
@@ -3344,13 +3344,15 @@ export class DocumentsService {
           requiredValueFields.map((field) => field.id),
         ),
       )) : [];
-    const attached = new Set(attachments.map((item) => item.fieldDefinitionId));
-    const populated = new Set(values
-      .filter((item) => !this.isEmptyFieldValue(item.value))
-      .map((item) => item.fieldDefinitionId));
-    const missingValueKeys = requiredValueFields
-      .filter((field) => !populated.has(field.id))
-      .map((field) => field.key);
+    const missing = findMissingRequiredFields(
+      requiredFields,
+      values,
+      attachments
+        .map((item) => item.fieldDefinitionId)
+        .filter((fieldId): fieldId is string => fieldId !== null),
+      fieldOverrides,
+    );
+    const missingValueKeys = missing.values;
     if (missingValueKeys.length) {
       throw new ApiError(
         409,
@@ -3359,9 +3361,7 @@ export class DocumentsService {
         { keys: missingValueKeys },
       );
     }
-    const missingFileKeys = requiredFileFields
-      .filter((field) => !attached.has(field.id))
-      .map((field) => field.key);
+    const missingFileKeys = missing.files;
     if (missingFileKeys.length) {
       throw new ApiError(
         409,
@@ -3370,11 +3370,6 @@ export class DocumentsService {
         { keys: missingFileKeys },
       );
     }
-  }
-
-  private isEmptyFieldValue(value: unknown) {
-    return value === null || value === undefined || value === ''
-      || (Array.isArray(value) && value.length === 0);
   }
 
   private async assertRequiredContentComplete(
@@ -3616,6 +3611,38 @@ export class DocumentsService {
       type: { code: typeCode, name: typeName, isFinancial },
     };
   }
+}
+
+export function isEmptyRequiredValue(value: unknown) {
+  return value === null || value === undefined
+    || (typeof value === 'string' && value.trim() === '')
+    || (Array.isArray(value) && value.length === 0);
+}
+
+export function findMissingRequiredFields(
+  requiredFields: Array<{ id: string; key: string; dataType: string }>,
+  storedValues: Array<{ fieldDefinitionId: string; value: unknown }>,
+  attachedFieldIds: string[],
+  fieldOverrides: Record<string, unknown> = {},
+) {
+  const valueByFieldId = new Map(
+    storedValues.map((item) => [item.fieldDefinitionId, item.value]),
+  );
+  for (const field of requiredFields) {
+    if (field.dataType !== 'file' && Object.hasOwn(fieldOverrides, field.key)) {
+      valueByFieldId.set(field.id, fieldOverrides[field.key]);
+    }
+  }
+  const attached = new Set(attachedFieldIds);
+  return {
+    values: requiredFields
+      .filter((field) => field.dataType !== 'file')
+      .filter((field) => isEmptyRequiredValue(valueByFieldId.get(field.id)))
+      .map((field) => field.key),
+    files: requiredFields
+      .filter((field) => field.dataType === 'file' && !attached.has(field.id))
+      .map((field) => field.key),
+  };
 }
 
 function isResponsiblePlaceholder(value: string) {
