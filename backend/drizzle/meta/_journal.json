@@ -113,6 +113,20 @@
       "when": 1790071534281,
       "tag": "0015_marketplace_installations",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790075200000,
+      "tag": "0016_registry_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790078800000,
+      "tag": "0017_deal_link_responsibility",
+      "breakpoints": true
     }
   ]
 }

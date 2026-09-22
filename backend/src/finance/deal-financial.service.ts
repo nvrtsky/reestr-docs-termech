@@ -44,7 +44,12 @@ export class DealFinancialService {
     this.salesDealAccess = new SalesDealAccessService(database, bitrix);
   }
 
-  async summarize(context: RegistryContext, dealId: number, targetCurrency: string) {
+  async summarize(
+    context: RegistryContext,
+    dealId: number,
+    targetCurrency: string,
+    filters: { sections?: string[]; types?: string[] } = {},
+  ) {
     targetCurrency = targetCurrency.trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(targetCurrency)) {
       throw new ApiError(400, 'currency_invalid', 'Currency code is invalid.');
@@ -64,11 +69,18 @@ export class DealFinancialService {
       eq(registryDocumentLinks.entityType, 'deal'),
       eq(registryDocumentLinks.entityId, dealId),
       inArray(registrySections.code, policy.visibleSectionCodes),
+      eq(registryDocumentTypes.isFinancial, true),
     ];
     if (crmEntityScope) conditions.push(crmEntityScope);
     if (salesDealScope) conditions.push(salesDealScope);
     if (policy.visibleTypeCodes) {
       conditions.push(inArray(registryDocumentTypes.code, policy.visibleTypeCodes));
+    }
+    if (filters.sections?.length) {
+      conditions.push(inArray(registrySections.code, filters.sections));
+    }
+    if (filters.types?.length) {
+      conditions.push(inArray(registryDocumentTypes.code, filters.types));
     }
     const hiddenTypeCodes = Object.entries(policy.permissions.byType ?? {})
       .filter(([, permissions]) => permissions.view === false)
@@ -87,6 +99,8 @@ export class DealFinancialService {
         currency: registryDocuments.currency,
         typeCode: registryDocumentTypes.code,
         typeName: registryDocumentTypes.name,
+        sectionCode: registrySections.code,
+        sectionName: registrySections.name,
       })
       .from(registryDocuments)
       .innerJoin(
@@ -98,21 +112,14 @@ export class DealFinancialService {
       .where(and(...conditions))
       .orderBy(registryDocuments.documentDate, registryDocuments.createdAt);
 
-    const financeDenied = rows.filter((row) =>
-      !isTypePermissionAllowed(policy, row.typeCode, 'finance')
-      || isMoneyHidden(policy, row.typeCode));
-    if (financeDenied.length) {
-      throw new ApiError(
-        403,
-        'deal_financial_summary_access_denied',
-        'The financial summary is hidden by document type policy.',
-        { deniedTypeCodes: [...new Set(financeDenied.map((row) => row.typeCode))] },
-      );
-    }
-    if (!rows.length) return this.emptySummary(dealId, targetCurrency);
+    const visibleRows = [...new Map(rows
+      .filter((row) => isTypePermissionAllowed(policy, row.typeCode, 'finance'))
+      .filter((row) => !isMoneyHidden(policy, row.typeCode))
+      .map((row) => [row.id, row])).values()];
+    if (!visibleRows.length) return this.emptySummary(dealId, targetCurrency);
 
     const currenciesByDate = new Map<string, Set<string>>();
-    for (const row of rows) {
+    for (const row of visibleRows) {
       if (row.amount === null) continue;
       const currency = row.currency?.toUpperCase();
       if (!currency) {
@@ -140,7 +147,8 @@ export class DealFinancialService {
     }
 
     let totalMinor = 0n;
-    const details = rows.map((row) => {
+    const sectionMinor = new Map<string, bigint>();
+    const details = visibleRows.map((row) => {
       const emptyAmount = row.amount === null;
       let originalMinor = 0n;
       try {
@@ -157,6 +165,8 @@ export class DealFinancialService {
           title: row.title,
           typeCode: row.typeCode,
           typeName: row.typeName,
+          sectionCode: row.sectionCode,
+          sectionName: row.sectionName,
           documentDate: row.documentDate,
           emptyAmount: true,
           originalAmount: '0.00',
@@ -185,12 +195,15 @@ export class DealFinancialService {
           * decimalToMinor(target.rubValue.toFixed(8), 8),
       );
       totalMinor += convertedMinor;
+      sectionMinor.set(row.sectionCode, (sectionMinor.get(row.sectionCode) ?? 0n) + convertedMinor);
       return {
         documentId: row.id,
         number: row.number,
         title: row.title,
         typeCode: row.typeCode,
         typeName: row.typeName,
+        sectionCode: row.sectionCode,
+        sectionName: row.sectionName,
         documentDate: row.documentDate,
         emptyAmount: false,
         originalAmount: formatMinor(originalMinor, 2),
@@ -210,6 +223,17 @@ export class DealFinancialService {
       documentCount: details.length,
       zeroAmountCount: details.filter((row) => row.emptyAmount).length,
       source: 'CBR',
+      selectedSections: filters.sections ?? [],
+      selectedTypes: filters.types ?? [],
+      sectionTotals: [...new Map(visibleRows.map((row) => [row.sectionCode, {
+        sectionCode: row.sectionCode,
+        sectionName: row.sectionName,
+      }])).values()].map((section) => ({
+        ...section,
+        total: formatMinor(sectionMinor.get(section.sectionCode) ?? 0n, 2),
+        targetCurrency,
+        documentCount: details.filter((row) => row.sectionCode === section.sectionCode).length,
+      })),
       details,
     };
   }
@@ -235,6 +259,9 @@ export class DealFinancialService {
       documentCount: 0,
       zeroAmountCount: 0,
       source: 'CBR',
+      selectedSections: [],
+      selectedTypes: [],
+      sectionTotals: [],
       details: [],
     };
   }

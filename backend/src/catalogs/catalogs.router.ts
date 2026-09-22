@@ -6,6 +6,8 @@ import { Router } from 'express';
 import type { Database } from '../db/database.js';
 import {
   registryDocuments,
+  registryDocumentFieldValues,
+  registryAuditLog,
   registryDocumentTypeSections,
   registryDocumentTypes,
   registryFieldDefinitions,
@@ -820,9 +822,79 @@ export function createCatalogsRouter({ database }: CatalogsRouterDependencies) {
             .where(eq(registryDocuments.id, document.id));
         }
 
+        const existingAssignments = await transaction
+          .select({
+            fieldDefinitionId: registryTypeFields.fieldDefinitionId,
+            key: registryFieldDefinitions.key,
+            label: registryTypeFields.labelOverride,
+            defaultLabel: registryFieldDefinitions.label,
+          })
+          .from(registryTypeFields)
+          .innerJoin(
+            registryFieldDefinitions,
+            eq(registryTypeFields.fieldDefinitionId, registryFieldDefinitions.id),
+          )
+          .where(and(
+            eq(registryTypeFields.portalUrl, context.portalUrl),
+            eq(registryTypeFields.typeId, documentType.id),
+          ));
+        const removedAssignments = existingAssignments
+          .filter((assignment) => !selectedDefinitionIds.has(assignment.fieldDefinitionId));
+        if (removedAssignments.length) {
+          const removedIds = removedAssignments.map((assignment) => assignment.fieldDefinitionId);
+          const removedValues = await transaction
+            .select({
+              documentId: registryDocumentFieldValues.documentId,
+              fieldDefinitionId: registryDocumentFieldValues.fieldDefinitionId,
+              value: registryDocumentFieldValues.value,
+            })
+            .from(registryDocumentFieldValues)
+            .innerJoin(
+              registryDocuments,
+              eq(registryDocumentFieldValues.documentId, registryDocuments.id),
+            )
+            .where(and(
+              eq(registryDocumentFieldValues.portalUrl, context.portalUrl),
+              eq(registryDocuments.typeId, documentType.id),
+              inArray(registryDocumentFieldValues.fieldDefinitionId, removedIds),
+            ));
+          const removedById = new Map(removedAssignments.map((assignment) => [
+            assignment.fieldDefinitionId,
+            assignment,
+          ]));
+          if (removedValues.length) {
+            await transaction.insert(registryAuditLog).values(removedValues.map((value) => {
+              const field = removedById.get(value.fieldDefinitionId)!;
+              return {
+                portalUrl: context.portalUrl,
+                documentId: value.documentId,
+                event: 'document_field_removed',
+                actorId: context.userId,
+                actorName: context.userName ?? null,
+                before: {
+                  key: field.key,
+                  label: field.label || field.defaultLabel,
+                  value: value.value,
+                  typeCode,
+                },
+              };
+            }));
+            await transaction
+              .delete(registryDocumentFieldValues)
+              .where(and(
+                eq(registryDocumentFieldValues.portalUrl, context.portalUrl),
+                inArray(registryDocumentFieldValues.fieldDefinitionId, removedIds),
+                inArray(registryDocumentFieldValues.documentId, removedValues.map((value) => value.documentId)),
+              ));
+          }
+        }
+
         await transaction
           .delete(registryTypeFields)
-          .where(eq(registryTypeFields.typeId, documentType.id));
+          .where(and(
+            eq(registryTypeFields.portalUrl, context.portalUrl),
+            eq(registryTypeFields.typeId, documentType.id),
+          ));
 
         const attachedFields: Array<{
           key: string;
@@ -901,6 +973,10 @@ export function createCatalogsRouter({ database }: CatalogsRouterDependencies) {
         roleDepartmentId: context.roleDepartmentId ?? null,
         departmentIds: context.departmentIds,
         ...policy,
+        permissions: context.settingsManager
+          ? { ...policy.permissions, administer: true }
+          : policy.permissions,
+        settingsManager: context.settingsManager === true,
       });
     } catch (error) {
       next(error);

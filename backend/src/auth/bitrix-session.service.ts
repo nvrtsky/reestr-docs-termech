@@ -6,7 +6,7 @@ import { saveBitrixAdminStatus } from '../bitrix/bitrix-admin-users.repository.j
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
 import type { PortalInstallationsService } from '../bitrix/portal-installations.service.js';
 import type { Database } from '../db/database.js';
-import { registryDepartmentRoles, registryUserRoles } from '../db/schema/index.js';
+import { registryDepartmentRoles, registrySettings, registryUserRoles } from '../db/schema/index.js';
 import { ApiError } from '../http/api-error.js';
 import type { RegistryContext } from '../http/registry-context.js';
 
@@ -55,6 +55,9 @@ export class BitrixSessionService implements BitrixSessionResolver {
 
   async resolve(domainInput: string, accessToken: string, memberId?: string) {
     const domain = this.client.normalizeDomain(domainInput);
+    // Installation state is security-sensitive and must be checked before a
+    // cached user context can be reused after uninstall or quarantine.
+    await this.installations?.assertActive(domain, memberId);
     const cacheKey = createHash('sha256')
       .update(`${domain}\0${accessToken}`)
       .digest('hex');
@@ -82,7 +85,6 @@ export class BitrixSessionService implements BitrixSessionResolver {
     memberId: string | undefined,
     cacheKey: string,
   ) {
-    await this.installations?.assertActive(domain, memberId);
     const profile = await this.client.call<BitrixProfile>(
       domain,
       accessToken,
@@ -119,6 +121,8 @@ export class BitrixSessionService implements BitrixSessionResolver {
     const role = profile.ADMIN
       ? { roleCode: 'admin', roleSource: 'bitrix_admin' as const }
       : await this.resolveUserRole(portalUrl, userId, departmentIds);
+    const settingsManager = profile.ADMIN === true
+      || await this.isSettingsManager(portalUrl, userId);
     const context: RegistryContext = {
       portalUrl,
       userId,
@@ -127,6 +131,7 @@ export class BitrixSessionService implements BitrixSessionResolver {
       roleSource: role.roleSource,
       ...('roleDepartmentId' in role ? { roleDepartmentId: role.roleDepartmentId } : {}),
       departmentIds,
+      settingsManager,
       source: 'bitrix',
       bitrix: { domain, accessToken, memberId },
     };
@@ -138,6 +143,23 @@ export class BitrixSessionService implements BitrixSessionResolver {
     }
     this.cache.set(cacheKey, { context, expiresAt: Date.now() + 60_000 });
     return context;
+  }
+
+  private async isSettingsManager(portalUrl: string, userId: number) {
+    const [setting] = await this.database
+      .select({ value: registrySettings.value })
+      .from(registrySettings)
+      .where(and(
+        eq(registrySettings.portalUrl, portalUrl),
+        eq(registrySettings.key, 'settings_manager_user_ids'),
+      ))
+      .limit(1);
+    const value = setting?.value;
+    const userIds = value && typeof value === 'object' && !Array.isArray(value)
+      && Array.isArray((value as { userIds?: unknown }).userIds)
+      ? (value as { userIds: unknown[] }).userIds
+      : [];
+    return userIds.some((value) => Number(value) === userId);
   }
 
   private async resolveUserRole(

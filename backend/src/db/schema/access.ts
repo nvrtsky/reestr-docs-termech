@@ -21,6 +21,10 @@ export interface RolePermissions {
   restore: boolean;
   export: boolean;
   administer: boolean;
+  /** Which CRM-visible documents are considered in the role's registry scope. */
+  visibilityScope?: 'own' | 'crm';
+  /** Behaviour after every CRM-visible linked deal has been closed. */
+  closedDealAccess?: 'hidden' | 'read_download' | 'normal';
   byType?: Record<string, TypePermissions>;
 }
 
@@ -132,6 +136,7 @@ export const registrySettings = pgTable(
     portalUrl: text('portal_url').notNull(),
     key: text('key').notNull(),
     value: jsonb('value').notNull(),
+    version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -139,6 +144,28 @@ export const registrySettings = pgTable(
     uniqueIndex('registry_settings_portal_key_uidx').on(
       table.portalUrl,
       table.key,
+    ),
+  ],
+);
+
+export const registrySettingsAudit = pgTable(
+  'registry_settings_audit',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    portalUrl: text('portal_url').notNull(),
+    settingKey: text('setting_key').notNull(),
+    version: integer('version').notNull(),
+    actorId: bigint('actor_id', { mode: 'number' }).notNull(),
+    actorName: text('actor_name'),
+    before: jsonb('before'),
+    after: jsonb('after'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('registry_settings_audit_portal_key_idx').on(
+      table.portalUrl,
+      table.settingKey,
+      table.createdAt,
     ),
   ],
 );

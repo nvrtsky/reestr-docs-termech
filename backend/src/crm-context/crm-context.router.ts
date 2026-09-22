@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
 import type { Database } from '../db/database.js';
@@ -27,6 +28,26 @@ export function createCrmContextRouter({
       const context = requireRegistryContext(request);
       const query = taskSearchQuerySchema.parse(request.query);
       response.json({ items: await crmContext.searchTasks(context, query.search, query.limit) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get('/companies/:companyId/deals', async (request, response, next) => {
+    try {
+      const context = requireRegistryContext(request);
+      const companyId = z.coerce.number().int().positive().safe().parse(request.params.companyId);
+      const company = await crmContext.resolve(context, 'company', companyId);
+      response.json({
+        company: company.company,
+        items: company.deals.map((deal) => ({
+          entityType: 'deal' as const,
+          entityId: deal.id,
+          entityTitle: deal.title,
+          stageId: deal.stageId,
+          stageName: deal.stageName,
+        })),
+      });
     } catch (error) {
       next(error);
     }

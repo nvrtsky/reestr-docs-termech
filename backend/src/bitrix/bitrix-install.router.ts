@@ -18,6 +18,7 @@ interface InstallRouterOptions {
   bitrix: BitrixApiClient;
   webOrigin: string;
   appPath: string;
+  expectedAppCode?: string;
   installations?: PortalInstallationsService;
 }
 
@@ -33,6 +34,7 @@ export function createBitrixInstallRouter({
   bitrix,
   webOrigin,
   appPath,
+  expectedAppCode,
   installations,
 }: InstallRouterOptions) {
   const router = Router();
@@ -115,6 +117,16 @@ export function createBitrixInstallRouter({
           400,
           'bitrix_install_application_invalid',
           'Bitrix24 did not confirm the application identity.',
+        );
+      }
+      if (
+        expectedAppCode
+        && String(application.CODE || '').trim() !== expectedAppCode.trim()
+      ) {
+        throw new ApiError(
+          403,
+          'bitrix_install_application_mismatch',
+          'Bitrix24 confirmed a different Marketplace application.',
         );
       }
 

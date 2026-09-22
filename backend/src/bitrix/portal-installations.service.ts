@@ -367,6 +367,7 @@ export class PortalInstallationsService {
             'registry_user_roles',
             'registry_department_roles',
             'registry_role_policies',
+            'registry_settings_audit',
             'registry_settings'
           ]
           LOOP

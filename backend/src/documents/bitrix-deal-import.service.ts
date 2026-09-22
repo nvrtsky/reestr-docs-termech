@@ -20,6 +20,7 @@ import {
   registryDocumentTypes,
   registryLifecycles,
   registrySections,
+  registrySettings,
   type LifecycleConfig,
 } from '../db/schema/index.js';
 import { ApiError } from '../http/api-error.js';
@@ -49,6 +50,7 @@ interface BitrixDeal {
   COMPANY_ID?: string | number;
   STAGE_ID?: string;
   CLOSED?: string;
+  ASSIGNED_BY_ID?: string | number;
 }
 
 interface BitrixCompany {
@@ -138,11 +140,15 @@ export class BitrixDealImportService {
         'The Bitrix24 deal is unavailable.',
       );
     }
-    if (context.roleCode === 'sales' && String(deal.CLOSED || '').toUpperCase() === 'Y') {
+    const policy = await loadRegistryPolicy(this.database, context);
+    if (
+      policy.permissions.closedDealAccess !== 'normal'
+      && String(deal.CLOSED || '').toUpperCase() === 'Y'
+    ) {
       throw new ApiError(
-        403,
-        'closed_deal_access_denied',
-        'Sales users cannot synchronize documents of a closed deal.',
+        409,
+        'closed_deal_document_read_only',
+        'Document synchronization is disabled after the linked deal is closed.',
       );
     }
 
@@ -162,6 +168,11 @@ export class BitrixDealImportService {
       listBitrixUsers(context, this.bitrix),
     ]);
     const userNames = new Map(users.map((user) => [user.id, user.name]));
+    const dealResponsibleId = this.positiveId(deal.ASSIGNED_BY_ID);
+    const dealResponsibleName = dealResponsibleId
+      ? userNames.get(dealResponsibleId) || `Пользователь #${dealResponsibleId}`
+      : null;
+    const responsibilityMode = await this.loadResponsibilityMode(context);
     const normalized = [
       ...invoiceRows.map((row) => this.normalize(
         row,
@@ -314,6 +325,9 @@ export class BitrixDealImportService {
         relocationByDocument,
         obsoleteDealLinks,
         obsoleteCopies,
+        dealResponsibleId,
+        dealResponsibleName,
+        responsibilityMode,
       });
     } catch (error) {
       await Promise.all(markedObsoleteCopyFileIds.map((diskFileId) =>
@@ -372,6 +386,9 @@ export class BitrixDealImportService {
     relocationByDocument,
     obsoleteDealLinks,
     obsoleteCopies,
+    dealResponsibleId,
+    dealResponsibleName,
+    responsibilityMode,
   }: {
     context: RegistryContext;
     dealId: number;
@@ -392,6 +409,9 @@ export class BitrixDealImportService {
       dealId: number;
       diskFileId: number;
     }>;
+    dealResponsibleId: number | null;
+    dealResponsibleName: string | null;
+    responsibilityMode: 'primary_deal' | 'all_deal_owners' | 'manual';
   }) {
     return this.database.transaction(async (transaction) => {
       await transaction.execute(
@@ -490,6 +510,12 @@ export class BitrixDealImportService {
 
       for (const item of uniqueItems.values()) {
         const config = types.get(item.typeCode)!;
+        const effectiveResponsibleId = responsibilityMode === 'manual' || !dealResponsibleId
+          ? item.responsibleId
+          : dealResponsibleId;
+        const effectiveResponsibleName = responsibilityMode === 'manual' || !dealResponsibleName
+          ? item.responsibleName
+          : dealResponsibleName;
         const [existing] = await transaction
           .select({
             id: registryDocuments.id,
@@ -534,8 +560,8 @@ export class BitrixDealImportService {
           counterpartyId: companyId,
           counterpartyName: companyName,
           dealStageId: this.nonEmptyText(deal.STAGE_ID),
-          responsibleId: item.responsibleId,
-          responsibleName: item.responsibleName,
+          responsibleId: effectiveResponsibleId,
+          responsibleName: effectiveResponsibleName,
           externalStatus: item.externalStatus,
           externalUpdatedAt: item.externalUpdatedAt,
           externalSyncedAt: syncedAt,
@@ -589,13 +615,20 @@ export class BitrixDealImportService {
             id: documentId,
             number: item.number,
             title: item.title,
-            responsibleId: item.responsibleId,
+            responsibleId: effectiveResponsibleId,
           });
         } else {
           documentId = existing.id;
           const editScope = config.editAny || (
             config.editOwn
-            && (existing.createdBy === context.userId || existing.responsibleId === context.userId)
+            && (
+              existing.createdBy === context.userId
+              || existing.responsibleId === context.userId
+              || (
+                responsibilityMode === 'all_deal_owners'
+                && dealResponsibleId === context.userId
+              )
+            )
           );
           if (!(config.editOverride ?? editScope)) {
             throw new ApiError(
@@ -686,6 +719,9 @@ export class BitrixDealImportService {
             entityId: dealId,
             entityTitle: dealTitle,
             linkRole: 'bitrix_import',
+            isPrimary: true,
+            dealResponsibleId,
+            dealResponsibleName,
             dealClosed: String(deal.CLOSED || '').toUpperCase() === 'Y',
             dealStateCheckedAt: syncedAt,
           })
@@ -699,6 +735,9 @@ export class BitrixDealImportService {
             set: {
               entityTitle: dealTitle,
               linkRole: 'bitrix_import',
+              isPrimary: true,
+              dealResponsibleId,
+              dealResponsibleName,
               dealClosed: String(deal.CLOSED || '').toUpperCase() === 'Y',
               dealStateCheckedAt: syncedAt,
             },
@@ -912,6 +951,25 @@ export class BitrixDealImportService {
       });
     }
     return configurations;
+  }
+
+  private async loadResponsibilityMode(
+    context: RegistryContext,
+  ): Promise<'primary_deal' | 'all_deal_owners' | 'manual'> {
+    const [settings] = await this.database
+      .select({ value: registrySettings.value })
+      .from(registrySettings)
+      .where(and(
+        eq(registrySettings.portalUrl, context.portalUrl),
+        eq(registrySettings.key, 'registry_access_rules'),
+      ))
+      .limit(1);
+    const value = settings?.value;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return 'primary_deal';
+    }
+    const mode = 'responsibilityMode' in value ? value.responsibilityMode : null;
+    return mode === 'all_deal_owners' || mode === 'manual' ? mode : 'primary_deal';
   }
 
   private async loadAllItems(

@@ -1165,12 +1165,12 @@ const helpMaterialsEvidence = await evaluate(`(() => {
   const doc = document.querySelector('iframe').contentDocument;
   const dialog = doc.querySelector('[aria-labelledby="help-training-title"]');
   const text = dialog?.innerText || '';
-  const articleCount = (text.match(/Статья/g) || []).length;
-  const videoCount = (text.match(/Видео/g) || []).length;
+  const articleCount = (text.match(/PDF · пользователь/g) || []).length;
+  const videoCount = (text.match(/PDF · администратор/g) || []).length;
   return {
     total: articleCount + videoCount === 6,
-    articles: articleCount === 4,
-    videos: videoCount === 2,
+    articles: articleCount === 5,
+    videos: videoCount === 1,
   };
 })()`);
 await screenshot('help-six-materials-1440x1000.png', 1440, 1000);
@@ -1186,8 +1186,8 @@ await evaluate(`(() => {
   });
   view.__adminLoadingObserver.observe(doc.body, { childList: true, subtree: true, characterData: true });
 })()`);
-await clickIframeButton('Администрирование');
-await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.includes('Администрирование реестра')`, 'administration');
+await clickIframeButton('Настройки');
+await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.includes('Настройки реестра')`, 'administration');
 const administrationNoLoadingFlash = await evaluate(`(() => {
   const view = document.querySelector('iframe').contentWindow;
   view.__adminLoadingObserver?.disconnect();
@@ -1205,7 +1205,7 @@ const trainingEvidence = await evaluate(`(() => {
   return {
     userGuide: sourceText.includes('Пользовательская инструкция') && sourceText.includes('одиночная и массовая загрузка'),
     adminGuide: sourceText.includes('Административная инструкция') && sourceText.includes('роли и права доступа'),
-    futureStatus: (renderedText.match(/Будет выпущена после стабилизации интерфейса/g) || []).length === 2,
+    futureStatus: (renderedText.match(/PDF · скачать/g) || []).length === 2,
   };
 })()`);
 await clickIframeButton('Роли и доступ');

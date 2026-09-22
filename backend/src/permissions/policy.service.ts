@@ -1,12 +1,20 @@
 import { and, eq } from 'drizzle-orm';
 
 import type { Database } from '../db/database.js';
-import type { TypePermissions } from '../db/schema/access.js';
+import type { RolePermissions, TypePermissions } from '../db/schema/access.js';
 import { registryRolePolicies, registrySections } from '../db/schema/index.js';
 import { ApiError } from '../http/api-error.js';
 import type { RegistryContext } from '../http/registry-context.js';
 
-export type RegistryPolicy = Awaited<ReturnType<typeof loadRegistryPolicy>>;
+export interface RegistryPolicy {
+  roleCode: string;
+  roleName: string;
+  visibleSectionCodes: string[];
+  visibleTypeCodes: string[] | null;
+  hiddenFields: string[];
+  permissions: RolePermissions;
+  hideMoney: boolean;
+}
 export type TypePermissionKey = keyof TypePermissions;
 
 export function typePermissionOverride(
@@ -70,7 +78,7 @@ export function isDocumentFieldHidden(
 export async function loadRegistryPolicy(
   database: Database,
   context: RegistryContext,
-) {
+): Promise<RegistryPolicy> {
   const [policy] = await database
     .select({
       roleCode: registryRolePolicies.roleCode,
@@ -99,6 +107,14 @@ export async function loadRegistryPolicy(
     );
   }
 
+  policy.permissions = {
+    ...policy.permissions,
+    visibilityScope: policy.permissions.visibilityScope
+      ?? (policy.roleCode === 'sales' ? 'own' : 'crm'),
+    closedDealAccess: policy.permissions.closedDealAccess
+      ?? (policy.roleCode === 'sales' ? 'read_download' : 'normal'),
+  };
+
   if (context.roleCode === 'admin') {
     const sections = await database
       .select({ code: registrySections.code })
@@ -126,6 +142,8 @@ export async function loadRegistryPolicy(
         restore: true,
         export: true,
         administer: true,
+        visibilityScope: 'crm',
+        closedDealAccess: 'normal',
         byType: {},
       },
       hideMoney: false,

@@ -8,6 +8,9 @@ interface BitrixDeal {
   TITLE?: string;
   COMPANY_ID?: string | number;
   STAGE_ID?: string;
+  ASSIGNED_BY_ID?: string | number;
+  ASSIGNED_BY_NAME?: string;
+  ASSIGNED_BY_LAST_NAME?: string;
 }
 
 interface BitrixCompany {
@@ -48,6 +51,8 @@ export interface CrmDealSelection {
   title: string;
   /** undefined means that a live Bitrix24 lookup was unavailable. */
   companyId: number | null | undefined;
+  responsibleId: number | null;
+  responsibleName: string | null;
 }
 
 export interface CrmDealContext {
@@ -119,7 +124,7 @@ export class CrmContextService {
   ): Promise<CrmDealSelection> {
     const defaultTitle = fallbackTitle || this.defaultTitle('deal', dealId);
     if (!context.bitrix) {
-      return { id: dealId, title: defaultTitle, companyId: undefined };
+      return { id: dealId, title: defaultTitle, companyId: undefined, responsibleId: null, responsibleName: null };
     }
     const deal = await this.call<BitrixDeal>(context, 'crm.deal.get', { id: dealId });
     const resolvedId = this.positiveId(deal.ID) || dealId;
@@ -127,6 +132,8 @@ export class CrmContextService {
       id: resolvedId,
       title: this.entityTitle(deal.TITLE, defaultTitle),
       companyId: this.positiveId(deal.COMPANY_ID),
+      responsibleId: this.positiveId(deal.ASSIGNED_BY_ID),
+      responsibleName: [deal.ASSIGNED_BY_NAME, deal.ASSIGNED_BY_LAST_NAME].filter(Boolean).join(' ').trim() || null,
     };
   }
 

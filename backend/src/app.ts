@@ -127,6 +127,7 @@ export function createApp({
         bitrix,
         webOrigin: config.PUBLIC_BASE_URL,
         appPath: config.BITRIX_APP_PATH,
+        expectedAppCode: config.BITRIX_APP_CODE,
         installations,
       }),
     );

@@ -166,17 +166,35 @@ const fullPermissions: RolePermissions = {
   restore: true,
   export: true,
   administer: false,
+  visibilityScope: 'crm',
+  closedDealAccess: 'normal',
   byType: {},
 };
 
-const rolePolicies = [
+const rolePolicies: Array<{
+  roleCode: string;
+  roleName: string;
+  visibleSectionCodes: string[];
+  hiddenFields: string[];
+  hideMoney: boolean;
+  permissions: RolePermissions;
+}> = [
   {
     roleCode: 'sales',
     roleName: 'Менеджер продаж',
     visibleSectionCodes: ['client', 'internal'],
     hiddenFields: ['amount', 'currency'],
     hideMoney: true,
-    permissions: { ...fullPermissions, editAny: false, transitionAny: false, softDelete: false, restore: false, export: false },
+    permissions: {
+      ...fullPermissions,
+      editAny: false,
+      transitionAny: false,
+      softDelete: false,
+      restore: false,
+      export: false,
+      visibilityScope: 'own',
+      closedDealAccess: 'read_download',
+    },
   },
   {
     roleCode: 'accountant',
@@ -217,6 +235,34 @@ export async function seedPortal(
   portalUrl: string,
   diskRootFolderId?: number,
 ) {
+  // Marketplace reinstallations refresh OAuth credentials and placements, but
+  // must never restore the template over a tenant's edited catalog. Older
+  // installations predate the seed marker, so the presence of any section is
+  // also treated as an initialized tenant.
+  const [existingSection] = await database
+    .select({ id: registrySections.id })
+    .from(registrySections)
+    .where(eq(registrySections.portalUrl, portalUrl))
+    .limit(1);
+  if (existingSection) {
+    await database.transaction(async (transaction) => {
+      await transaction
+        .insert(registrySettings)
+        .values({ portalUrl, key: 'catalog_seed_version', value: { version: 1 } })
+        .onConflictDoNothing({ target: [registrySettings.portalUrl, registrySettings.key] });
+      if (diskRootFolderId) {
+        await transaction
+          .insert(registrySettings)
+          .values({ portalUrl, key: 'bitrix_disk_root_folder_id', value: { id: diskRootFolderId } })
+          .onConflictDoUpdate({
+            target: [registrySettings.portalUrl, registrySettings.key],
+            set: { value: { id: diskRootFolderId }, updatedAt: new Date() },
+          });
+      }
+    });
+    return { initialized: false as const };
+  }
+
   await database.transaction(async (transaction) => {
     const sectionIds = new Map<string, string>();
     for (const [index, [code, name, description, color]] of sections.entries()) {
@@ -372,5 +418,10 @@ export async function seedPortal(
           set: { value: { id: diskRootFolderId }, updatedAt: new Date() },
         });
     }
+    await transaction
+      .insert(registrySettings)
+      .values({ portalUrl, key: 'catalog_seed_version', value: { version: 1 } })
+      .onConflictDoNothing({ target: [registrySettings.portalUrl, registrySettings.key] });
   });
+  return { initialized: true as const };
 }

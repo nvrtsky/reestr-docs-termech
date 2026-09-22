@@ -37,6 +37,7 @@ import {
   registryFieldDefinitions,
   registryLifecycles,
   registrySections,
+  registrySettings,
   registryTaskLinks,
   registryTypeFields,
 } from '../db/schema/index.js';
@@ -87,6 +88,14 @@ interface BulkUploadCreateOptions {
   idempotencyKey: string;
   clientRowId: string;
 }
+
+type RegistryCreateInput = Omit<CreateDocumentInput, 'links'> & {
+  links: Array<CreateDocumentInput['links'][number] & {
+    isPrimary?: boolean;
+    dealResponsibleId?: number | null;
+    dealResponsibleName?: string | null;
+  }>;
+};
 
 interface ArchiveParticipants {
   cardCreatorId: number;
@@ -221,6 +230,9 @@ export class DocumentsService {
       conditions.push(
         ilike(registryDocuments.counterpartyName, `%${query.counterparty}%`),
       );
+    }
+    if (query.counterpartyId) {
+      conditions.push(eq(registryDocuments.counterpartyId, query.counterpartyId));
     }
     if (query.from) {
       conditions.push(gte(registryDocuments.documentDate, query.from));
@@ -601,13 +613,15 @@ export class DocumentsService {
       entityTitle: string;
       /** undefined is allowed only when no live Bitrix24 lookup was possible. */
       dealCompanyId?: number | null;
+      dealResponsibleId?: number | null;
+      dealResponsibleName?: string | null;
     },
   ) {
     const policy = await loadRegistryPolicy(this.database, context);
     const current = await this.loadDocumentForWrite(context, documentId);
     assertSectionVisible(policy, current.sectionCode);
     assertTypeVisible(policy, current.typeCode);
-    this.assertCanEdit(policy, context, current);
+    await this.assertCanEdit(policy, context, current);
 
     if (
       input.entityType === 'company'
@@ -636,6 +650,18 @@ export class DocumentsService {
       );
     }
 
+    const responsibilityMode = await this.loadResponsibilityMode(context);
+    const [existingPrimary] = input.entityType === 'deal' ? await this.database
+      .select({ id: registryDocumentLinks.id })
+      .from(registryDocumentLinks)
+      .where(and(
+        eq(registryDocumentLinks.portalUrl, context.portalUrl),
+        eq(registryDocumentLinks.documentId, documentId),
+        eq(registryDocumentLinks.entityType, 'deal'),
+        eq(registryDocumentLinks.isPrimary, true),
+      ))
+      .limit(1) : [];
+    const isPrimary = input.entityType === 'deal' && !existingPrimary;
     let insertedLinkId: string | null = null;
     await this.database.transaction(async (transaction) => {
       const inserted = await transaction
@@ -647,11 +673,28 @@ export class DocumentsService {
           entityId: input.entityId,
           entityTitle: input.entityTitle,
           linkRole: input.linkRole ?? null,
+          isPrimary,
+          dealResponsibleId: input.entityType === 'deal' ? input.dealResponsibleId ?? null : null,
+          dealResponsibleName: input.entityType === 'deal' ? input.dealResponsibleName ?? null : null,
         })
         .onConflictDoNothing()
         .returning({ id: registryDocumentLinks.id });
       if (!inserted.length) return;
       insertedLinkId = inserted[0].id;
+      if (
+        isPrimary
+        && responsibilityMode === 'primary_deal'
+        && input.dealResponsibleId
+      ) {
+        await transaction.update(registryDocuments).set({
+          responsibleId: input.dealResponsibleId,
+          responsibleName: input.dealResponsibleName ?? null,
+          updatedAt: new Date(),
+        }).where(and(
+          eq(registryDocuments.id, documentId),
+          eq(registryDocuments.portalUrl, context.portalUrl),
+        ));
+      }
       await transaction.insert(registryAuditLog).values({
         portalUrl: context.portalUrl,
         documentId,
@@ -710,7 +753,7 @@ export class DocumentsService {
     const current = await this.loadDocumentForWrite(context, documentId);
     assertSectionVisible(policy, current.sectionCode);
     assertTypeVisible(policy, current.typeCode);
-    this.assertCanEdit(policy, context, current);
+    await this.assertCanEdit(policy, context, current);
 
     const [link] = await this.database
       .select()
@@ -758,6 +801,7 @@ export class DocumentsService {
       );
     }
     const markedFileIds: number[] = [];
+    const responsibilityMode = await this.loadResponsibilityMode(context);
     try {
       for (const copy of dealCopies) {
         await this.bitrix.call(
@@ -794,6 +838,32 @@ export class DocumentsService {
         .returning();
       if (!removed) {
         throw new ApiError(404, 'document_link_not_found', 'Document link was not found.');
+      }
+      if (removed.entityType === 'deal' && removed.isPrimary) {
+        const [nextPrimary] = await transaction
+          .select()
+          .from(registryDocumentLinks)
+          .where(and(
+            eq(registryDocumentLinks.portalUrl, context.portalUrl),
+            eq(registryDocumentLinks.documentId, documentId),
+            eq(registryDocumentLinks.entityType, 'deal'),
+          ))
+          .orderBy(asc(registryDocumentLinks.createdAt))
+          .limit(1);
+        if (nextPrimary) {
+          await transaction.update(registryDocumentLinks).set({ isPrimary: true })
+            .where(eq(registryDocumentLinks.id, nextPrimary.id));
+          if (responsibilityMode === 'primary_deal' && nextPrimary.dealResponsibleId) {
+            await transaction.update(registryDocuments).set({
+              responsibleId: nextPrimary.dealResponsibleId,
+              responsibleName: nextPrimary.dealResponsibleName,
+              updatedAt: new Date(),
+            }).where(and(
+              eq(registryDocuments.id, documentId),
+              eq(registryDocuments.portalUrl, context.portalUrl),
+            ));
+          }
+        }
       }
       if (dealCopies.length) {
         await transaction
@@ -843,6 +913,53 @@ export class DocumentsService {
     return this.removeLink(context, link.documentId, linkId);
   }
 
+  async setPrimaryDealLink(context: RegistryContext, documentId: string, linkId: string) {
+    const policy = await loadRegistryPolicy(this.database, context);
+    const current = await this.loadDocumentForWrite(context, documentId);
+    assertSectionVisible(policy, current.sectionCode);
+    assertTypeVisible(policy, current.typeCode);
+    await this.assertCanEdit(policy, context, current);
+    const [link] = await this.database
+      .select()
+      .from(registryDocumentLinks)
+      .where(and(
+        eq(registryDocumentLinks.id, linkId),
+        eq(registryDocumentLinks.portalUrl, context.portalUrl),
+        eq(registryDocumentLinks.documentId, documentId),
+        eq(registryDocumentLinks.entityType, 'deal'),
+      ))
+      .limit(1);
+    if (!link) throw new ApiError(404, 'document_link_not_found', 'Deal link was not found.');
+    const responsibilityMode = await this.loadResponsibilityMode(context);
+    await this.database.transaction(async (transaction) => {
+      await transaction.update(registryDocumentLinks).set({ isPrimary: false }).where(and(
+        eq(registryDocumentLinks.portalUrl, context.portalUrl),
+        eq(registryDocumentLinks.documentId, documentId),
+        eq(registryDocumentLinks.entityType, 'deal'),
+      ));
+      await transaction.update(registryDocumentLinks).set({ isPrimary: true }).where(eq(registryDocumentLinks.id, linkId));
+      if (responsibilityMode === 'primary_deal' && link.dealResponsibleId) {
+        await transaction.update(registryDocuments).set({
+          responsibleId: link.dealResponsibleId,
+          responsibleName: link.dealResponsibleName,
+          updatedAt: new Date(),
+        }).where(and(
+          eq(registryDocuments.id, documentId),
+          eq(registryDocuments.portalUrl, context.portalUrl),
+        ));
+      }
+      await transaction.insert(registryAuditLog).values({
+        portalUrl: context.portalUrl,
+        documentId,
+        event: 'primary_deal_changed',
+        actorId: context.userId,
+        actorName: context.userName ?? null,
+        after: { linkId, dealId: link.entityId, dealTitle: link.entityTitle },
+      });
+    });
+    return this.getById(context, documentId);
+  }
+
   async setParentRelation(
     context: RegistryContext,
     childDocumentId: string,
@@ -876,7 +993,16 @@ export class DocumentsService {
     for (const document of documents) {
       assertSectionVisible(policy, document.sectionCode);
       assertTypeVisible(policy, document.typeCode);
-      this.assertCanEdit(policy, context, document);
+      await this.assertCanEdit(policy, context, document);
+    }
+    const child = documents.find((document) => document.id === childDocumentId)!;
+    const parent = documents.find((document) => document.id === input.parentDocumentId)!;
+    if (!child.counterpartyId || child.counterpartyId !== parent.counterpartyId) {
+      throw new ApiError(
+        409,
+        'document_relation_company_mismatch',
+        'Related documents must belong to the same company.',
+      );
     }
 
     await this.database.transaction(async (transaction) => {
@@ -1007,7 +1133,7 @@ export class DocumentsService {
     for (const document of documents) {
       assertSectionVisible(policy, document.sectionCode);
       assertTypeVisible(policy, document.typeCode);
-      this.assertCanEdit(policy, context, document);
+      await this.assertCanEdit(policy, context, document);
     }
 
     await this.database.transaction(async (transaction) => {
@@ -1057,7 +1183,7 @@ export class DocumentsService {
     const current = await this.loadDocumentForWrite(context, documentId);
     assertSectionVisible(policy, current.sectionCode);
     assertTypeVisible(policy, current.typeCode);
-    this.assertCanEdit(policy, context, current);
+    await this.assertCanEdit(policy, context, current);
 
     await this.database.transaction(async (transaction) => {
       const inserted = await transaction
@@ -1096,7 +1222,7 @@ export class DocumentsService {
     const current = await this.loadDocumentForWrite(context, documentId);
     assertSectionVisible(policy, current.sectionCode);
     assertTypeVisible(policy, current.typeCode);
-    this.assertCanEdit(policy, context, current);
+    await this.assertCanEdit(policy, context, current);
 
     await this.database.transaction(async (transaction) => {
       const [removed] = await transaction
@@ -1347,8 +1473,9 @@ export class DocumentsService {
       policy,
       accessScopes,
     );
+    const visibleLinks = await this.crmEntityAccess.filterVisibleLinks(context, links);
     const dealStates = await this.salesDealAccess.documentStates(context, id);
-    const resolvedLinks = links.map((link) => {
+    const resolvedLinks = visibleLinks.map((link) => {
       if (link.entityType !== 'deal') return link;
       const state = dealStates.get(link.entityId);
       return state ? { ...link, ...state } : link;
@@ -1403,10 +1530,10 @@ export class DocumentsService {
 
   async create(
     context: RegistryContext,
-    input: CreateDocumentInput,
+    input: RegistryCreateInput,
     bulkUpload?: BulkUploadCreateOptions,
   ) {
-    input = this.normalizeCounterpartyLinks(input);
+    input = this.normalizeCounterpartyLinks(input) as RegistryCreateInput;
     const bulkRequestHash = bulkUpload
       ? createHash('sha256').update(JSON.stringify(input)).digest('hex')
       : null;
@@ -1488,7 +1615,7 @@ export class DocumentsService {
       throw new ApiError(400, 'document_status_not_found', 'Document status was not found in the selected lifecycle.');
     }
     if (requestedStatus !== initialStatus) {
-      this.assertCanTransition(policy, context, {
+      await this.assertCanTransition(policy, context, {
         createdBy: context.userId,
         responsibleId: input.responsibleId ?? context.userId,
         typeCode: typeConfig.typeCode,
@@ -1529,7 +1656,7 @@ export class DocumentsService {
     if (superseded) {
       assertSectionVisible(policy, superseded.sectionCode);
       assertTypeVisible(policy, superseded.typeCode);
-      this.assertCanEdit(policy, context, superseded);
+      await this.assertCanEdit(policy, context, superseded);
       if (!isTypePermissionGranted(
         policy,
         superseded.typeCode,
@@ -1662,6 +1789,15 @@ export class DocumentsService {
           counterpartyId: input.counterpartyId,
         },
       );
+      const responsibilityMode = await this.loadResponsibilityMode(context);
+      const primaryDeal = input.links.find((link) => link.entityType === 'deal' && link.isPrimary)
+        ?? input.links.find((link) => link.entityType === 'deal');
+      const effectiveResponsibleId = responsibilityMode === 'primary_deal' && primaryDeal?.dealResponsibleId
+        ? primaryDeal.dealResponsibleId
+        : input.responsibleId ?? context.userId;
+      const effectiveResponsibleName = responsibilityMode === 'primary_deal' && primaryDeal?.dealResponsibleId
+        ? primaryDeal.dealResponsibleName ?? null
+        : input.responsibleName ?? null;
       const [document] = await transaction
         .insert(registryDocuments)
         .values({
@@ -1684,8 +1820,8 @@ export class DocumentsService {
           dealStageId: input.dealStageId ?? null,
           status: requestedStatus,
           comment: input.comment ?? null,
-          responsibleId: input.responsibleId ?? context.userId,
-          responsibleName: input.responsibleName ?? null,
+          responsibleId: effectiveResponsibleId,
+          responsibleName: effectiveResponsibleName,
           createdBy: context.userId,
           supersedesId: superseded?.id ?? null,
           isFinalized: false,
@@ -1701,6 +1837,9 @@ export class DocumentsService {
             entityId: link.entityId,
             entityTitle: link.entityTitle,
             linkRole: link.linkRole ?? null,
+            isPrimary: link.entityType === 'deal' && link.isPrimary === true,
+            dealResponsibleId: link.entityType === 'deal' ? link.dealResponsibleId ?? null : null,
+            dealResponsibleName: link.entityType === 'deal' ? link.dealResponsibleName ?? null : null,
           })),
         );
       }
@@ -1789,7 +1928,7 @@ export class DocumentsService {
     const current = await this.loadDocumentForWrite(context, id);
     assertSectionVisible(policy, current.sectionCode);
     assertTypeVisible(policy, current.typeCode);
-    this.assertCanEdit(policy, context, current);
+    await this.assertCanEdit(policy, context, current);
 
     if (isMoneyHidden(policy, current.typeCode) && (input.amount !== undefined || input.currency !== undefined)) {
       throw new ApiError(
@@ -1811,16 +1950,42 @@ export class DocumentsService {
       input.amount === undefined ? current.amount : input.amount,
       input.currency === undefined ? current.currency : input.currency,
     );
-    if (fields) {
-      await this.validateFieldValues(
-        context,
-        current.typeId,
-        current.typeCode,
-        fields,
-        false,
-        policy,
-      );
-    }
+    const storedFieldValues = await this.database
+      .select({
+        key: registryFieldDefinitions.key,
+        value: registryDocumentFieldValues.value,
+      })
+      .from(registryDocumentFieldValues)
+      .innerJoin(
+        registryFieldDefinitions,
+        eq(registryDocumentFieldValues.fieldDefinitionId, registryFieldDefinitions.id),
+      )
+      .innerJoin(
+        registryTypeFields,
+        and(
+          eq(registryTypeFields.portalUrl, context.portalUrl),
+          eq(registryTypeFields.typeId, current.typeId),
+          eq(registryTypeFields.fieldDefinitionId, registryFieldDefinitions.id),
+        ),
+      )
+      .where(and(
+        eq(registryDocumentFieldValues.portalUrl, context.portalUrl),
+        eq(registryDocumentFieldValues.documentId, id),
+      ));
+    const completeFields = {
+      ...Object.fromEntries(storedFieldValues.map((item) => [item.key, item.value])),
+      ...(fields ?? {}),
+    };
+    await this.validateFieldValues(
+      context,
+      current.typeId,
+      current.typeCode,
+      completeFields,
+      true,
+      policy,
+    );
+    await this.assertRequiredFileFieldsComplete(context, id, current.typeId);
+    await this.assertRequiredContentComplete(context, id, current.contentRequired);
     const previousFieldValues = fields
       ? await this.database
           .select({
@@ -2010,7 +2175,7 @@ export class DocumentsService {
     const current = await this.loadDocumentForWrite(context, id);
     assertSectionVisible(policy, current.sectionCode);
     assertTypeVisible(policy, current.typeCode);
-    this.assertCanTransition(policy, context, current);
+    await this.assertCanTransition(policy, context, current);
     if (targetStatus === 'archived' && !isTypePermissionGranted(
       policy,
       current.typeCode,
@@ -2182,7 +2347,7 @@ export class DocumentsService {
     for (const document of documents) {
       assertSectionVisible(policy, document.sectionCode);
       assertTypeVisible(policy, document.typeCode);
-      this.assertCanEdit(policy, context, document);
+      await this.assertCanEdit(policy, context, document);
     }
     const changed = documents.filter(
       (document) => document.responsibleId !== input.responsibleId,
@@ -2875,9 +3040,42 @@ export class DocumentsService {
   }
 
   private async prepareAccessScopes(context: RegistryContext) {
+    const policy = await loadRegistryPolicy(this.database, context);
+    const responsibilityMode = await this.loadResponsibilityMode(context);
     const crmEntityScope = await this.crmEntityAccess.prepare(context);
     const salesDealScope = await this.salesDealAccess.prepare(context);
-    return [crmEntityScope, salesDealScope].filter((scope): scope is SQL => scope !== null);
+    const ownScope = policy.permissions.visibilityScope === 'own'
+      ? or(
+          eq(registryDocuments.createdBy, context.userId),
+          eq(registryDocuments.responsibleId, context.userId),
+          ...(responsibilityMode === 'all_deal_owners' ? [sql`EXISTS (
+            SELECT 1 FROM registry_document_links AS own_deal_link
+            WHERE own_deal_link.portal_url = registry_documents.portal_url
+              AND own_deal_link.document_id = registry_documents.id
+              AND own_deal_link.entity_type = 'deal'
+              AND own_deal_link.deal_responsible_id = ${context.userId}
+          )`] : []),
+        )!
+      : null;
+    return [crmEntityScope, salesDealScope, ownScope]
+      .filter((scope): scope is SQL => scope !== null);
+  }
+
+  private async loadResponsibilityMode(context: RegistryContext) {
+    const [setting] = await this.database
+      .select({ value: registrySettings.value })
+      .from(registrySettings)
+      .where(and(
+        eq(registrySettings.portalUrl, context.portalUrl),
+        eq(registrySettings.key, 'registry_access_rules'),
+      ))
+      .limit(1);
+    const value = setting?.value && typeof setting.value === 'object' && !Array.isArray(setting.value)
+      ? setting.value as { responsibilityMode?: unknown }
+      : {};
+    return value.responsibilityMode === 'all_deal_owners' || value.responsibilityMode === 'manual'
+      ? value.responsibilityMode
+      : 'primary_deal';
   }
 
   private async loadDocumentForWrite(
@@ -2952,6 +3150,7 @@ export class DocumentsService {
         'Archived documents are read-only.',
       );
     }
+    await this.salesDealAccess.assertWritable(context, id);
     return item;
   }
 
@@ -2969,6 +3168,7 @@ export class DocumentsService {
       section: { code: string; name: string; color: string | null };
       type: { code: string; name: string };
       relationType: string;
+      deals: Array<{ id: string; entityId: number; entityTitle: string }>;
     };
     const result = new Map<string, { parent: RelationSummary | null; children: RelationSummary[] }>();
     for (const documentId of documentIds) result.set(documentId, { parent: null, children: [] });
@@ -3024,6 +3224,27 @@ export class DocumentsService {
       .innerJoin(registrySections, eq(registryDocuments.sectionId, registrySections.id))
       .innerJoin(registryDocumentTypes, eq(registryDocuments.typeId, registryDocumentTypes.id))
       .where(and(...conditions));
+    const relatedLinks = await this.database
+      .select({
+        id: registryDocumentLinks.id,
+        documentId: registryDocumentLinks.documentId,
+        entityType: registryDocumentLinks.entityType,
+        entityId: registryDocumentLinks.entityId,
+        entityTitle: registryDocumentLinks.entityTitle,
+      })
+      .from(registryDocumentLinks)
+      .where(and(
+        eq(registryDocumentLinks.portalUrl, context.portalUrl),
+        inArray(registryDocumentLinks.documentId, relatedIds),
+        eq(registryDocumentLinks.entityType, 'deal'),
+      ));
+    const visibleRelatedLinks = await this.crmEntityAccess.filterVisibleLinks(context, relatedLinks);
+    const dealsByDocument = new Map<string, typeof visibleRelatedLinks>();
+    for (const link of visibleRelatedLinks) {
+      const items = dealsByDocument.get(link.documentId) ?? [];
+      items.push(link);
+      dealsByDocument.set(link.documentId, items);
+    }
     const summaryById = new Map(summaries.map((summary) => [summary.id, summary]));
     const relatedSummary = (documentId: string, relationType: string): RelationSummary | null => {
       const summary = summaryById.get(documentId);
@@ -3040,6 +3261,11 @@ export class DocumentsService {
         },
         type: { code: summary.typeCode, name: summary.typeName },
         relationType,
+        deals: (dealsByDocument.get(summary.id) ?? []).map((deal) => ({
+          id: deal.id,
+          entityId: deal.entityId,
+          entityTitle: deal.entityTitle,
+        })),
       };
     };
     for (const relation of relationRows) {
@@ -3133,7 +3359,7 @@ export class DocumentsService {
     }
   }
 
-  private normalizeCounterpartyLinks(input: CreateDocumentInput): CreateDocumentInput {
+  private normalizeCounterpartyLinks(input: RegistryCreateInput): RegistryCreateInput {
     const companyLinks = input.links.filter((link) => link.entityType === 'company');
     if (!input.counterpartyId) {
       if (companyLinks.length) {
@@ -3241,7 +3467,7 @@ export class DocumentsService {
       value === null || value === undefined || value === '' ||
       (Array.isArray(value) && value.length === 0);
     const missingRequired = definitions
-      .filter((definition) => definition.isRequired)
+      .filter((definition) => definition.isRequired && definition.dataType !== 'file')
       .filter((definition) =>
         requireAll
           ? !Object.hasOwn(fields, definition.key) || isEmpty(fields[definition.key])
@@ -3372,6 +3598,48 @@ export class DocumentsService {
     }
   }
 
+  private async assertRequiredFileFieldsComplete(
+    context: RegistryContext,
+    documentId: string,
+    typeId: string,
+  ) {
+    const requiredFileFields = await this.database
+      .select({
+        id: registryFieldDefinitions.id,
+        key: registryFieldDefinitions.key,
+      })
+      .from(registryTypeFields)
+      .innerJoin(
+        registryFieldDefinitions,
+        eq(registryTypeFields.fieldDefinitionId, registryFieldDefinitions.id),
+      )
+      .where(and(
+        eq(registryTypeFields.portalUrl, context.portalUrl),
+        eq(registryTypeFields.typeId, typeId),
+        eq(registryTypeFields.isRequired, true),
+        eq(registryFieldDefinitions.portalUrl, context.portalUrl),
+        eq(registryFieldDefinitions.isActive, true),
+        eq(registryFieldDefinitions.dataType, 'file'),
+      ));
+    if (!requiredFileFields.length) return;
+    const attachments = await this.database
+      .selectDistinct({ fieldDefinitionId: registryAttachments.fieldDefinitionId })
+      .from(registryAttachments)
+      .where(and(
+        eq(registryAttachments.portalUrl, context.portalUrl),
+        eq(registryAttachments.documentId, documentId),
+        eq(registryAttachments.kind, 'file'),
+        eq(registryAttachments.isCurrent, true),
+        isNull(registryAttachments.deletedAt),
+        inArray(registryAttachments.fieldDefinitionId, requiredFileFields.map((field) => field.id)),
+      ));
+    const present = new Set(attachments.map((item) => item.fieldDefinitionId));
+    const missing = requiredFileFields.filter((field) => !present.has(field.id)).map((field) => field.key);
+    if (missing.length) {
+      throw new ApiError(409, 'required_file_fields_incomplete', 'Required file fields have not been uploaded yet.', { keys: missing });
+    }
+  }
+
   private isEmptyFieldValue(value: unknown) {
     return value === null || value === undefined || value === ''
       || (Array.isArray(value) && value.length === 0);
@@ -3425,13 +3693,12 @@ export class DocumentsService {
     }
   }
 
-  private assertCanEdit(
+  private async assertCanEdit(
     policy: RegistryPolicy,
     context: RegistryContext,
-    document: { createdBy: number; responsibleId: number; typeCode: string },
+    document: { id?: string; createdBy: number; responsibleId: number; typeCode: string },
   ) {
-    const own =
-      document.createdBy === context.userId || document.responsibleId === context.userId;
+    const own = await this.isDocumentOwned(context, document);
     const scopeAllowed = policy.permissions.editAny
       || (policy.permissions.editOwn && own);
     if (!isTypePermissionGranted(policy, document.typeCode, 'edit', scopeAllowed)) {
@@ -3452,8 +3719,6 @@ export class DocumentsService {
         eq(registryAttachments.portalUrl, context.portalUrl),
         eq(registryAttachments.documentId, documentId),
         eq(registryAttachments.kind, 'file'),
-        eq(registryAttachments.isCurrent, true),
-        isNull(registryAttachments.deletedAt),
       ));
     const fileUploaderIds = uploaders
       .map((item) => item.userId)
@@ -3523,18 +3788,40 @@ export class DocumentsService {
     }
   }
 
-  private assertCanTransition(
+  private async assertCanTransition(
     policy: RegistryPolicy,
     context: RegistryContext,
-    document: { createdBy: number; responsibleId: number; typeCode: string },
+    document: { id?: string; createdBy: number; responsibleId: number; typeCode: string },
   ) {
-    const own =
-      document.createdBy === context.userId || document.responsibleId === context.userId;
+    const own = await this.isDocumentOwned(context, document);
     const scopeAllowed = policy.permissions.transitionAny
       || (policy.permissions.transitionOwn && own);
     if (!isTypePermissionGranted(policy, document.typeCode, 'transition', scopeAllowed)) {
       throw new ApiError(403, 'transition_access_denied', 'Status change is not allowed.');
     }
+  }
+
+  private async isDocumentOwned(
+    context: RegistryContext,
+    document: { id?: string; createdBy: number; responsibleId: number },
+  ) {
+    if (document.createdBy === context.userId || document.responsibleId === context.userId) {
+      return true;
+    }
+    if (!document.id || await this.loadResponsibilityMode(context) !== 'all_deal_owners') {
+      return false;
+    }
+    const [ownedLink] = await this.database
+      .select({ id: registryDocumentLinks.id })
+      .from(registryDocumentLinks)
+      .where(and(
+        eq(registryDocumentLinks.portalUrl, context.portalUrl),
+        eq(registryDocumentLinks.documentId, document.id),
+        eq(registryDocumentLinks.entityType, 'deal'),
+        eq(registryDocumentLinks.dealResponsibleId, context.userId),
+      ))
+      .limit(1);
+    return !!ownedLink;
   }
 
   private auditSnapshot(document: Record<string, unknown>) {
