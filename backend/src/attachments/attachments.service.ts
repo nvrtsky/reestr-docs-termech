@@ -77,6 +77,14 @@ interface PreparedAttachmentCopy {
   url: string | null;
 }
 
+export interface StoredReleasedPdf {
+  diskFileId: number;
+  diskFolderId: number;
+  name: string;
+  sizeBytes: number;
+  url: string | null;
+}
+
 export interface PreparedCounterpartyRelocation {
   attachmentUpdates: Array<{
     id: string;
@@ -339,6 +347,103 @@ export class AttachmentsService {
       expiresAt,
     });
     return { uploadId: id, fieldName, name, expiresAt: new Date(expiresAt).toISOString() };
+  }
+
+  async uploadReleasedPdf(
+    context: RegistryContext,
+    documentId: string,
+    input: { name: string; bytes: Uint8Array },
+  ): Promise<StoredReleasedPdf> {
+    const document = await this.loadStorageDocument(context, documentId);
+    const bitrixContext = this.requireBitrixContext(context);
+    const folderId = await this.resolveDocumentFolder(context, document);
+    const name = this.normalizeFileName(input.name);
+    const initialized = await this.bitrix.call<UploadInitialization>(
+      bitrixContext.domain,
+      bitrixContext.accessToken,
+      'disk.folder.uploadfile',
+      { id: folderId, data: { NAME: name }, generateUniqueName: true },
+    );
+    const uploadUrl = initialized.uploadUrl || initialized.UploadUrl;
+    const fieldName = initialized.field;
+    if (!uploadUrl || !fieldName || !/^[A-Za-z0-9_.-]{1,100}$/.test(fieldName)) {
+      throw new ApiError(
+        502,
+        'bitrix_upload_initialization_invalid',
+        'Bitrix24 did not return valid file upload parameters.',
+      );
+    }
+
+    const boundary = `----termech-release-${randomUUID()}`;
+    const escapedName = name.replace(/["\\\r\n]/g, '_');
+    const header = Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="${fieldName}"; filename="${escapedName}"\r\nContent-Type: application/pdf\r\n\r\n`,
+      'utf8',
+    );
+    const footer = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8');
+    const bytes = Buffer.from(input.bytes);
+    async function* body() {
+      yield header;
+      yield bytes;
+      yield footer;
+    }
+
+    let diskFileId: number | null = null;
+    try {
+      const uploaded = await this.bitrix.upload<DiskObject>(
+        bitrixContext.domain,
+        uploadUrl,
+        body(),
+        `multipart/form-data; boundary=${boundary}`,
+        String(header.length + bytes.length + footer.length),
+      );
+      diskFileId = this.positiveInteger(uploaded.ID);
+      if (!diskFileId) {
+        throw new ApiError(502, 'bitrix_uploaded_file_invalid', 'Bitrix24 returned invalid file metadata.');
+      }
+      const file = await this.bitrix.call<DiskObject>(
+        bitrixContext.domain,
+        bitrixContext.accessToken,
+        'disk.file.get',
+        { id: diskFileId },
+      );
+      const parentId = this.positiveInteger(file.PARENT_ID);
+      const sizeBytes = this.positiveInteger(file.SIZE) ?? 0;
+      if (
+        file.TYPE !== 'file'
+        || parentId !== folderId
+        || String(file.DELETED_TYPE ?? '0') !== '0'
+        || sizeBytes !== bytes.length
+      ) {
+        throw new ApiError(
+          502,
+          'bitrix_uploaded_file_mismatch',
+          'Uploaded PDF metadata does not match the released document.',
+        );
+      }
+      return {
+        diskFileId,
+        diskFolderId: folderId,
+        name: this.normalizeFileName(file.NAME),
+        sizeBytes,
+        url: this.bitrixFileUrl(file.DETAIL_URL || file.DOWNLOAD_URL, bitrixContext.domain),
+      };
+    } catch (error) {
+      if (diskFileId) {
+        await this.deleteReleasedPdf(context, diskFileId).catch(() => undefined);
+      }
+      throw error;
+    }
+  }
+
+  async deleteReleasedPdf(context: RegistryContext, diskFileId: number) {
+    const bitrixContext = this.requireBitrixContext(context);
+    await this.bitrix.call(
+      bitrixContext.domain,
+      bitrixContext.accessToken,
+      'disk.file.markdeleted',
+      { id: diskFileId },
+    );
   }
 
   async prepareCounterpartyRelocation(
@@ -1075,6 +1180,49 @@ export class AttachmentsService {
     return this.loadDocument(context, documentId, false, true);
   }
 
+  private async loadStorageDocument(context: RegistryContext, documentId: string) {
+    const [document] = await this.database
+      .select({
+        id: registryDocuments.id,
+        createdBy: registryDocuments.createdBy,
+        responsibleId: registryDocuments.responsibleId,
+        status: registryDocuments.status,
+        isFinalized: registryDocuments.isFinalized,
+        deletedAt: registryDocuments.deletedAt,
+        counterpartyId: registryDocuments.counterpartyId,
+        counterpartyName: registryDocuments.counterpartyName,
+        typeId: registryDocuments.typeId,
+        sectionCode: registrySections.code,
+        sectionName: registrySections.name,
+        typeCode: registryDocumentTypes.code,
+        contentRequired: registryDocumentTypes.contentRequired,
+      })
+      .from(registryDocuments)
+      .innerJoin(registrySections, eq(registryDocuments.sectionId, registrySections.id))
+      .innerJoin(registryDocumentTypes, eq(registryDocuments.typeId, registryDocumentTypes.id))
+      .where(and(
+        eq(registryDocuments.id, documentId),
+        eq(registryDocuments.portalUrl, context.portalUrl),
+      ))
+      .limit(1);
+    if (!document) {
+      throw new ApiError(404, 'document_not_found', 'Document was not found.');
+    }
+    const deals = await this.database
+      .select({
+        entityId: registryDocumentLinks.entityId,
+        entityTitle: registryDocumentLinks.entityTitle,
+      })
+      .from(registryDocumentLinks)
+      .where(and(
+        eq(registryDocumentLinks.portalUrl, context.portalUrl),
+        eq(registryDocumentLinks.documentId, documentId),
+        eq(registryDocumentLinks.entityType, 'deal'),
+      ))
+      .orderBy(asc(registryDocumentLinks.createdAt));
+    return { ...document, deals };
+  }
+
   private async loadDocument(
     context: RegistryContext,
     documentId: string,
@@ -1601,6 +1749,9 @@ export class AttachmentsService {
         url.password
       ) {
         return null;
+      }
+      for (const key of url.searchParams.keys()) {
+        if (/(?:access|auth|refresh|session)?[_-]?token|auth_id/i.test(key)) return null;
       }
       return url.toString();
     } catch {

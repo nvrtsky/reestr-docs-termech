@@ -51,6 +51,7 @@ export const registryDocuments = pgTable(
     createdBy: bigint('created_by', { mode: 'number' }).notNull(),
     updatedBy: bigint('updated_by', { mode: 'number' }),
     externalSource: varchar('external_source', { length: 40 }),
+    externalDocumentId: text('external_document_id'),
     externalEntityTypeId: integer('external_entity_type_id'),
     externalEntityId: bigint('external_entity_id', { mode: 'number' }),
     externalStatus: text('external_status'),
@@ -74,6 +75,11 @@ export const registryDocuments = pgTable(
       table.externalSource,
       table.externalEntityTypeId,
       table.externalEntityId,
+    ),
+    uniqueIndex('registry_documents_external_document_uidx').on(
+      table.portalUrl,
+      table.externalSource,
+      table.externalDocumentId,
     ),
     index('registry_documents_portal_status_idx').on(
       table.portalUrl,
@@ -308,6 +314,44 @@ export const registryAttachmentCopies = pgTable(
       table.portalUrl,
       table.dealId,
       table.deletedAt,
+    ),
+  ],
+);
+
+export const registryDocumentReleases = pgTable(
+  'registry_document_releases',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    portalUrl: text('portal_url').notNull(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => registryDocuments.id, { onDelete: 'cascade' }),
+    source: varchar('source', { length: 40 }).notNull(),
+    externalDocumentId: text('external_document_id').notNull(),
+    versionId: text('version_id').notNull(),
+    releasedAt: timestamp('released_at', { withTimezone: true }).notNull(),
+    requestHash: varchar('request_hash', { length: 64 }).notNull(),
+    pdfSha256: varchar('pdf_sha256', { length: 64 }).notNull(),
+    attachmentId: uuid('attachment_id')
+      .references(() => registryAttachments.id, { onDelete: 'set null' }),
+    status: varchar('status', { length: 20 }).notNull().default('pending'),
+    errorCode: text('error_code'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('registry_document_releases_identity_uidx').on(
+      table.portalUrl,
+      table.source,
+      table.externalDocumentId,
+      table.versionId,
+    ),
+    index('registry_document_releases_latest_idx').on(
+      table.portalUrl,
+      table.documentId,
+      table.status,
+      table.releasedAt,
     ),
   ],
 );
