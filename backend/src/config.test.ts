@@ -17,3 +17,25 @@ test('rejects ambiguous placement paths', () => {
   assert.throws(() => loadConfig({ BITRIX_APP_PATH: '/registry' }));
   assert.throws(() => loadConfig({ BITRIX_APP_PATH: '//registry/' }));
 });
+
+test('loads document release tokens per exact portal origin', () => {
+  const config = loadConfig({
+    DOCUMENT_RELEASE_TOKENS_JSON: JSON.stringify({
+      'https://TENANT.bitrix24.ru/': 'release-token-with-at-least-thirty-two-characters',
+    }),
+  });
+  assert.deepEqual(config.DOCUMENT_RELEASE_TOKENS_JSON, {
+    'https://tenant.bitrix24.ru': 'release-token-with-at-least-thirty-two-characters',
+  });
+});
+
+test('rejects weak release tokens and portal paths', () => {
+  assert.throws(() => loadConfig({
+    DOCUMENT_RELEASE_TOKENS_JSON: '{"https://tenant.bitrix24.ru":"short"}',
+  }));
+  assert.throws(() => loadConfig({
+    DOCUMENT_RELEASE_TOKENS_JSON: JSON.stringify({
+      'https://tenant.bitrix24.ru/path': 'release-token-with-at-least-thirty-two-characters',
+    }),
+  }));
+});

@@ -21,6 +21,8 @@ import { createCatalogsRouter } from './catalogs/catalogs.router.js';
 import type { AppConfig } from './config.js';
 import { createCrmContextRouter } from './crm-context/crm-context.router.js';
 import type { Database } from './db/database.js';
+import { createDocumentReleasesRouter } from './document-releases/document-releases.router.js';
+import { DocumentReleasesService } from './document-releases/document-releases.service.js';
 import { createDocumentsRouter } from './documents/documents.router.js';
 import type { ExchangeRateProvider } from './finance/cbr-rates.service.js';
 import { ApiError } from './http/api-error.js';
@@ -54,7 +56,14 @@ export function createApp({
   const app = express();
 
   app.disable('x-powered-by');
-  app.use(express.json({ limit: '1mb' }));
+  const standardJsonParser = express.json({ limit: '1mb' });
+  app.use((request, response, next) => {
+    if (request.path.startsWith('/api/v1/document-releases')) {
+      next();
+      return;
+    }
+    standardJsonParser(request, response, next);
+  });
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
   app.use(
     pinoHttp({
@@ -111,6 +120,12 @@ export function createApp({
       config.BITRIX_MARKETPLACE_MODE,
     );
     const installations = new PortalInstallationsService(database, bitrix, config);
+    const documentReleases = new DocumentReleasesService(
+      database,
+      bitrix,
+      installations,
+      config,
+    );
     const sessions = bitrixSessionResolver ?? new BitrixSessionService(
       database,
       bitrix,
@@ -129,6 +144,10 @@ export function createApp({
         appPath: config.BITRIX_APP_PATH,
         installations,
       }),
+    );
+    app.use(
+      '/api/v1/document-releases',
+      createDocumentReleasesRouter({ config, releases: documentReleases }),
     );
     if (config.BITRIX_MARKETPLACE_MODE) {
       void installations.purgeExpired().catch((error) => {
@@ -196,6 +215,25 @@ export function createApp({
           code: 'validation_error',
           message: 'Проверьте заполнение полей.',
           details: localizedValidationDetails((error as { issues: unknown }).issues),
+        },
+      });
+      return;
+    }
+
+    if (
+      error
+      && typeof error === 'object'
+      && 'status' in error
+      && (error as { status?: unknown }).status === 413
+    ) {
+      response.status(413).json({
+        error: {
+          code: _request.path.startsWith('/api/v1/document-releases')
+            ? 'document_release_body_too_large'
+            : 'request_body_too_large',
+          message: _request.path.startsWith('/api/v1/document-releases')
+            ? 'Размер запроса с выпущенным PDF превышает установленный лимит.'
+            : 'Размер запроса превышает установленный лимит.',
         },
       });
       return;

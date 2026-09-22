@@ -1,5 +1,36 @@
 import { z } from 'zod';
 
+const documentReleaseTokensSchema = z.string().default('{}').transform((value, context) => {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error();
+    const tokens: Record<string, string> = {};
+    for (const [portal, token] of Object.entries(parsed)) {
+      const url = new URL(portal);
+      if (
+        url.protocol !== 'https:'
+        || url.username
+        || url.password
+        || url.pathname !== '/'
+        || url.search
+        || url.hash
+        || typeof token !== 'string'
+        || token.length < 32
+      ) {
+        throw new Error();
+      }
+      tokens[url.origin.toLowerCase()] = token;
+    }
+    return tokens;
+  } catch {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'DOCUMENT_RELEASE_TOKENS_JSON must map HTTPS portal origins to 32+ character tokens.',
+    });
+    return z.NEVER;
+  }
+});
+
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_HOST: z.string().min(1).default('127.0.0.1'),
@@ -46,6 +77,13 @@ const environmentSchema = z.object({
     (value) => value === '' ? undefined : value,
     z.string().min(16).optional(),
   ),
+  DOCUMENT_RELEASE_TOKENS_JSON: documentReleaseTokensSchema,
+  DOCUMENT_RELEASE_MAX_PDF_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1024)
+    .max(100 * 1024 * 1024)
+    .default(20 * 1024 * 1024),
 });
 
 export type AppConfig = z.infer<typeof environmentSchema>;

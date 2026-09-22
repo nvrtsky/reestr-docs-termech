@@ -39,6 +39,12 @@ callbacks; `WEB_ORIGIN` is the browser origin allowed by CORS.
 must use an official Bitrix24 cloud domain and must also exist in the encrypted
 installation registry.
 
+`DOCUMENT_RELEASE_TOKENS_JSON` maps each portal origin allowed to publish КП or
+invoice releases to a separate random 32+ character secret. The receiving API
+is documented in `docs/document-release-api.md`. Keep these secrets in the
+production env file only. `DOCUMENT_RELEASE_MAX_PDF_BYTES` limits decoded PDF
+size; the default is 20 MiB.
+
 ## First start
 
 ```bash
