@@ -134,14 +134,13 @@ export function createBitrixInstallRouter({
           expiresInSeconds,
           applicationToken,
         });
-      } else {
-        await saveBitrixEventTokenHash(
-          database,
-          portalUrl,
-          applicationToken,
-          memberId,
-        );
       }
+      await saveBitrixEventTokenHash(
+        database,
+        portalUrl,
+        applicationToken,
+        memberId,
+      );
 
       if (request.is('application/json')) {
         response.status(200).json({
