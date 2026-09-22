@@ -27,8 +27,9 @@ const CRM_EVENTS = [
   'ONCRMCOMPANYDELETE',
 ] as const;
 const CRM_PLACEMENTS = [
-  { code: 'CRM_DEAL_DETAIL_TAB', title: 'Документы' },
-  { code: 'CRM_COMPANY_DETAIL_TAB', title: 'Документы' },
+  { code: 'LEFT_MENU', title: 'Реестр документов', titleEn: 'Document Registry' },
+  { code: 'CRM_DEAL_DETAIL_TAB', title: 'Документы', titleEn: 'Documents' },
+  { code: 'CRM_COMPANY_DETAIL_TAB', title: 'Документы', titleEn: 'Documents' },
 ] as const;
 
 const pendingEnsures = new Map<string, Promise<BitrixIntegrationStatus>>();
@@ -95,7 +96,7 @@ export class BitrixIntegrationsService {
           TITLE: config.title,
           LANG_ALL: {
             ru: { TITLE: config.title },
-            en: { TITLE: 'Documents' },
+            en: { TITLE: config.titleEn },
           },
         },
       );

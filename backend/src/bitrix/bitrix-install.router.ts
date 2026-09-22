@@ -149,8 +149,9 @@ function buildInstallerHtml({
     scopes: REQUIRED_BITRIX_SCOPES,
     scopeAliases: bitrixScopeAliases(),
     placements: [
-      { code: 'CRM_DEAL_DETAIL_TAB', title: 'Документы' },
-      { code: 'CRM_COMPANY_DETAIL_TAB', title: 'Документы' },
+      { code: 'LEFT_MENU', title: 'Реестр документов', titleEn: 'Document Registry' },
+      { code: 'CRM_DEAL_DETAIL_TAB', title: 'Документы', titleEn: 'Documents' },
+      { code: 'CRM_COMPANY_DETAIL_TAB', title: 'Документы', titleEn: 'Documents' },
     ],
     events: [
       'ONCRMDEALUPDATE',
@@ -226,7 +227,7 @@ function buildInstallerHtml({
               TITLE: placement.title,
               LANG_ALL: {
                 ru: { TITLE: placement.title },
-                en: { TITLE: 'Documents' }
+                en: { TITLE: placement.titleEn }
               }
             });
           }
