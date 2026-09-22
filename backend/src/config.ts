@@ -5,6 +5,7 @@ const environmentSchema = z.object({
   API_HOST: z.string().min(1).default('127.0.0.1'),
   API_PORT: z.coerce.number().int().positive().default(3001),
   WEB_ORIGIN: z.string().url().default('http://127.0.0.1:4173'),
+  PUBLIC_BASE_URL: z.string().url().default('http://127.0.0.1:4173'),
   BITRIX_APP_PATH: z.string().refine(
     (value) => value === '/' || (/^\/.*\/$/.test(value) && !value.includes('//')),
     'BITRIX_APP_PATH must be / or a slash-delimited path.',

@@ -125,7 +125,7 @@ export function createApp({
       createBitrixInstallRouter({
         database,
         bitrix,
-        webOrigin: config.WEB_ORIGIN,
+        webOrigin: config.PUBLIC_BASE_URL,
         appPath: config.BITRIX_APP_PATH,
         installations,
       }),
@@ -147,8 +147,8 @@ export function createApp({
     registryRouter.use('/admin', createAdministrationRouter({
       database,
       bitrix,
-      bitrixEventHandlerUrl: new URL('/api/v1/bitrix/events', config.WEB_ORIGIN).toString(),
-      bitrixPlacementHandlerUrl: new URL(config.BITRIX_APP_PATH, config.WEB_ORIGIN).toString(),
+      bitrixEventHandlerUrl: new URL('/api/v1/bitrix/events', config.PUBLIC_BASE_URL).toString(),
+      bitrixPlacementHandlerUrl: new URL(config.BITRIX_APP_PATH, config.PUBLIC_BASE_URL).toString(),
       bitrixEventTokenConfigured: !!config.BITRIX_EVENT_APPLICATION_TOKEN,
       sessions,
     }));

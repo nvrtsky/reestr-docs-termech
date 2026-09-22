@@ -27,6 +27,8 @@ openssl rand -base64 32  # TOKEN_ENCRYPTION_KEY
 
 `BITRIX_CLIENT_ID`, `BITRIX_CLIENT_SECRET`, and `BITRIX_APP_CODE` come from the
 Bitrix24 developer cabinet. Marketplace mode refuses to start without them.
+`PUBLIC_BASE_URL` is the canonical public URL used for placement and event
+callbacks; `WEB_ORIGIN` is the browser origin allowed by CORS.
 `BITRIX_ALLOWED_DOMAINS` keeps the first customer explicit; additional portals
 must use an official Bitrix24 cloud domain and must also exist in the encrypted
 installation registry.
