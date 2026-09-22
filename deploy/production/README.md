@@ -48,8 +48,10 @@ dumps, and checksums.
 
 ## Host nginx and TLS
 
-Copy `nginx/reestr.navrotsky.ru.conf` to `/etc/nginx/sites-available/`, enable
-it, obtain a Let's Encrypt certificate, run `nginx -t`, and reload nginx. The
+Copy `nginx/reestr.navrotsky.ru.bootstrap.conf` first, enable it, and switch the
+DNS A record. After the record resolves to the server, obtain a Let's Encrypt
+certificate and replace it with `nginx/reestr.navrotsky.ru.conf`. Run
+`nginx -t` before every reload. The
 upload route streams files to Bitrix24 Disk, so nginx request buffering and a
 fixed body-size limit are disabled for the API.
 
@@ -72,8 +74,9 @@ a reinstall during that period.
 
 ## Backup and health checks
 
-Install the existing systemd backup timer from `deploy/production/systemd`.
-It writes SHA-256 checksums and verifies each dump in a disposable database.
+Install the systemd backup timer from `deploy/production/systemd`. It keeps 14
+days of dumps, writes SHA-256 checksums, and verifies every dump by restoring it
+to a disposable database.
 
 ```bash
 curl --fail http://127.0.0.1:3202/
