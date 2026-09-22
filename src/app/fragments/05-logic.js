@@ -1690,6 +1690,8 @@ class Component extends DCLogic {
     collapsedGroups: {},
     companyView: 'deals',
     dealTotalCurrency: 'RUB',
+    dealFinancialSections: [],
+    dealFinancialTypes: [],
     dealFinancialSummary: null,
     dealFinancialLoading: false,
     dealFinancialError: '',
@@ -1763,9 +1765,16 @@ class Component extends DCLogic {
   async loadContextDocuments(required = false) {
     if (!this.placementEntity) return;
     const contextKey = `${this.placementEntity.entityType}:${this.placementEntity.entityId}`;
-    if (this.dealSyncContextKey !== contextKey) {
+    const contextChanged = this.dealSyncContextKey !== contextKey;
+    if (contextChanged) {
       this.dealSyncContextKey = contextKey;
-      this.setState({ dealSyncBusy: false, dealSyncMessage: '', dealSyncError: '' });
+      this.setState({
+        dealSyncBusy: false,
+        dealSyncMessage: '',
+        dealSyncError: '',
+        dealFinancialSections: [],
+        dealFinancialTypes: [],
+      });
     }
     const requestId = (this.contextDocumentsRequestId || 0) + 1;
     this.contextDocumentsRequestId = requestId;
@@ -1793,7 +1802,15 @@ class Component extends DCLogic {
         contextSyncUnavailable: !!(payload.context && payload.context.syncUnavailable),
       });
       if (this.placementEntity.entityType === 'deal') {
-        await this.loadDealFinancialSummary(this.state.dealTotalCurrency);
+        await this.loadDealFinancialSummary(
+          this.state.dealTotalCurrency,
+          contextChanged
+            ? { sections: [], types: [] }
+            : {
+                sections: this.state.dealFinancialSections || [],
+                types: this.state.dealFinancialTypes || [],
+              },
+        );
       } else {
         this.setState({
           dealFinancialSummary: null,
@@ -1817,7 +1834,13 @@ class Component extends DCLogic {
     }
   }
 
-  async loadDealFinancialSummary(currency = this.state.dealTotalCurrency) {
+  async loadDealFinancialSummary(
+    currency = this.state.dealTotalCurrency,
+    filters = {
+      sections: this.state.dealFinancialSections || [],
+      types: this.state.dealFinancialTypes || [],
+    },
+  ) {
     if (!this.placementEntity || this.placementEntity.entityType !== 'deal') return;
     const dealId = this.placementEntity.entityId;
     const requestId = (this.dealFinancialRequestId || 0) + 1;
@@ -1828,8 +1851,11 @@ class Component extends DCLogic {
       dealFinancialErrorCode: '',
     });
     try {
+      const params = new URLSearchParams({ currency });
+      if (filters.sections.length) params.set('sections', filters.sections.join(','));
+      if (filters.types.length) params.set('types', filters.types.join(','));
       const payload = await this.api(
-        `/api/v1/registry/documents/deal/${dealId}/financial-summary?currency=${encodeURIComponent(currency)}`,
+        `/api/v1/registry/documents/deal/${dealId}/financial-summary?${params.toString()}`,
       );
       if (requestId !== this.dealFinancialRequestId) return;
       this.setState({
@@ -1852,6 +1878,30 @@ class Component extends DCLogic {
   setDealTotalCurrency(currency) {
     this.setState({ dealTotalCurrency: currency });
     void this.loadDealFinancialSummary(currency);
+  }
+
+  toggleDealFinancialFilter(kind, code, availableCodes) {
+    const stateKey = kind === 'section' ? 'dealFinancialSections' : 'dealFinancialTypes';
+    const current = this.state[stateKey] || [];
+    const selected = current.length ? current : availableCodes;
+    const next = selected.includes(code)
+      ? selected.filter(item => item !== code)
+      : [...selected, code];
+    const normalized = next.length === availableCodes.length ? [] : next;
+    const filters = {
+      sections: kind === 'section' ? normalized : (this.state.dealFinancialSections || []),
+      types: kind === 'type' ? normalized : (this.state.dealFinancialTypes || []),
+    };
+    this.setState({ [stateKey]: normalized });
+    void this.loadDealFinancialSummary(this.state.dealTotalCurrency, filters);
+  }
+
+  resetDealFinancialFilters() {
+    this.setState({ dealFinancialSections: [], dealFinancialTypes: [] });
+    void this.loadDealFinancialSummary(this.state.dealTotalCurrency, {
+      sections: [],
+      types: [],
+    });
   }
 
   async syncBitrixDealDocuments() {
@@ -5113,6 +5163,36 @@ class Component extends DCLogic {
     const dealStageColor = dealContext ? dealContext.stageColor : '#d97706';
     const dealContextLabel = `показаны документы текущей сделки #${dealId}${dealCompanyName ? '; при создании компания «' + dealCompanyName + '» подставится автоматически' : ''}`;
     const financialSummary = S.dealFinancialSummary;
+    const availableFinancialFilters = financialSummary && financialSummary.availableFilters
+      ? financialSummary.availableFilters
+      : { sections: [], types: [] };
+    const availableFinancialSectionCodes = availableFinancialFilters.sections.map(item => item.code);
+    const availableFinancialTypeCodes = availableFinancialFilters.types.map(item => item.code);
+    const selectedFinancialSections = S.dealFinancialSections.length
+      ? S.dealFinancialSections
+      : availableFinancialSectionCodes;
+    const selectedFinancialTypes = S.dealFinancialTypes.length
+      ? S.dealFinancialTypes
+      : availableFinancialTypeCodes;
+    const financialFilterOption = (item, selected, onToggle) => ({
+      code: item.code,
+      label: item.name,
+      mark: selected ? '✓' : '',
+      style: `padding:5px 8px;border:1px solid ${selected ? '#a78bfa' : '#ddd6fe'};border-radius:7px;background:${selected ? '#ede9fe' : '#fff'};color:${selected ? '#6d28d9' : '#71717a'};font-size:10.5px;cursor:pointer;`,
+      onToggle,
+    });
+    const dealFinancialSectionOptions = availableFinancialFilters.sections.map(item =>
+      financialFilterOption(
+        item,
+        selectedFinancialSections.includes(item.code),
+        () => this.toggleDealFinancialFilter('section', item.code, availableFinancialSectionCodes),
+      ));
+    const dealFinancialTypeOptions = availableFinancialFilters.types.map(item =>
+      financialFilterOption(
+        item,
+        selectedFinancialTypes.includes(item.code),
+        () => this.toggleDealFinancialFilter('type', item.code, availableFinancialTypeCodes),
+      ));
     const financialNumber = (value, digits = 2) => Number(value || 0).toLocaleString('ru-RU', {
       minimumFractionDigits: digits,
       maximumFractionDigits: digits,
@@ -5121,6 +5201,7 @@ class Component extends DCLogic {
       ? financialSummary.details.map(item => ({
           title: item.title,
           number: item.number || '—',
+          classification: `${item.sectionName || item.sectionCode || 'Раздел'} · ${item.typeName}`,
           original: item.emptyAmount
             ? '0'
             : `${financialNumber(item.originalAmount)} ${item.originalCurrency}`,
@@ -6497,6 +6578,13 @@ class Component extends DCLogic {
         : `0,00 ${S.dealTotalCurrency}`,
       dealCalcRows,
       dealFinancialDocumentCount: financialSummary ? financialSummary.documentCount : 0,
+      dealFinancialSectionOptions,
+      dealFinancialTypeOptions,
+      dealFinancialHasSections: dealFinancialSectionOptions.length > 0,
+      dealFinancialHasTypes: dealFinancialTypeOptions.length > 0,
+      dealFinancialFiltersChanged: S.dealFinancialSections.length > 0
+        || S.dealFinancialTypes.length > 0,
+      resetDealFinancialFilters: () => this.resetDealFinancialFilters(),
       setDealTotalCurrency: event => this.setDealTotalCurrency(event.target.value),
       retryDealFinancial: () => { void this.loadDealFinancialSummary(S.dealTotalCurrency); },
       dealImportedDocs,

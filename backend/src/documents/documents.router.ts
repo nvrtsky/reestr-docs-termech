@@ -214,6 +214,7 @@ export function createDocumentsRouter({
         requireRegistryContext(request),
         dealId,
         query.currency,
+        { sections: query.sections, types: query.types },
       ));
     } catch (error) {
       next(error);

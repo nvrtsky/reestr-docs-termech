@@ -435,12 +435,33 @@ function mockPayload(url) {
   if (/\/documents\/deal\/\d+\/financial-summary$/.test(pathname)) {
     const targetCurrency = parsed.searchParams.get('currency') || 'RUB';
     const rubRates = { RUB: 1, USD: 90, EUR: 100, CNY: 12.5 };
+    const availableFilters = {
+      sections: [
+        { code: 'client', name: 'Клиентские' },
+        { code: 'supplier', name: 'Поставщик' },
+        { code: 'logistics', name: 'Логистика' },
+      ],
+      types: [
+        { code: 'client_invoice', name: 'Счёт', sectionCodes: ['client'] },
+        { code: 'client_quote', name: 'Коммерческое предложение', sectionCodes: ['client'] },
+        { code: 'supplier_invoice', name: 'Инвойс', sectionCodes: ['supplier'] },
+        { code: 'transport_request', name: 'Заявка на перевозку', sectionCodes: ['logistics'] },
+      ],
+    };
+    const requestedSections = (parsed.searchParams.get('sections') || '').split(',').filter(Boolean);
+    const requestedTypes = (parsed.searchParams.get('types') || '').split(',').filter(Boolean);
+    const appliedSections = requestedSections.length
+      ? requestedSections
+      : availableFilters.sections.map(item => item.code);
+    const appliedTypes = requestedTypes.length
+      ? requestedTypes
+      : availableFilters.types.map(item => item.code);
     const sourceRows = [
-      { documentId: 'f1000000-0000-4000-8000-000000000001', number: 'ФИН-RUB', title: 'Аванс в рублях', documentDate: '2026-04-01', amount: 1000, currency: 'RUB', rateDate: '2026-04-01' },
-      { documentId: 'f1000000-0000-4000-8000-000000000002', number: 'ФИН-USD', title: 'Счёт в долларах США', documentDate: '2026-04-02', amount: 100, currency: 'USD', rateDate: '2026-04-02' },
-      { documentId: 'f1000000-0000-4000-8000-000000000003', number: 'ФИН-EUR', title: 'Инвойс в евро', documentDate: '2026-04-04', amount: 50, currency: 'EUR', rateDate: '2026-04-03' },
-      { documentId: 'f1000000-0000-4000-8000-000000000004', number: 'ФИН-0', title: 'Документ без суммы', documentDate: '2026-04-04', amount: null, currency: null, rateDate: null },
-    ];
+      { documentId: 'f1000000-0000-4000-8000-000000000001', number: 'ФИН-RUB', title: 'Аванс в рублях', sectionCode: 'client', sectionName: 'Клиентские', typeCode: 'client_invoice', typeName: 'Счёт', documentDate: '2026-04-01', amount: 1000, currency: 'RUB', rateDate: '2026-04-01' },
+      { documentId: 'f1000000-0000-4000-8000-000000000002', number: 'ФИН-USD', title: 'Счёт в долларах США', sectionCode: 'client', sectionName: 'Клиентские', typeCode: 'client_quote', typeName: 'Коммерческое предложение', documentDate: '2026-04-02', amount: 100, currency: 'USD', rateDate: '2026-04-02' },
+      { documentId: 'f1000000-0000-4000-8000-000000000003', number: 'ФИН-EUR', title: 'Инвойс в евро', sectionCode: 'supplier', sectionName: 'Поставщик', typeCode: 'supplier_invoice', typeName: 'Инвойс', documentDate: '2026-04-04', amount: 50, currency: 'EUR', rateDate: '2026-04-03' },
+      { documentId: 'f1000000-0000-4000-8000-000000000004', number: 'ФИН-0', title: 'Документ без суммы', sectionCode: 'logistics', sectionName: 'Логистика', typeCode: 'transport_request', typeName: 'Заявка на перевозку', documentDate: '2026-04-04', amount: null, currency: null, rateDate: null },
+    ].filter(row => appliedSections.includes(row.sectionCode) && appliedTypes.includes(row.typeCode));
     const details = sourceRows.map(row => {
       const emptyAmount = row.amount === null;
       const conversionRate = emptyAmount ? null : rubRates[row.currency] / rubRates[targetCurrency];
@@ -449,8 +470,10 @@ function mockPayload(url) {
         documentId: row.documentId,
         number: row.number,
         title: row.title,
-        typeCode: 'client_invoice',
-        typeName: 'Счёт',
+        sectionCode: row.sectionCode,
+        sectionName: row.sectionName,
+        typeCode: row.typeCode,
+        typeName: row.typeName,
         documentDate: row.documentDate,
         emptyAmount,
         originalAmount: (row.amount || 0).toFixed(2),
@@ -469,8 +492,10 @@ function mockPayload(url) {
       targetCurrency,
       total: total.toFixed(2),
       documentCount: details.length,
-      zeroAmountCount: 1,
+      zeroAmountCount: details.filter(row => row.emptyAmount).length,
       source: 'CBR',
+      filters: { sections: appliedSections, types: appliedTypes },
+      availableFilters,
       details,
     };
   }
@@ -1027,7 +1052,7 @@ const dealContextScopeEvidence = await evaluate(`(() => {
     excludesCompanyOnly: !text.includes('приложение — спецификация оборудования'),
   };
 })()`);
-await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.toLocaleUpperCase('ru').includes('СУММА ДОКУМЕНТОВ СДЕЛКИ · 4')`, 'deal financial summary');
+await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.toLocaleUpperCase('ru').includes('СУММА ВЫБРАННЫХ ДОСТУПНЫХ ДОКУМЕНТОВ · 4')`, 'deal financial summary');
 await screenshot('deal-context-1440x1000.png', 1440, 1000);
 await screenshot('deal-financial-rub-1280x900.png', 1280, 900);
 const dealFinancialRubEvidence = await evaluate(`(() => {
@@ -1041,6 +1066,23 @@ const dealFinancialRubEvidence = await evaluate(`(() => {
     && text.includes('Нет суммы → 0')
     && text.includes('03.04.2026');
 })()`);
+await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const button = [...doc.querySelectorAll('button')]
+    .find(item => item.innerText.trim().endsWith('Поставщик'));
+  button?.click();
+})()`);
+await waitFor(`document.querySelector('iframe').contentDocument.querySelector('[aria-labelledby="deal-financial-summary-title"]')?.innerText.replace(/\\s+/g, ' ').includes('10 000,00 RUB')`, 'deal financial section filters');
+await screenshot('deal-financial-filtered-1280x900.png', 1280, 900);
+const dealFinancialFilterEvidence = await evaluate(`(() => {
+  const summary = document.querySelector('iframe').contentDocument
+    .querySelector('[aria-labelledby="deal-financial-summary-title"]');
+  return summary?.innerText.toLocaleLowerCase('ru').includes('сумма выбранных доступных документов · 3')
+    && !summary?.innerText.includes('Инвойс в евро')
+    && summary?.innerText.includes('Все доступные');
+})()`);
+await clickIframeButton('Все доступные');
+await waitFor(`document.querySelector('iframe').contentDocument.querySelector('[aria-labelledby="deal-financial-summary-title"]')?.innerText.replace(/\\s+/g, ' ').includes('15 000,00 RUB')`, 'deal financial filter reset');
 await evaluate(`(() => {
   const doc = document.querySelector('iframe').contentDocument;
   const select = [...doc.querySelectorAll('select')].find(item => item.querySelector('option[value="USD"]'));
@@ -1759,6 +1801,7 @@ const evidence = await evaluate(`(() => {
     addendumParentBacklink: ${JSON.stringify(addendumBacklinkEvidence)},
     documentRelationEditor: ${JSON.stringify(relationEditorEvidence)},
     dealFinancialRubBreakdown: ${JSON.stringify(dealFinancialRubEvidence)},
+    dealFinancialFilters: ${JSON.stringify(dealFinancialFilterEvidence)},
     dealFinancialCurrencySwitch: ${JSON.stringify(dealFinancialUsdEvidence)},
     dealBitrixImportCards: ${JSON.stringify(dealBitrixImportEvidence)},
     dealBitrixImportSyncResult: ${JSON.stringify(dealBitrixImportSyncEvidence)},
