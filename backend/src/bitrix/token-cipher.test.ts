@@ -16,7 +16,11 @@ test('encrypts tokens with authenticated random nonces', () => {
 test('rejects modified encrypted tokens', () => {
   const cipher = new TokenCipher(Buffer.alloc(32, 9).toString('hex'));
   const encrypted = cipher.encrypt('refresh-token');
-  const modified = `${encrypted.slice(0, -1)}${encrypted.endsWith('A') ? 'B' : 'A'}`;
+  const parts = encrypted.split('.');
+  const ciphertext = Buffer.from(parts[3], 'base64url');
+  ciphertext[0] ^= 1;
+  parts[3] = ciphertext.toString('base64url');
+  const modified = parts.join('.');
   assert.throws(() => cipher.decrypt(modified));
 });
 
