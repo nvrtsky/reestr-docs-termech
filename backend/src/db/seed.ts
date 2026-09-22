@@ -15,6 +15,7 @@ import {
   registryUserRoles,
   type LifecycleConfig,
   type RolePermissions,
+  type TypePermissions,
 } from './schema/index.js';
 
 const portalUrl = (
@@ -174,6 +175,36 @@ const fullPermissions: RolePermissions = {
   byType: {},
 };
 
+const typePermissions = (overrides: Partial<TypePermissions> = {}): TypePermissions => ({
+  view: true,
+  create: true,
+  edit: true,
+  transition: true,
+  content: true,
+  archive: true,
+  restore: true,
+  export: true,
+  finance: true,
+  ...overrides,
+});
+
+const salesFinancialTypeCodes = [
+  'client_invoice',
+  'client_quote',
+  'client_vat_invoice',
+  'client_upd',
+  'client_act',
+  'client_waybill',
+] as const;
+const salesTypePermissions = Object.fromEntries(
+  salesFinancialTypeCodes.map((code) => [code, typePermissions({
+    archive: false,
+    restore: false,
+    export: false,
+    finance: true,
+  })]),
+);
+
 const rolePolicies = [
   {
     roleCode: 'sales',
@@ -181,12 +212,20 @@ const rolePolicies = [
     visibleSectionCodes: ['client', 'internal'],
     hiddenFields: ['amount', 'currency'],
     hideMoney: true,
-    permissions: { ...fullPermissions, editAny: false, transitionAny: false, softDelete: false, restore: false, export: false },
+    permissions: {
+      ...fullPermissions,
+      editAny: false,
+      transitionAny: false,
+      softDelete: false,
+      restore: false,
+      export: false,
+      byType: salesTypePermissions,
+    },
   },
   {
     roleCode: 'accountant',
     roleName: 'Бухгалтер',
-    visibleSectionCodes: ['client', 'supplier'],
+    visibleSectionCodes: ['client', 'supplier', 'logistics', 'customs'],
     hiddenFields: [],
     hideMoney: false,
     permissions: { ...fullPermissions, softDelete: false, restore: false },

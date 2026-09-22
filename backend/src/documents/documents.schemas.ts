@@ -79,8 +79,18 @@ export type DocumentExportQuery = z.infer<typeof documentExportQuerySchema>;
 
 export const documentIdSchema = z.string().uuid();
 export const dealIdSchema = z.coerce.number().int().positive();
+const financialFilterCodes = z
+  .string()
+  .max(8_000)
+  .optional()
+  .transform((value) => value
+    ? [...new Set(value.split(',').map((item) => item.trim()).filter(Boolean))]
+    : [])
+  .pipe(z.array(z.string().regex(/^[a-z0-9_:-]{1,100}$/i)).max(100));
 export const dealFinancialSummaryQuerySchema = z.object({
   currency: z.enum(['RUB', 'USD', 'EUR', 'CNY']).default('RUB'),
+  sections: financialFilterCodes,
+  types: financialFilterCodes,
 });
 export const documentLinkIdSchema = z.string().uuid();
 export const setParentRelationSchema = z.object({
