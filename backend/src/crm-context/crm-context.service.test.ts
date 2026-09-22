@@ -18,6 +18,7 @@ class FakeBitrixClient implements BitrixApiClient {
         TITLE: 'Поставка оборудования',
         COMPANY_ID: '77',
         STAGE_ID: 'C1:NEW',
+        ASSIGNED_BY_ID: '82',
       } as T;
     }
     if (method === 'crm.company.get') {
@@ -113,6 +114,7 @@ describe('CRM placement context', () => {
       id: 77,
       title: 'ООО «Ромашка»',
     });
+    assert.deepEqual(resolved.responsible, { id: 82, name: 'Иванов Иван' });
   });
 
   it('returns the canonical deal company for server-side link validation', async () => {

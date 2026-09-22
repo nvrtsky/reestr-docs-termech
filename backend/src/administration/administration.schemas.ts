@@ -108,11 +108,21 @@ const rolePermissionsSchema = z.object({
     create: z.boolean(),
     edit: z.boolean(),
     transition: z.boolean(),
-    content: z.boolean(),
+    content: z.boolean().optional(),
+    contentRead: z.boolean().optional(),
+    contentWrite: z.boolean().optional(),
     archive: z.boolean(),
     restore: z.boolean(),
     export: z.boolean(),
     finance: z.boolean(),
+  }).superRefine((permissions, context) => {
+    if (permissions.content === undefined
+      && (permissions.contentRead === undefined || permissions.contentWrite === undefined)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Content read and write permissions are required.',
+      });
+    }
   })).default({}),
 });
 

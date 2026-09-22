@@ -29,7 +29,10 @@ export interface TypePermissions {
   create: boolean;
   edit: boolean;
   transition: boolean;
-  content: boolean;
+  /** Legacy combined content permission kept for policies saved before the split. */
+  content?: boolean;
+  contentRead?: boolean;
+  contentWrite?: boolean;
   archive: boolean;
   restore: boolean;
   export: boolean;

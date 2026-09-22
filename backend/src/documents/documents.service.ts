@@ -401,7 +401,11 @@ export class DocumentsService {
     const typeCodeByDocument = new Map(rows.map((row) => [row.id, row.typeCode]));
     const fieldsByDocument = new Map<string, typeof fieldRows>();
     for (const field of fieldRows) {
-      if (isDocumentFieldHidden(policy, field, typeCodeByDocument.get(field.documentId))) continue;
+      const typeCode = typeCodeByDocument.get(field.documentId);
+      if (isDocumentFieldHidden(policy, field, typeCode)) continue;
+      if (field.dataType === 'file'
+        && typeCode
+        && !isTypePermissionAllowed(policy, typeCode, 'contentRead')) continue;
       const current = fieldsByDocument.get(field.documentId) ?? [];
         current.push({
           ...field,
@@ -579,8 +583,9 @@ export class DocumentsService {
         ),
       )
       .orderBy(asc(registryDocumentLinks.createdAt));
+    const visibleLinkRows = await this.crmEntityAccess.filterAccessibleLinks(context, linkRows);
     const linksByDocument = new Map<string, typeof linkRows>();
-    for (const link of linkRows) {
+    for (const link of visibleLinkRows) {
       const links = linksByDocument.get(link.documentId) || [];
       links.push(link);
       linksByDocument.set(link.documentId, links);
@@ -1199,7 +1204,7 @@ export class DocumentsService {
     }
     assertSectionVisible(policy, row.sectionCode);
     assertTypeVisible(policy, row.typeCode);
-    const contentVisible = isTypePermissionAllowed(policy, row.typeCode, 'content');
+    const contentVisible = isTypePermissionAllowed(policy, row.typeCode, 'contentRead');
 
     const [attachments, storageCopies, links, taskLinks, rawFieldValues, history] = await Promise.all([
       this.database
@@ -1332,6 +1337,12 @@ export class DocumentsService {
         .orderBy(desc(registryAuditLog.createdAt)),
     ]);
 
+    const visibleLinks = await this.crmEntityAccess.filterAccessibleLinks(context, links);
+    const visibleDealIds = new Set(visibleLinks
+      .filter((link) => link.entityType === 'deal')
+      .map((link) => link.entityId));
+    const visibleEntityKeys = new Set(visibleLinks
+      .map((link) => `${link.entityType}:${link.entityId}`));
     const fieldValues = rawFieldValues
       .filter((field) => contentVisible || field.dataType !== 'file')
       .filter((field) => !isDocumentFieldHidden(policy, field, row.typeCode))
@@ -1348,7 +1359,7 @@ export class DocumentsService {
       accessScopes,
     );
     const dealStates = await this.salesDealAccess.documentStates(context, id);
-    const resolvedLinks = links.map((link) => {
+    const resolvedLinks = visibleLinks.map((link) => {
       if (link.entityType !== 'deal') return link;
       const state = dealStates.get(link.entityId);
       return state ? { ...link, ...state } : link;
@@ -1386,6 +1397,7 @@ export class DocumentsService {
         .map(({ configuredFieldId: _configuredFieldId, fieldDefinitionId: _fieldDefinitionId, ...attachment }) => ({
         ...attachment,
         storageCopies: (storageCopiesByAttachment.get(attachment.id) ?? [])
+          .filter((copy) => visibleDealIds.has(copy.dealId))
           .map(({ attachmentId: _attachmentId, ...copy }) => copy),
         })),
       links: resolvedLinks,
@@ -1396,6 +1408,7 @@ export class DocumentsService {
         policy,
         row.typeCode,
         contentVisible,
+        visibleEntityKeys,
       )),
       relations: relationsByDocument.get(id) ?? { parent: null, children: [] },
     };
@@ -2952,7 +2965,29 @@ export class DocumentsService {
         'Archived documents are read-only.',
       );
     }
+    await this.assertDocumentWritableByDealState(context, id);
     return item;
+  }
+
+  private async assertDocumentWritableByDealState(
+    context: RegistryContext,
+    documentId: string,
+  ) {
+    if (context.roleCode !== 'sales') return;
+    const links = await this.database
+      .select({ entityId: registryDocumentLinks.entityId })
+      .from(registryDocumentLinks)
+      .where(and(
+        eq(registryDocumentLinks.portalUrl, context.portalUrl),
+        eq(registryDocumentLinks.documentId, documentId),
+        eq(registryDocumentLinks.entityType, 'deal'),
+      ));
+    const accessibleDealIds = await this.crmEntityAccess.accessibleIds(
+      context,
+      'deal',
+      links.map((link) => link.entityId),
+    );
+    await this.salesDealAccess.assertWritable(context, documentId, accessibleDealIds);
   }
 
   private async loadRelationsForDocuments(
@@ -3434,7 +3469,7 @@ export class DocumentsService {
       document.createdBy === context.userId || document.responsibleId === context.userId;
     const scopeAllowed = policy.permissions.editAny
       || (policy.permissions.editOwn && own);
-    if (!isTypePermissionGranted(policy, document.typeCode, 'edit', scopeAllowed)) {
+    if (!scopeAllowed || !isTypePermissionAllowed(policy, document.typeCode, 'edit')) {
       assertTypePermission(policy, document.typeCode, 'edit');
       throw new ApiError(403, 'edit_access_denied', 'Document editing is not allowed.');
     }
@@ -3532,7 +3567,7 @@ export class DocumentsService {
       document.createdBy === context.userId || document.responsibleId === context.userId;
     const scopeAllowed = policy.permissions.transitionAny
       || (policy.permissions.transitionOwn && own);
-    if (!isTypePermissionGranted(policy, document.typeCode, 'transition', scopeAllowed)) {
+    if (!scopeAllowed || !isTypePermissionAllowed(policy, document.typeCode, 'transition')) {
       throw new ApiError(403, 'transition_access_denied', 'Status change is not allowed.');
     }
   }
@@ -3552,6 +3587,7 @@ export class DocumentsService {
     policy: RegistryPolicy,
     typeCode: string,
     contentVisible = true,
+    visibleEntityKeys?: ReadonlySet<string>,
   ): T {
     const hiddenKeys = new Set(policy.hiddenFields);
     if (isMoneyHidden(policy, typeCode)) {
@@ -3566,8 +3602,18 @@ export class DocumentsService {
     const sanitize = (value: unknown): unknown => {
       if (Array.isArray(value)) return value.map(sanitize);
       if (!value || typeof value !== 'object' || value instanceof Date) return value;
+      const record = value as Record<string, unknown>;
+      if (visibleEntityKeys) {
+        const entityType = typeof record.entityType === 'string' ? record.entityType : null;
+        const entityId = Number(record.entityId);
+        if (entityType && Number.isSafeInteger(entityId) && entityId > 0
+          && !visibleEntityKeys.has(`${entityType}:${entityId}`)) return null;
+        const dealId = Number(record.dealId);
+        if (Number.isSafeInteger(dealId) && dealId > 0
+          && !visibleEntityKeys.has(`deal:${dealId}`)) return null;
+      }
       return Object.fromEntries(
-        Object.entries(value as Record<string, unknown>)
+        Object.entries(record)
           .filter(([key]) => !hiddenKeys.has(key))
           .map(([key, item]) => [key, sanitize(item)]),
       );

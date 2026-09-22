@@ -2,7 +2,7 @@ import { and, asc, eq, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-or
 
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
 import type { Database } from '../db/database.js';
-import { registryDocumentLinks } from '../db/schema/index.js';
+import { registryDocumentLinks, registryDocuments } from '../db/schema/index.js';
 import { ApiError } from '../http/api-error.js';
 import type { RegistryContext } from '../http/registry-context.js';
 
@@ -26,24 +26,39 @@ export class SalesDealAccessService {
 
   async prepare(context: RegistryContext): Promise<SQL | null> {
     if (context.roleCode !== 'sales') return null;
+    return eq(registryDocuments.responsibleId, context.userId);
+  }
+
+  async assertWritable(
+    context: RegistryContext,
+    documentId: string,
+    accessibleDealIds?: ReadonlySet<number>,
+  ) {
+    if (context.roleCode !== 'sales') return;
+    const links = await this.documentDealLinks(context, documentId);
+    if (!links.length) return;
+    const relevantLinks = accessibleDealIds
+      ? links.filter((link) => accessibleDealIds.has(link.entityId))
+      : links;
+    if (!relevantLinks.length) {
+      throw new ApiError(403, 'deal_access_denied', 'Нет доступной связанной сделки.');
+    }
+
     const checkedAfter = new Date(Date.now() - STATE_TTL_MS);
-    await this.refreshStaleStates(context, checkedAfter);
-    return sql`(
-      NOT EXISTS (
-        SELECT 1 FROM registry_document_links AS sales_deal_any
-        WHERE sales_deal_any.portal_url = ${context.portalUrl}
-          AND sales_deal_any.document_id = registry_documents.id
-          AND sales_deal_any.entity_type = 'deal'
-      )
-      OR EXISTS (
-        SELECT 1 FROM registry_document_links AS sales_deal_open
-        WHERE sales_deal_open.portal_url = ${context.portalUrl}
-          AND sales_deal_open.document_id = registry_documents.id
-          AND sales_deal_open.entity_type = 'deal'
-          AND sales_deal_open.deal_closed = false
-          AND sales_deal_open.deal_state_checked_at >= ${checkedAfter.toISOString()}
-      )
-    )`;
+    const staleIds = relevantLinks
+      .filter((link) => !link.dealStateCheckedAt || link.dealStateCheckedAt < checkedAfter)
+      .map((link) => link.entityId);
+    if (staleIds.length) await this.refreshDealIds(context, staleIds);
+
+    const refreshed = await this.documentDealLinks(context, documentId);
+    const writable = hasWritableDealState(refreshed, accessibleDealIds, checkedAfter);
+    if (!writable) {
+      throw new ApiError(
+        409,
+        'document_closed_deals_read_only',
+        'Документ доступен только для чтения: все доступные связанные сделки закрыты или их состояние неизвестно.',
+      );
+    }
   }
 
   async documentStates(context: RegistryContext, documentId: string) {
@@ -159,6 +174,22 @@ export class SalesDealAccessService {
       ))
       .orderBy(asc(registryDocumentLinks.entityId));
   }
+}
+
+export function hasWritableDealState(
+  links: Array<{
+    entityId: number;
+    dealClosed: boolean | null;
+    dealStateCheckedAt: Date | null;
+  }>,
+  accessibleDealIds: ReadonlySet<number> | undefined,
+  checkedAfter: Date,
+) {
+  return links.some((link) =>
+    (!accessibleDealIds || accessibleDealIds.has(link.entityId))
+    && link.dealClosed === false
+    && !!link.dealStateCheckedAt
+    && link.dealStateCheckedAt >= checkedAfter);
 }
 
 function positiveId(value: unknown) {

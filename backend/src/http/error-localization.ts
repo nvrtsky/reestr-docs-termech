@@ -69,6 +69,7 @@ const messages: Record<string, string> = {
   document_abandon_not_allowed: 'Создание этого документа уже нельзя отменить.',
   document_already_superseded: 'Для документа уже существует более новая редакция.',
   document_archived_read_only: 'Документ находится в архиве и доступен только для просмотра.',
+  document_closed_deals_read_only: 'Документ доступен только для чтения: все доступные связанные сделки закрыты или их состояние неизвестно.',
   document_fields_access_denied: 'Изменение одного или нескольких полей недоступно для вашей роли.',
   document_file_field_invalid: 'Файловое поле недоступно для выбранного типа документа.',
   document_file_field_occupied: 'В поле уже есть файл. Загрузите новую версию через действие замены.',

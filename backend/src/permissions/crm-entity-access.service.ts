@@ -68,11 +68,7 @@ export class CrmEntityAccessService {
         this.allowedIds(context, 'deal', dealIds),
         this.allowedIds(context, 'company', companyIds),
       ]);
-      return sql`(
-        ${this.noDeniedLinkedEntities('deal', allowedDeals)}
-        AND ${this.noDeniedLinkedEntities('company', allowedCompanies)}
-        AND ${this.counterpartyAllowed(allowedCompanies)}
-      )`;
+      return this.accessibleDocumentScope(allowedDeals, allowedCompanies);
     } catch (error) {
       throw new ApiError(
         503,
@@ -81,6 +77,49 @@ export class CrmEntityAccessService {
         { cause: error instanceof Error ? error.message : 'unknown' },
       );
     }
+  }
+
+  async accessibleIds(
+    context: RegistryContext,
+    entityType: CrmEntityType,
+    ids: number[],
+  ) {
+    const normalizedIds = uniquePositiveIds(ids);
+    if (!normalizedIds.length) return new Set<number>();
+    if (
+      context.source !== 'bitrix'
+      || context.roleSource === 'bitrix_admin'
+      || !context.bitrix
+    ) return new Set(normalizedIds);
+    try {
+      return new Set(await this.allowedIds(context, entityType, normalizedIds));
+    } catch (error) {
+      throw new ApiError(
+        503,
+        'crm_access_unavailable',
+        'Не удалось проверить права Bitrix24 на связанные компании и сделки. Доступ временно закрыт.',
+        { cause: error instanceof Error ? error.message : 'unknown' },
+      );
+    }
+  }
+
+  async filterAccessibleLinks<T extends { entityType: string; entityId: number }>(
+    context: RegistryContext,
+    links: T[],
+  ) {
+    const dealIds = await this.accessibleIds(
+      context,
+      'deal',
+      links.filter((link) => link.entityType === 'deal').map((link) => link.entityId),
+    );
+    const companyIds = await this.accessibleIds(
+      context,
+      'company',
+      links.filter((link) => link.entityType === 'company').map((link) => link.entityId),
+    );
+    return links.filter((link) => link.entityType === 'deal'
+      ? dealIds.has(link.entityId)
+      : link.entityType === 'company' && companyIds.has(link.entityId));
   }
 
   private async allowedIds(
@@ -126,16 +165,46 @@ export class CrmEntityAccessService {
     return ids.filter(id => cache.get(id)?.allowed === true);
   }
 
-  private noDeniedLinkedEntities(entityType: CrmEntityType, allowedIds: number[]) {
-    const denied = allowedIds.length
-      ? sql`crm_acl_link.entity_id NOT IN (${sql.join(allowedIds.map(id => sql`${id}`), sql`, `)})`
-      : sql`TRUE`;
-    return sql`NOT EXISTS (
-      SELECT 1 FROM registry_document_links AS crm_acl_link
-      WHERE crm_acl_link.portal_url = registry_documents.portal_url
-        AND crm_acl_link.document_id = registry_documents.id
-        AND crm_acl_link.entity_type = ${entityType}
-        AND ${denied}
+  private accessibleDocumentScope(allowedDeals: number[], allowedCompanies: number[]) {
+    const hasDeals = sql`EXISTS (
+      SELECT 1 FROM registry_document_links AS crm_acl_any_deal
+      WHERE crm_acl_any_deal.portal_url = registry_documents.portal_url
+        AND crm_acl_any_deal.document_id = registry_documents.id
+        AND crm_acl_any_deal.entity_type = 'deal'
+    )`;
+    const hasCompanies = sql`EXISTS (
+      SELECT 1 FROM registry_document_links AS crm_acl_any_company
+      WHERE crm_acl_any_company.portal_url = registry_documents.portal_url
+        AND crm_acl_any_company.document_id = registry_documents.id
+        AND crm_acl_any_company.entity_type = 'company'
+    )`;
+    const accessibleDeal = allowedDeals.length
+      ? sql`EXISTS (
+          SELECT 1 FROM registry_document_links AS crm_acl_deal
+          WHERE crm_acl_deal.portal_url = registry_documents.portal_url
+            AND crm_acl_deal.document_id = registry_documents.id
+            AND crm_acl_deal.entity_type = 'deal'
+            AND crm_acl_deal.entity_id IN (${sql.join(allowedDeals.map(id => sql`${id}`), sql`, `)})
+        )`
+      : sql`FALSE`;
+    const accessibleCompanyLink = allowedCompanies.length
+      ? sql`EXISTS (
+          SELECT 1 FROM registry_document_links AS crm_acl_company
+          WHERE crm_acl_company.portal_url = registry_documents.portal_url
+            AND crm_acl_company.document_id = registry_documents.id
+            AND crm_acl_company.entity_type = 'company'
+            AND crm_acl_company.entity_id IN (${sql.join(allowedCompanies.map(id => sql`${id}`), sql`, `)})
+        )`
+      : sql`FALSE`;
+    return sql`(
+      (${hasDeals} AND ${accessibleDeal})
+      OR (
+        NOT ${hasDeals}
+        AND (
+          (${hasCompanies} AND ${accessibleCompanyLink})
+          OR (NOT ${hasCompanies} AND ${this.counterpartyAllowed(allowedCompanies)})
+        )
+      )
     )`;
   }
 

@@ -597,7 +597,7 @@ export class BitrixDealImportService {
             config.editOwn
             && (existing.createdBy === context.userId || existing.responsibleId === context.userId)
           );
-          if (!(config.editOverride ?? editScope)) {
+          if (!editScope || config.editOverride === false) {
             throw new ApiError(
               403,
               'bitrix_import_update_access_denied',
@@ -882,8 +882,9 @@ export class BitrixDealImportService {
       }
       const editScope = policy.permissions.editAny || policy.permissions.editOwn;
       if (
-        !isTypePermissionGranted(policy, row.typeCode, 'edit', editScope)
-        || !isTypePermissionGranted(policy, row.typeCode, 'content', true)
+        !editScope
+        || !isTypePermissionGranted(policy, row.typeCode, 'edit', true)
+        || !isTypePermissionGranted(policy, row.typeCode, 'contentWrite', true)
       ) {
         throw new ApiError(
           403,

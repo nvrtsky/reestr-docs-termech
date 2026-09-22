@@ -1126,9 +1126,9 @@ export class AttachmentsService {
     const contentAllowed = isTypePermissionGranted(
       policy,
       document.typeCode,
-      'content',
-      requireEdit ? editScope : true,
-    );
+      requireEdit ? 'contentWrite' : 'contentRead',
+      true,
+    ) && (!requireEdit || editScope);
     if (!contentAllowed) {
       throw new ApiError(
         403,
@@ -1160,7 +1160,18 @@ export class AttachmentsService {
         ),
       )
       .orderBy(asc(registryDocumentLinks.createdAt));
-    return { ...document, deals };
+    const accessibleDealIds = await this.crmEntityAccess.accessibleIds(
+      context,
+      'deal',
+      deals.map((deal) => deal.entityId),
+    );
+    if (requireEdit) {
+      await this.salesDealAccess.assertWritable(context, documentId, accessibleDealIds);
+    }
+    return {
+      ...document,
+      deals: deals.filter((deal) => accessibleDealIds.has(deal.entityId)),
+    };
   }
 
   private requireBitrixContext(context: RegistryContext) {

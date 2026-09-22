@@ -96,12 +96,15 @@ integration('Bitrix24 CRM entity access scope', () => {
       documentValue('allowed company', 21, section.id, type.id),
       documentValue('denied company', 22, section.id, type.id),
       documentValue('mixed denied', 21, section.id, type.id),
+      documentValue('one accessible deal', null, section.id, type.id),
     ]).returning({ id: registryDocuments.id, title: registryDocuments.title });
     documentIds = Object.fromEntries(rows.map(row => [row.title, row.id]));
     await database!.db.insert(registryDocumentLinks).values([
       linkValue(documentIds['allowed deal'], 'deal', 11),
       linkValue(documentIds['denied deal'], 'deal', 12),
       linkValue(documentIds['mixed denied'], 'deal', 12),
+      linkValue(documentIds['one accessible deal'], 'deal', 11),
+      linkValue(documentIds['one accessible deal'], 'deal', 12),
     ]);
   });
 
@@ -110,7 +113,7 @@ integration('Bitrix24 CRM entity access scope', () => {
     await database!.close();
   });
 
-  it('shows unlinked documents and requires access to every linked deal and company', async () => {
+  it('shows unlinked documents and accepts one accessible deal among several links', async () => {
     const service = new CrmEntityAccessService(
       database!.db,
       new FakeBitrixClient([11], [21]),
@@ -123,7 +126,7 @@ integration('Bitrix24 CRM entity access scope', () => {
       .where(and(eq(registryDocuments.portalUrl, portalUrl), scope!));
     assert.deepEqual(
       visible.map(row => row.title).sort(),
-      ['allowed company', 'allowed deal', 'unlinked'],
+      ['allowed company', 'allowed deal', 'one accessible deal', 'unlinked'],
     );
   });
 
