@@ -3,6 +3,7 @@ import { Router } from 'express';
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
 import type { Database } from '../db/database.js';
 import {
+  companyDealsQuerySchema,
   documentLinkIdSchema,
   entityDocumentsQuerySchema,
   taskSearchQuerySchema,
@@ -21,6 +22,16 @@ export function createCrmContextRouter({
   const router = Router();
   const documents = createDocumentsService({ database, bitrix });
   const crmContext = new CrmContextService(bitrix);
+
+  router.get('/deals', async (request, response, next) => {
+    try {
+      const context = requireRegistryContext(request);
+      const { companyId } = companyDealsQuerySchema.parse(request.query);
+      response.json(await crmContext.listCompanyDeals(context, companyId));
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get('/tasks', async (request, response, next) => {
     try {

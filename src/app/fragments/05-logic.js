@@ -326,12 +326,101 @@ class Component extends DCLogic {
           counterparty: company.entityTitle,
           counterpartyId: company.entityId,
           sourceCounterpartyName: company.entityTitle,
+          links: (this.state.wz.links || []).filter(link => link.entityType !== 'deal'),
         },
         wizardError: '',
       });
     } catch (error) {
       console.error('Failed to select Bitrix24 company', error);
     }
+  }
+
+  async openCompanyDealPicker(target, companyId, currentLinks = []) {
+    const normalizedCompanyId = this.positiveEntityId(companyId);
+    if (!normalizedCompanyId) {
+      const message = 'Сначала выберите компанию-контрагента.';
+      if (target === 'wizard') this.setState({ wizardError: message });
+      else this.setState({ bulkUploadError: message });
+      return;
+    }
+    const selected = Object.fromEntries(
+      (currentLinks || [])
+        .filter(link => link.entityType === 'deal')
+        .map(link => [String(link.entityId), true]),
+    );
+    this.setState({
+      dealPickerOpen: true,
+      dealPickerTarget: target,
+      dealPickerCompanyId: normalizedCompanyId,
+      dealPickerItems: [],
+      dealPickerSelected: selected,
+      dealPickerLoading: true,
+      dealPickerError: '',
+    });
+    try {
+      const payload = await this.api(`/api/v1/registry/deals?companyId=${normalizedCompanyId}`);
+      if (!this.state.dealPickerOpen
+        || this.state.dealPickerTarget !== target
+        || this.state.dealPickerCompanyId !== normalizedCompanyId) return;
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      const availableIds = new Set(items.map(item => String(item.id)));
+      this.setState({
+        dealPickerItems: items,
+        dealPickerSelected: Object.fromEntries(
+          Object.keys(this.state.dealPickerSelected || {})
+            .filter(id => availableIds.has(id))
+            .map(id => [id, true]),
+        ),
+        dealPickerLoading: false,
+      });
+    } catch (error) {
+      this.setState({
+        dealPickerLoading: false,
+        dealPickerError: error instanceof Error ? error.message : 'Не удалось загрузить сделки компании.',
+      });
+    }
+  }
+
+  closeDealPicker() {
+    this.setState({
+      dealPickerOpen: false,
+      dealPickerTarget: null,
+      dealPickerCompanyId: null,
+      dealPickerItems: [],
+      dealPickerSelected: {},
+      dealPickerLoading: false,
+      dealPickerError: '',
+    });
+  }
+
+  toggleDealPickerItem(dealId) {
+    const selected = { ...(this.state.dealPickerSelected || {}) };
+    if (selected[dealId]) delete selected[dealId];
+    else selected[dealId] = true;
+    this.setState({ dealPickerSelected: selected });
+  }
+
+  applyDealPicker() {
+    const selected = (this.state.dealPickerItems || [])
+      .filter(item => this.state.dealPickerSelected[String(item.id)])
+      .map(item => ({ entityType: 'deal', entityId: Number(item.id), entityTitle: item.title }));
+    const target = this.state.dealPickerTarget;
+    if (target === 'wizard') {
+      const links = (this.state.wz.links || []).filter(link => link.entityType !== 'deal');
+      this.setState({ wz: { ...this.state.wz, links: [...links, ...selected] }, wizardError: '' });
+    } else if (target === 'bulk-common') {
+      this.setState({ bulkUploadCommonDealLinks: selected, bulkUploadError: '' });
+    } else if (typeof target === 'string' && target.startsWith('bulk-row:')) {
+      const rowId = target.slice('bulk-row:'.length);
+      const row = (this.state.bulkUploadRows || []).find(item => item.id === rowId);
+      if (row) {
+        this.updateBulkUploadRow(rowId, {
+          links: [...(row.links || []).filter(link => link.entityType !== 'deal'), ...selected],
+          status: 'ready',
+        });
+      }
+    }
+    this.closeDealPicker();
   }
 
   async pickDrawerCompany() {
@@ -1493,19 +1582,11 @@ class Component extends DCLogic {
   }
 
   async manageWizardLinks() {
-    try {
-      const selected = await this.requestCrmSelection(this.wizardDocumentLinks());
-      const links = new Map(selected.map(link => [
-        `${link.entityType}:${link.entityId}`,
-        link,
-      ]));
-      for (const link of this.creationContextLinks()) {
-        links.set(`${link.entityType}:${link.entityId}`, link);
-      }
-      this.setState({ wz: { ...this.state.wz, links: [...links.values()] } });
-    } catch (error) {
-      console.error('Failed to select CRM links for document', error);
-    }
+    await this.openCompanyDealPicker(
+      'wizard',
+      this.state.wz.counterpartyId,
+      this.wizardDocumentLinks(),
+    );
   }
 
   applyPlacementContext(context) {
@@ -1623,10 +1704,18 @@ class Component extends DCLogic {
     relationEditorSearch: '',
     relationEditorCandidates: [],
     relationEditorSelectedId: null,
+    relationEditorCompanyId: null,
     relationEditorType: 'other',
     relationEditorLoading: false,
     relationEditorSaving: false,
     relationEditorError: '',
+    dealPickerOpen: false,
+    dealPickerTarget: null,
+    dealPickerCompanyId: null,
+    dealPickerItems: [],
+    dealPickerSelected: {},
+    dealPickerLoading: false,
+    dealPickerError: '',
     drawerEditing: false,
     drawerEditSaving: false,
     drawerEditError: '',
@@ -1689,6 +1778,7 @@ class Component extends DCLogic {
     expandedDeals: { '1234': true },
     collapsedGroups: {},
     companyView: 'deals',
+    companyMatrixFilter: null,
     dealTotalCurrency: 'RUB',
     dealFinancialSummary: null,
     dealFinancialLoading: false,
@@ -2314,28 +2404,11 @@ class Component extends DCLogic {
       ? (this.state.bulkUploadRows || []).find(item => item.id === rowId)
       : null;
     const links = row ? (row.links || []) : (this.state.bulkUploadCommonDealLinks || []);
-    try {
-      const selected = await this.requestCrmSelection(
-        links.filter(link => link.entityType === 'deal'),
-        ['deal'],
-        true,
-      );
-      const deals = selected.filter(link => link.entityType === 'deal');
-      if (rowId) {
-        this.updateBulkUploadRow(rowId, {
-          links: [...links.filter(link => link.entityType !== 'deal'), ...deals],
-          status: 'ready',
-        });
-      } else {
-        this.setState({ bulkUploadCommonDealLinks: deals, bulkUploadError: '' });
-      }
-    } catch (error) {
-      this.setState({
-        bulkUploadError: error instanceof Error
-          ? error.message
-          : 'Не удалось выбрать сделки Bitrix24.',
-      });
-    }
+    await this.openCompanyDealPicker(
+      rowId ? `bulk-row:${rowId}` : 'bulk-common',
+      row ? row.counterpartyId : this.state.bulkUploadCommonCompanyId,
+      links,
+    );
   }
 
   async searchBulkUploadTasks(value, rowId = null) {
@@ -2473,12 +2546,14 @@ class Component extends DCLogic {
         this.updateBulkUploadRow(rowId, {
           counterpartyId: company.entityId,
           counterpartyName: company.entityTitle,
+          links: (row.links || []).filter(link => link.entityType !== 'deal'),
           status: 'ready',
         });
       } else {
         this.setState({
           bulkUploadCommonCompanyId: company.entityId,
           bulkUploadCommonCompanyName: company.entityTitle,
+          bulkUploadCommonDealLinks: [],
           bulkUploadError: '',
         });
       }
@@ -3832,6 +3907,7 @@ class Component extends DCLogic {
       relationEditorLoading: true,
       relationEditorSaving: false,
       relationEditorError: '',
+      relationEditorCompanyId: current && current.counterpartyId ? current.counterpartyId : null,
     });
     void this.loadRelationCandidates('');
   }
@@ -3843,6 +3919,7 @@ class Component extends DCLogic {
       relationEditorSearch: '',
       relationEditorCandidates: [],
       relationEditorSelectedId: null,
+      relationEditorCompanyId: null,
       relationEditorLoading: false,
       relationEditorSaving: false,
       relationEditorError: '',
@@ -3867,7 +3944,16 @@ class Component extends DCLogic {
     this.relationSearchRequestId = requestId;
     this.setState({ relationEditorLoading: true, relationEditorError: '' });
     try {
+      if (!this.state.relationEditorCompanyId) {
+        this.setState({
+          relationEditorCandidates: [],
+          relationEditorLoading: false,
+          relationEditorError: 'Сначала укажите компанию документа.',
+        });
+        return;
+      }
       const params = new URLSearchParams({ limit: '20', offset: '0' });
+      params.set('counterpartyId', String(this.state.relationEditorCompanyId));
       const normalized = String(search || '').trim();
       if (normalized) params.set('search', normalized);
       const payload = await this.api(`/api/v1/registry/documents?${params.toString()}`);
@@ -3875,6 +3961,8 @@ class Component extends DCLogic {
       const currentId = this.state.drawerId;
       const candidates = (payload.items || [])
         .filter(item => item.id !== currentId)
+        .filter(item => this.state.relationEditorMode !== 'parent'
+          || String(item.type && item.type.name || '').toLocaleLowerCase('ru').includes('договор'))
         .map(item => this.toDocument(item));
       this.setState({ relationEditorCandidates: candidates, relationEditorLoading: false });
     } catch (error) {
@@ -4453,7 +4541,7 @@ class Component extends DCLogic {
     return `${document.status}\u0000${meta.label}`;
   }
 
-  buildMatrix(docs, keyPrefix) {
+  buildMatrix(docs, keyPrefix, onCell = null, activeFilter = null) {
     const cols = this.statusDefinitionsForDocuments(docs);
     const stages = cols.map(column => ({
       label: column.label,
@@ -4463,11 +4551,15 @@ class Component extends DCLogic {
       const sd = (docs || []).filter(d => d.section === s.code);
       const cells = cols.map(column => {
         const n = sd.filter(d => this.documentStatusDefinitionKey(d) === column.key).length;
+        const active = !!activeFilter
+          && activeFilter.sectionCode === s.code
+          && activeFilter.statusKey === column.key;
         return {
           label: column.label,
           count: n ? String(n) : '—',
           title: `${column.label}: ${n}`,
-          style: `min-width:0;display:flex;align-items:center;justify-content:space-between;gap:7px;height:36px;padding:0 9px;border-radius:8px;font-size:11px;color:${n ? column.c : '#a1a1aa'};background:${n ? column.bg : '#fafafa'};`,
+          onOpen: () => { if (onCell) onCell(s, column); },
+          style: `min-width:0;display:flex;align-items:center;justify-content:space-between;gap:7px;height:36px;padding:0 9px;border:${active ? '2px solid ' + column.c : '1px solid transparent'};border-radius:8px;font-size:11px;color:${n ? column.c : '#a1a1aa'};background:${n ? column.bg : '#fafafa'};cursor:${onCell ? 'pointer' : 'default'};`,
           countStyle: `flex:none;font-family:'IBM Plex Mono';font-size:12px;font-weight:${n ? '700' : '400'};`,
         };
       });
@@ -4483,9 +4575,12 @@ class Component extends DCLogic {
   }
   fmtAmount(doc) {
     if (doc.moneyHidden) return '—';
-    if (!doc.amount) return '—';
+    if (doc.amountRaw === '' || doc.amountRaw === null || doc.amountRaw === undefined) return '—';
     const sym = { RUB: '₽', USD: '$', EUR: '€', CNY: '¥' }[doc.currency] || '';
-    const n = doc.amount.toLocaleString('ru-RU');
+    const n = Number(doc.amount).toLocaleString('ru-RU', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
     return doc.currency === 'RUB' ? n + ' ₽' : sym + n;
   }
 
@@ -4824,6 +4919,18 @@ class Component extends DCLogic {
     });
     const relationEditorCanSave = !!S.relationEditorSelectedId
       && !S.relationEditorSaving;
+    const dealPickerItems = (S.dealPickerItems || []).map(item => {
+      const selected = !!S.dealPickerSelected[String(item.id)];
+      return {
+        id: item.id,
+        label: `#${item.id} · ${item.title}`,
+        stage: item.stageName || 'Этап не указан',
+        selectedMark: selected ? '✓' : '',
+        selectedAria: selected ? 'true' : 'false',
+        onToggle: () => this.toggleDealPickerItem(String(item.id)),
+        style: `width:100%;display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid ${selected ? '#8b5cf6' : '#e4e4e7'};border-radius:8px;background:${selected ? '#f5f3ff' : '#fff'};color:#3f3f46;text-align:left;cursor:pointer;`,
+      };
+    });
     const registryUsers = (S.registryUsers && S.registryUsers.length)
       ? S.registryUsers
       : (S.adminUsers && S.adminUsers.length)
@@ -4976,9 +5083,31 @@ class Component extends DCLogic {
       : [];
     const companyDeals = contextDeals.map(dl => {
       const ddocs = scoped.filter(d => (d.dealRefs || []).includes(String(dl.id)));
-      const mm = this.buildMatrix(ddocs, 'co_' + dl.id + '_');
+      const activeMatrixFilter = S.companyMatrixFilter
+        && String(S.companyMatrixFilter.dealId) === String(dl.id)
+        ? S.companyMatrixFilter
+        : null;
+      const visibleDealDocs = activeMatrixFilter
+        ? ddocs.filter(document => document.section === activeMatrixFilter.sectionCode
+          && this.documentStatusDefinitionKey(document) === activeMatrixFilter.statusKey)
+        : ddocs;
+      const mm = this.buildMatrix(
+        ddocs,
+        'co_' + dl.id + '_',
+        (section, status) => this.setState({
+          companyMatrixFilter: {
+            dealId: dl.id,
+            sectionCode: section.code,
+            sectionLabel: section.label,
+            statusKey: status.key,
+            statusLabel: status.label,
+          },
+          expandedDeals: { ...S.expandedDeals, [dl.id]: true },
+        }),
+        activeMatrixFilter,
+      );
       const groups = this.SECTIONS.filter(s => this.visibleSections().includes(s.code)).map(s => {
-        const gd = ddocs.filter(d => d.section === s.code);
+        const gd = visibleDealDocs.filter(d => d.section === s.code);
         const gkey = 'co_' + dl.id + '_' + s.code;
         const dropKey = 'company_drop_' + dl.id + '_' + s.code;
         const open = !S.collapsedGroups[gkey];
@@ -5011,7 +5140,8 @@ class Component extends DCLogic {
           ], dropKey),
           style: `border:1px solid ${dropActive ? s.c : '#ededed'};border-radius:10px;overflow:hidden;background:${dropActive ? s.bg : '#fff'};transition:border-color .12s,background .12s;`,
         };
-      }).filter(g => !isLocalCompanyDemo || g.code === 'supplier');
+      }).filter(g => (!activeMatrixFilter || g.code === activeMatrixFilter.sectionCode)
+        && (!isLocalCompanyDemo || g.code === 'supplier'));
       const expanded = isLocalCompanyDemo
         ? S.expandedDeals[dl.id] !== false
         : !!S.expandedDeals[dl.id];
@@ -5026,6 +5156,11 @@ class Component extends DCLogic {
           this.setState({ expandedDeals: e });
         },
         headStyle: `display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;background:${expanded ? '#fafafa' : '#fff'};`,
+        matrixFilterActive: !!activeMatrixFilter,
+        matrixFilterLabel: activeMatrixFilter
+          ? `${activeMatrixFilter.sectionLabel} · ${activeMatrixFilter.statusLabel}`
+          : '',
+        clearMatrixFilter: () => this.setState({ companyMatrixFilter: null }),
         stages: mm.stages, rows: mm.rows, groups,
       };
     });
@@ -6484,6 +6619,14 @@ class Component extends DCLogic {
       applyBulkDelete: () => { void this.bulkDeleteDocuments(); },
       applyBulkRestore: () => { void this.bulkRestoreDocuments(); },
       dealStages, dealMatrix, matrixLegend,
+      dealPickerOpen: S.dealPickerOpen,
+      dealPickerItems,
+      dealPickerLoading: S.dealPickerLoading,
+      dealPickerEmpty: !S.dealPickerLoading && !S.dealPickerError && dealPickerItems.length === 0,
+      dealPickerHasError: !!S.dealPickerError,
+      dealPickerError: S.dealPickerError,
+      closeDealPicker: () => this.closeDealPicker(),
+      applyDealPicker: () => this.applyDealPicker(),
       embeddedGroups,
       dealStatusCards,
       dealFinancialLoading: S.dealFinancialLoading,
@@ -6764,7 +6907,13 @@ class Component extends DCLogic {
       wzManageLinks: () => { void this.manageWizardLinks(); },
       wzPickCompany: () => { void this.pickWizardCompany(); },
       wzClearCompany: () => this.setState({
-        wz: { ...wz, counterparty: '', counterpartyId: null, sourceCounterpartyName: '' },
+        wz: {
+          ...wz,
+          counterparty: '',
+          counterpartyId: null,
+          sourceCounterpartyName: '',
+          links: (wz.links || []).filter(link => link.entityType !== 'deal'),
+        },
         wizardError: '',
       }),
       wzCompanySelected: !!wz.counterpartyId,

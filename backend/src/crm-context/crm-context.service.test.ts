@@ -26,6 +26,12 @@ class FakeBitrixClient implements BitrixApiClient {
     if (method === 'crm.status.list') {
       return [{ STATUS_ID: 'C1:NEW', NAME: 'Новая', COLOR: '#2563eb' }] as T;
     }
+    if (method === 'crm.deal.list') {
+      return [
+        { ID: '1234', TITLE: 'Поставка оборудования', COMPANY_ID: '77', STAGE_ID: 'C1:NEW' },
+        { ID: '5678', TITLE: 'Чужая сделка', COMPANY_ID: '88', STAGE_ID: 'C1:NEW' },
+      ] as T;
+    }
     if (method === 'user.get') {
       return [{ ID: '82', ACTIVE: true, NAME: 'Иван', LAST_NAME: 'Иванов' }] as T;
     }
@@ -102,6 +108,14 @@ const context: RegistryContext = {
 };
 
 describe('CRM placement context', () => {
+  it('lists only deals of the selected company', async () => {
+    const result = await new CrmContextService(new FakeBitrixClient())
+      .listCompanyDeals(context, 77);
+
+    assert.deepEqual(result.items.map((item) => item.id), [1234]);
+    assert.equal(result.items[0]?.stageName, 'Новая');
+  });
+
   it('keeps the company as creation context without broadening a deal list', async () => {
     const resolved = await new CrmContextService(new FakeBitrixClient())
       .resolve(context, 'deal', 1234);

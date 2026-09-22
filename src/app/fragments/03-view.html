@@ -100,14 +100,14 @@
     <!-- ── REGISTRY SCREEN ── -->
     <sc-if value="{{ isRegistry }}" hint-placeholder-val="{{ true }}">
     <div style="display: flex; flex-direction: column; height: 100%;">
-      <header style="border-bottom: 1px solid #ededed; padding: 12px 20px; display: flex; align-items: center; gap: 14px;">
+      <header style="border-bottom: 1px solid #ededed; padding: 12px 20px; display: flex; flex-wrap:wrap; align-items: center; gap: 10px 14px;">
         <div>
           <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 17px; letter-spacing: -0.4px;">{{ headerTitle }}</div>
           <div style="font-size: 11.5px; color: #a1a1aa; margin-top: 1px;">{{ headerSub }}</div>
         </div>
         <div style="flex: 1;"></div>
         <div style="position: relative;">
-          <input value="{{ search }}" oninput="{{ setSearch }}" placeholder="Поиск по №, контрагенту, типу…" style="width: 270px; padding: 7px 12px 7px 30px; border: 1px solid #e4e4e7; border-radius: 8px; font-size: 12.5px; background: #fafafa;">
+          <input value="{{ search }}" oninput="{{ setSearch }}" placeholder="Поиск по №, контрагенту, типу…" style="width:min(270px,48vw); padding: 7px 12px 7px 30px; border: 1px solid #e4e4e7; border-radius: 8px; font-size: 12.5px; background: #fafafa;">
           <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #a1a1aa; font-size: 13px;">⌕</span>
         </div>
         <sc-if value="{{ isActiveRegistry }}" hint-placeholder-val="{{ true }}"><sc-if value="{{ canCreateAnyDocument }}" hint-placeholder-val="true"><button type="button" onclick="{{ openBulkUpload }}" style="background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;border-radius:8px;padding:8px 13px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">⇧ Массовая загрузка</button><button type="button" onclick="{{ openWizard }}" style="background: #4f46e5; color: #fff; border: none; border-radius: 8px; padding: 8px 15px; font-size: 12.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;">＋ Создать документ</button></sc-if></sc-if>
@@ -374,17 +374,17 @@
         </section>
 
         <div style="border: 1px solid #ededed; border-radius: 11px; padding: 15px 17px; margin-bottom: 14px;">
-          <div style="font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; color: #a1a1aa; margin-bottom: 4px;">Матрица «Раздел × Статус»</div><div style="font-size: 11px; color: #a1a1aa; margin-bottom: 12px; line-height: 1.4;">Статусы берутся из настроенных жизненных циклов и автоматически переносятся на новые строки. Кликните раздел слева — откроются его документы ниже.</div>
+          <div style="font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; color: #a1a1aa; margin-bottom: 4px;">Матрица «Раздел × Статус»</div><div style="font-size: 11px; color: #a1a1aa; margin-bottom: 12px; line-height: 1.4;">Статусы берутся из настроенных жизненных циклов. Нажмите число, чтобы отфильтровать документы по разделу и статусу.</div>
           <sc-for list="{{ dealMatrix }}" as="row" hint-placeholder-count="6">
             <div style="display:grid;grid-template-columns:minmax(150px,190px) minmax(0,1fr);align-items:start;gap:9px;margin-top:7px;">
               <div onclick="{{ row.onOpen }}" title="{{ row.label }}" style="min-width:0;display:flex;align-items:center;gap:8px;padding-top:9px;font-size:12.5px;color:#3f3f46;cursor:pointer;"><span style="width:7px;height:7px;border-radius:50%;background:{{ row.c }};flex:none;"></span><span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ row.label }}</span></div>
-              <div style="min-width:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:6px;"><sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="6"><div title="{{ cell.title }}" style="{{ cell.style }}"><span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ cell.label }}</span><span style="{{ cell.countStyle }}">{{ cell.count }}</span></div></sc-for></div>
+              <div style="min-width:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:6px;"><sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="6"><button type="button" onclick="{{ cell.onOpen }}" title="{{ cell.title }}" style="{{ cell.style }}"><span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ cell.label }}</span><span style="{{ cell.countStyle }}">{{ cell.count }}</span></button></sc-for></div>
             </div>
           </sc-for>
           <div style="font-size: 11px; color: #a1a1aa; margin-top: 12px;">В ячейках — число документов раздела в каждом статусе (сводка по самим документам, без привязки к стадии сделки).</div>
         </div>
 
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+        <div style="display: flex; flex-wrap:wrap; align-items: center; gap: 8px 10px; margin-bottom: 10px;">
           <div style="font-family: 'Space Grotesk'; font-weight: 600; font-size: 14px;">Документы по разделам</div>
           <span style="font-size: 11.5px; color: #a1a1aa;">{{ dealContextLabel }}</span>
           <div style="flex: 1;"></div>
@@ -452,7 +452,7 @@
         <sc-if value="{{ contextDocumentsFailed }}" hint-placeholder-val="false"><div role="alert" style="display:flex;align-items:center;gap:10px;padding:14px 16px;border:1px solid #fecaca;border-radius:10px;background:#fef2f2;color:#991b1b;font-size:11.5px;"><span style="min-width:0;flex:1;overflow-wrap:anywhere;">{{ contextDocumentsError }}</span><button type="button" onclick="{{ retryContextDocuments }}" style="flex:none;padding:6px 10px;border:1px solid #fecaca;border-radius:7px;background:#fff;color:#b91c1c;font-size:11px;cursor:pointer;">Повторить</button></div></sc-if>
         <sc-if value="{{ contextSyncUnavailable }}" hint-placeholder-val="false"><div role="status" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 12px;border:1px solid #fed7aa;border-radius:9px;background:#fff7ed;color:#9a3412;font-size:10.5px;"><span style="min-width:0;flex:1;">Bitrix24 временно не обновил данные контекста. Показаны доступные сохранённые данные; повторите проверку.</span><button type="button" onclick="{{ retryContextDocuments }}" style="flex:none;padding:5px 8px;border:1px solid #fdba74;border-radius:7px;background:#fff;color:#c2410c;font-size:10px;cursor:pointer;">Проверить ещё раз</button></div></sc-if>
         <sc-if value="{{ contextDocumentsAvailable }}" hint-placeholder-val="{{ true }}">
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+        <div style="display: flex; flex-wrap:wrap; align-items: center; gap: 8px 12px; margin-bottom: 14px;">
           <div style="display: flex; background: #f4f4f5; border-radius: 8px; padding: 3px; gap: 2px;">
             <button type="button" onclick="{{ setCompanyDeals }}" style="{{ cvDealsStyle }}">По сделкам</button>
             <button type="button" onclick="{{ setCompanyDocs }}" style="{{ cvDocsStyle }}">По документам</button>
@@ -488,13 +488,15 @@
               </div>
               <sc-if value="{{ dl.expanded }}" hint-placeholder-val="{{ true }}">
               <div style="border-top: 1px solid #ededed; padding: 15px 17px;">
-                <div style="font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; color: #a1a1aa; margin-bottom: 4px;">Матрица «Раздел × Статус»</div><div style="font-size: 11px; color: #a1a1aa; margin-bottom: 12px; line-height: 1.4;">Статусы берутся из настроенных жизненных циклов и автоматически переносятся на новые строки. Кликните раздел слева — откроются его документы ниже.</div>
+                <div style="font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; color: #a1a1aa; margin-bottom: 4px;">Матрица «Раздел × Статус»</div><div style="font-size: 11px; color: #a1a1aa; margin-bottom: 12px; line-height: 1.4;">Статусы берутся из настроенных жизненных циклов. Нажмите число, чтобы отфильтровать документы по разделу и статусу.</div>
                 <sc-for list="{{ dl.rows }}" as="row" hint-placeholder-count="6">
                   <div style="display:grid;grid-template-columns:minmax(150px,190px) minmax(0,1fr);align-items:start;gap:9px;margin-top:7px;">
                     <div onclick="{{ row.onOpen }}" title="{{ row.label }}" style="min-width:0;display:flex;align-items:center;gap:8px;padding-top:9px;font-size:12.5px;color:#3f3f46;cursor:pointer;"><span style="width:7px;height:7px;border-radius:50%;background:{{ row.c }};flex:none;"></span><span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ row.label }}</span></div>
-                    <div style="min-width:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:6px;"><sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="6"><div title="{{ cell.title }}" style="{{ cell.style }}"><span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ cell.label }}</span><span style="{{ cell.countStyle }}">{{ cell.count }}</span></div></sc-for></div>
+                    <div style="min-width:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:6px;"><sc-for list="{{ row.cells }}" as="cell" hint-placeholder-count="6"><button type="button" onclick="{{ cell.onOpen }}" title="{{ cell.title }}" style="{{ cell.style }}"><span style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ cell.label }}</span><span style="{{ cell.countStyle }}">{{ cell.count }}</span></button></sc-for></div>
                   </div>
                 </sc-for>
+
+                <sc-if value="{{ dl.matrixFilterActive }}" hint-placeholder-val="false"><div data-company-matrix-filter="true" style="display:flex;align-items:center;gap:8px;margin-top:12px;padding:8px 10px;border:1px solid #c7d2fe;border-radius:8px;background:#eef2ff;color:#4338ca;font-size:11.5px;"><span>Фильтр: {{ dl.matrixFilterLabel }}</span><button type="button" onclick="{{ dl.clearMatrixFilter }}" style="margin-left:auto;border:none;background:none;color:#4f46e5;font-weight:600;cursor:pointer;">Сбросить</button></div></sc-if>
 
                 <div style="display: flex; flex-direction: column; gap: 7px; margin-top: 16px;">
                   <sc-for list="{{ dl.groups }}" as="g" hint-placeholder-count="3">
@@ -1093,6 +1095,23 @@
   </div>
   </sc-if>
 
+  <!-- ░░ COMPANY DEAL PICKER ░░ -->
+  <sc-if value="{{ dealPickerOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;z-index:78;display:flex;align-items:center;justify-content:center;">
+    <div onclick="{{ closeDealPicker }}" style="position:absolute;inset:0;background:rgba(24,24,27,.4);"></div>
+    <div role="dialog" aria-modal="true" aria-labelledby="company-deal-picker-title" style="position:relative;width:min(560px,calc(100vw - 32px));max-height:82vh;display:flex;flex-direction:column;overflow:hidden;border-radius:13px;background:#fff;box-shadow:0 20px 60px rgba(0,0,0,.24);">
+      <div style="display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid #ededed;"><div id="company-deal-picker-title" style="font-family:'Space Grotesk';font-size:15px;font-weight:650;">Сделки выбранной компании</div><div style="flex:1;"></div><button type="button" onclick="{{ closeDealPicker }}" aria-label="Закрыть выбор сделок" style="border:none;background:none;color:#a1a1aa;font-size:18px;cursor:pointer;">✕</button></div>
+      <div style="min-height:130px;overflow:auto;padding:14px 18px;">
+        <sc-if value="{{ dealPickerLoading }}" hint-placeholder-val="true"><div style="padding:24px;text-align:center;color:#71717a;font-size:12px;">Загружаем доступные сделки…</div></sc-if>
+        <sc-if value="{{ dealPickerHasError }}" hint-placeholder-val="false"><div role="alert" style="padding:10px 12px;border:1px solid #fecaca;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:11.5px;">{{ dealPickerError }}</div></sc-if>
+        <sc-if value="{{ dealPickerEmpty }}" hint-placeholder-val="false"><div style="padding:24px;text-align:center;color:#71717a;font-size:12px;">У компании нет доступных вам сделок.</div></sc-if>
+        <div style="display:flex;flex-direction:column;gap:6px;"><sc-for list="{{ dealPickerItems }}" as="deal" hint-placeholder-count="3"><button type="button" role="checkbox" aria-checked="{{ deal.selectedAria }}" onclick="{{ deal.onToggle }}" style="{{ deal.style }}"><span style="width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #c4b5fd;border-radius:5px;color:#6d28d9;flex:none;">{{ deal.selectedMark }}</span><span title="{{ deal.label }}" style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">{{ deal.label }}</span><span title="{{ deal.stage }}" style="max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#71717a;font-size:10.5px;">{{ deal.stage }}</span></button></sc-for></div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #ededed;"><button type="button" onclick="{{ closeDealPicker }}" style="padding:8px 14px;border:1px solid #d4d4d8;border-radius:8px;background:#fff;color:#52525b;cursor:pointer;">Отмена</button><button type="button" onclick="{{ applyDealPicker }}" style="padding:8px 14px;border:none;border-radius:8px;background:#6d28d9;color:#fff;font-weight:600;cursor:pointer;">Применить</button></div>
+    </div>
+  </div>
+  </sc-if>
+
   <!-- ░░ CREATE WIZARD ░░ -->
   <sc-if value="{{ wizardOpen }}" hint-placeholder-val="{{ false }}">
   <div style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;">
@@ -1199,7 +1218,7 @@
             <div style="font-size: 11px; color: #a1a1aa; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 8px;">Документ будет привязан к</div>
             <div style="display: flex; flex-wrap: wrap; gap: 6px;">
               <sc-for list="{{ wizardLinks }}" as="l" hint-placeholder-count="2"><span style="{{ l.style }}">{{ l.label }}</span></sc-for>
-              <button type="button" onclick="{{ wzManageLinks }}" style="padding: 4px 10px; border-radius: 20px; background: #fff; border: 1px dashed #d4d4d8; color: #52525b; font-size: 11.5px; cursor: pointer;">＋ ещё</button>
+              <button type="button" onclick="{{ wzManageLinks }}" style="padding: 4px 10px; border-radius: 20px; background: #fff; border: 1px dashed #d4d4d8; color: #52525b; font-size: 11.5px; cursor: pointer;">＋ сделки компании</button>
             </div>
           </div>
           <div style="background:#fafafa;border:1px solid #ededed;border-radius:9px;padding:13px 15px;margin-bottom:14px;">
