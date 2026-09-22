@@ -26,6 +26,11 @@ openssl rand -base64 36  # POSTGRES_PASSWORD
 openssl rand -base64 32  # TOKEN_ENCRYPTION_KEY
 ```
 
+DNS credentials, Marketplace test keys and legal details are kept separately
+in the ignored `deploy/production/env.deploy.local`; copy its structure from
+`env.deploy.example` and set mode `0600`. Do not copy DNS credentials into a
+container or the server runtime env.
+
 `BITRIX_CLIENT_ID`, `BITRIX_CLIENT_SECRET`, and `BITRIX_APP_CODE` come from the
 Bitrix24 developer cabinet. Marketplace mode refuses to start without them.
 `PUBLIC_BASE_URL` is the canonical public URL used for placement and event
