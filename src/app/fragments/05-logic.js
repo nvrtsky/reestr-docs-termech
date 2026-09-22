@@ -925,7 +925,7 @@ class Component extends DCLogic {
           numberFormat: this.textValue(input.numberFormat).trim() || null,
           numberAutoGenerate: input.numberAutoGenerate === true,
           numberUniquenessEnabled: input.numberUniquenessEnabled === true,
-          contentRequired: input.contentRequired !== false,
+          contentRequired: input.contentRequired === true,
           ...(input.code ? {
             description: this.textValue(input.description).trim() || null,
             sortOrder: Number.isFinite(Number(input.sortOrder)) ? Number(input.sortOrder) : 100,
@@ -1055,7 +1055,7 @@ class Component extends DCLogic {
         numberFormat: type.numberFormat || '',
         numberAutoGenerate: type.numberAutoGenerate === true,
         numberUniquenessEnabled: type.numberUniquenessEnabled === true,
-        contentRequired: type.contentRequired !== false,
+        contentRequired: type.contentRequired === true,
         fields: (type.fields || []).map(field => ({
           key: field.key,
           name: field.name,
@@ -1075,7 +1075,7 @@ class Component extends DCLogic {
         numberFormat: '',
         numberAutoGenerate: false,
         numberUniquenessEnabled: false,
-        contentRequired: true,
+        contentRequired: false,
         fields: [],
       },
       adminEditError: '',
@@ -1702,7 +1702,7 @@ class Component extends DCLogic {
     contextSyncUnavailable: false,
     typeModalOpen: false,
     helpOpen: false,
-    newType: { code: null, sections: ['client'], label: '', lifecycle: 'simple', description: '', sortOrder: 100, isActive: true, numberFormat: '', numberAutoGenerate: false, numberUniquenessEnabled: false, contentRequired: true, fields: [] },
+    newType: { code: null, sections: ['client'], label: '', lifecycle: 'simple', description: '', sortOrder: 100, isActive: true, numberFormat: '', numberAutoGenerate: false, numberUniquenessEnabled: false, contentRequired: false, fields: [] },
     wizardOpen: false,
     wizardError: '',
     taskSearchResults: [],
@@ -4012,7 +4012,7 @@ class Component extends DCLogic {
       if (wz.counterparty && !this.positiveEntityId(wz.counterpartyId)) {
         invalid.push('Компания-контрагент — выберите компанию из результатов Bitrix24');
       }
-      if (type && type.contentRequired !== false && !wz.file && !wz.externalLink) {
+      if (type && type.contentRequired === true && !wz.file && !wz.externalLink) {
         missing.push('Содержимое: файл или HTTPS-ссылка');
       }
 
@@ -4171,7 +4171,7 @@ class Component extends DCLogic {
       .filter(field => field.dataType === 'file' && field.isRequired)
       .find(field => !currentAttachments.some(attachment => attachment.fieldKey === field.key));
     if (missingFileField) return `Сначала добавьте файл в обязательное поле «${missingFileField.label}».`;
-    if (type && type.contentRequired !== false
+    if (type && type.contentRequired === true
       && !currentAttachments.some(attachment => !attachment.fieldKey)) {
       return 'Сначала добавьте основной файл или HTTPS-ссылку.';
     }
@@ -5846,7 +5846,7 @@ class Component extends DCLogic {
         c: type.sectionColor || '#64748b',
         label: type.name,
         lifecycle: lifecycle ? lifecycle.name : 'Не назначен',
-        content: `${type.contentRequired === false ? 'можно позже' : 'файл / ссылка'} · ${(type.fields || []).length} полей${type.isActive === false ? ' · отключён' : ''}`,
+        content: `${type.contentRequired === true ? 'файл / ссылка' : 'можно позже'} · ${(type.fields || []).length} полей${type.isActive === false ? ' · отключён' : ''}`,
         onEdit: () => this.openTypeEditor(type),
       };
     });
@@ -6349,8 +6349,8 @@ class Component extends DCLogic {
       ntNumberAutoLabel: nt.numberAutoGenerate === true ? 'Да' : 'Нет',
       ntNumberUnique: nt.numberUniquenessEnabled === true,
       ntNumberUniqueLabel: nt.numberUniquenessEnabled === true ? 'Да' : 'Нет',
-      ntContentRequired: nt.contentRequired !== false,
-      ntContentRequiredLabel: nt.contentRequired !== false ? 'Файл или ссылка обязательны' : 'Можно добавить позже',
+      ntContentRequired: nt.contentRequired === true,
+      ntContentRequiredLabel: nt.contentRequired === true ? 'Файл или ссылка обязательны' : 'Можно добавить позже',
       ntSortOrder: String(nt.sortOrder ?? 100),
       ntActive: nt.isActive !== false,
       ntActiveLabel: nt.isActive !== false ? 'Да' : 'Нет',
@@ -6362,7 +6362,7 @@ class Component extends DCLogic {
       ntSetNumberFormat: (e) => this.setState({ newType: { ...nt, numberFormat: e.target.value } }),
       ntToggleNumberAuto: () => this.setState({ newType: { ...nt, numberAutoGenerate: !nt.numberAutoGenerate } }),
       ntToggleNumberUnique: () => this.setState({ newType: { ...nt, numberUniquenessEnabled: !nt.numberUniquenessEnabled } }),
-      ntToggleContentRequired: () => this.setState({ newType: { ...nt, contentRequired: nt.contentRequired === false } }),
+      ntToggleContentRequired: () => this.setState({ newType: { ...nt, contentRequired: nt.contentRequired !== true } }),
       ntSetSortOrder: (e) => this.setState({ newType: { ...nt, sortOrder: e.target.value } }),
       ntToggleActive: () => this.setState({ newType: { ...nt, isActive: !nt.isActive } }),
       deleteDocumentType: () => { void this.deleteDocumentType(); },
@@ -6784,8 +6784,8 @@ class Component extends DCLogic {
         ? `Оставьте пустым для автоматической нумерации${wzTypeMeta.numberFormat ? ` по формату ${wzTypeMeta.numberFormat}` : ''}. Ручной ввод также доступен.`
         : (wzTypeMeta && wzTypeMeta.numberFormat ? `Формат: ${wzTypeMeta.numberFormat}` : ''),
       wzNumberHasHint: !!(wzTypeMeta && (wzTypeMeta.numberAutoGenerate || wzTypeMeta.numberFormat)),
-      wzContentOptional: !!(wzTypeMeta && wzTypeMeta.contentRequired === false),
-      wzContentRequirementLabel: wzTypeMeta && wzTypeMeta.contentRequired === false
+      wzContentOptional: !!(wzTypeMeta && wzTypeMeta.contentRequired !== true),
+      wzContentRequirementLabel: wzTypeMeta && wzTypeMeta.contentRequired !== true
         ? 'Содержимое можно добавить позже'
         : 'Добавьте файл или HTTPS-ссылку *',
       wzStep1: wz.step === 1, wzStep2: wz.step === 2, wzStep3: wz.step === 3,

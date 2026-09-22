@@ -1257,6 +1257,17 @@ const administratorRoleReadOnlyEvidence = await evaluate(`(() => {
 })()`);
 await clickIframeButton('Типы документов');
 await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.includes('Договор поставщика')`, 'document type administration');
+await clickIframeButton('＋ Тип');
+await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.includes('Новый тип документа')`, 'new document type editor');
+const optionalContentDefaultEvidence = await evaluate(`(() => {
+  const doc = document.querySelector('iframe').contentDocument;
+  const dialog = doc.querySelector('[role="dialog"]') || [...doc.querySelectorAll('div')]
+    .find(item => item.innerText?.includes('Новый тип документа') && item.innerText?.includes('Создать тип'));
+  return !!dialog && dialog.innerText.includes('Содержимое: Можно добавить позже');
+})()`);
+await screenshot('administration-new-type-optional-content-1440x1000.png', 1440, 1000);
+await screenshot('administration-new-type-optional-content-1280x900.png', 1280, 900);
+await clickIframeButton('✕');
 await clickIframeText('Договор');
 await waitFor(`document.querySelector('iframe').contentDocument.body.innerText.includes('Формат номера')`, 'type numbering editor');
 const multiSectionTypeEvidence = await evaluate(`(() => {
@@ -1710,6 +1721,7 @@ const evidence = await evaluate(`(() => {
     salesSystemRoleProtected: ${JSON.stringify(roleEvidence.salesIdentityLocked && roleEvidence.salesDeleteHidden)},
     administratorRoleReadOnly: ${JSON.stringify(roleEvidence.adminMarkedReadOnly && administratorRoleReadOnlyEvidence)},
     multiSectionDocumentType: ${JSON.stringify(multiSectionTypeEvidence)},
+    optionalContentByDefault: ${JSON.stringify(optionalContentDefaultEvidence)},
     fieldLibraryTypeLock: ${JSON.stringify(libraryLock)},
     blankFieldTypeEditable: ${JSON.stringify(blankFieldTypeEditable)},
     numberingAndFileWizard: ${JSON.stringify(stage2WizardEvidence)},

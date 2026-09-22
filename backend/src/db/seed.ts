@@ -261,6 +261,7 @@ try {
           code,
           name,
           isFinancial,
+          contentRequired: false,
           sortOrder: order,
         })
         .onConflictDoUpdate({

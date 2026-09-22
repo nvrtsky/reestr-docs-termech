@@ -91,7 +91,7 @@ export const registryDocumentTypes = pgTable(
     numberFormat: text('number_format'),
     numberAutoGenerate: boolean('number_auto_generate').notNull().default(false),
     numberUniquenessEnabled: boolean('number_uniqueness_enabled').notNull().default(false),
-    contentRequired: boolean('content_required').notNull().default(true),
+    contentRequired: boolean('content_required').notNull().default(false),
     isActive: boolean('is_active').notNull().default(true),
     sortOrder: integer('sort_order').notNull().default(100),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

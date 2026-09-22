@@ -10,6 +10,12 @@ const baseType = {
 };
 
 describe('document type select field options', () => {
+  it('keeps primary document content optional by default', () => {
+    const parsed = createDocumentTypeSchema.parse(baseType);
+
+    assert.equal(parsed.contentRequired, false);
+  });
+
   it('accepts configured non-duplicate options', () => {
     const parsed = createDocumentTypeSchema.parse({
       ...baseType,

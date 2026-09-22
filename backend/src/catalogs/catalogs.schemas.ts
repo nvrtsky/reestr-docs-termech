@@ -46,7 +46,7 @@ const createDocumentTypeBaseSchema = z.object({
   numberFormat: z.string().trim().min(1).max(200).nullable().default(null),
   numberAutoGenerate: z.boolean().default(false),
   numberUniquenessEnabled: z.boolean().default(false),
-  contentRequired: z.boolean().default(true),
+  contentRequired: z.boolean().default(false),
   fields: z.array(documentTypeFieldSchema).max(100).default([]),
 });
 
