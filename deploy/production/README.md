@@ -6,6 +6,12 @@ every installed portal has its own OAuth credentials and all business rows are
 scoped by `portal_url`. Cloud and box portals are supported; box hosts must
 resolve exclusively to public IP addresses and REST redirects are rejected.
 
+The durable boundary and first-customer cutover decision are recorded in
+[`docs/architecture/application-boundaries.md`](../../docs/architecture/application-boundaries.md).
+`thermech.bitrix24.ru` starts with a clean tenant; data from its legacy local
+registry is not restored into Marketplace production. The legacy local app is
+removed immediately after acceptance.
+
 ## Server layout
 
 - source: `/opt/reestr-docs`
