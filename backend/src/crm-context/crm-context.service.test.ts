@@ -123,6 +123,8 @@ describe('CRM placement context', () => {
       id: 1234,
       title: 'Поставка оборудования',
       companyId: 77,
+      responsibleId: null,
+      responsibleName: null,
     });
   });
 

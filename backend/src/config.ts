@@ -5,6 +5,11 @@ const environmentSchema = z.object({
   API_HOST: z.string().min(1).default('127.0.0.1'),
   API_PORT: z.coerce.number().int().positive().default(3001),
   WEB_ORIGIN: z.string().url().default('http://127.0.0.1:4173'),
+  PUBLIC_BASE_URL: z.string().url().default('http://127.0.0.1:4173'),
+  BITRIX_APP_PATH: z.string().refine(
+    (value) => value === '/' || (/^\/.*\/$/.test(value) && !value.includes('//')),
+    'BITRIX_APP_PATH must be / or a slash-delimited path.',
+  ).default('/registry/'),
   DATABASE_URL: z
     .string()
     .min(1)
@@ -19,6 +24,17 @@ const environmentSchema = z.object({
     .string()
     .default('thermech.bitrix24.ru')
     .transform((value) => value.split(',').map((domain) => domain.trim()).filter(Boolean)),
+  BITRIX_MARKETPLACE_MODE: z.preprocess(
+    (value) => value === true || value === 'true' || value === '1',
+    z.boolean().default(false),
+  ),
+  BITRIX_CLIENT_ID: z.string().default(''),
+  BITRIX_CLIENT_SECRET: z.string().default(''),
+  BITRIX_APP_CODE: z.string().default(''),
+  TOKEN_ENCRYPTION_KEY: z.string().default(''),
+  BITRIX_OAUTH_URL: z.string().url().default('https://oauth.bitrix.info/oauth/token/'),
+  DATA_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  SUPPORT_EMAIL: z.string().email().default('alexandr@navrotsky.ru'),
   BITRIX_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(30000).default(10000),
   BITRIX_UPLOAD_TIMEOUT_MS: z.coerce
     .number()
@@ -35,5 +51,17 @@ const environmentSchema = z.object({
 export type AppConfig = z.infer<typeof environmentSchema>;
 
 export function loadConfig(environment = process.env): AppConfig {
-  return environmentSchema.parse(environment);
+  const config = environmentSchema.parse(environment);
+  if (config.BITRIX_MARKETPLACE_MODE) {
+    const missing = [
+      ['BITRIX_CLIENT_ID', config.BITRIX_CLIENT_ID],
+      ['BITRIX_CLIENT_SECRET', config.BITRIX_CLIENT_SECRET],
+      ['BITRIX_APP_CODE', config.BITRIX_APP_CODE],
+      ['TOKEN_ENCRYPTION_KEY', config.TOKEN_ENCRYPTION_KEY],
+    ].filter(([, value]) => !value).map(([name]) => name);
+    if (missing.length) {
+      throw new Error(`Marketplace configuration is incomplete: ${missing.join(', ')}`);
+    }
+  }
+  return config;
 }

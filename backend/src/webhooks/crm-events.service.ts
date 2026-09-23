@@ -36,6 +36,9 @@ interface BitrixEntity {
   TITLE?: string;
   CLOSED?: string | boolean | number;
   STAGE_SEMANTIC_ID?: string;
+  ASSIGNED_BY_ID?: string | number;
+  ASSIGNED_BY_NAME?: string;
+  ASSIGNED_BY_LAST_NAME?: string;
 }
 
 interface DocumentChange {
@@ -43,6 +46,7 @@ interface DocumentChange {
   previousLinkTitles: string[];
   previousCounterpartyName?: string | null;
   previousDealClosed?: boolean | null;
+  previousDealResponsibleId?: number | null;
   previousUpdatedAt?: Date;
 }
 
@@ -185,6 +189,10 @@ export class CrmEventsService {
       entityId,
       title,
       entityType === 'deal' ? closedDealState(entity) : null,
+      entityType === 'deal' ? positiveId(entity.ASSIGNED_BY_ID) : null,
+      entityType === 'deal'
+        ? [entity.ASSIGNED_BY_NAME, entity.ASSIGNED_BY_LAST_NAME].filter(Boolean).join(' ').trim() || null
+        : null,
       domain,
       event.auth.access_token,
     );
@@ -196,6 +204,8 @@ export class CrmEventsService {
     entityId: number,
     title: string,
     dealClosed: boolean | null,
+    dealResponsibleId: number | null,
+    dealResponsibleName: string | null,
     domain: string,
     accessToken: string,
   ) {
@@ -205,6 +215,8 @@ export class CrmEventsService {
         documentId: registryDocumentLinks.documentId,
         entityTitle: registryDocumentLinks.entityTitle,
         dealClosed: registryDocumentLinks.dealClosed,
+        dealResponsibleId: registryDocumentLinks.dealResponsibleId,
+        isPrimary: registryDocumentLinks.isPrimary,
       })
       .from(registryDocumentLinks)
       .where(
@@ -234,13 +246,16 @@ export class CrmEventsService {
     for (const link of links) {
       const titleChanged = link.entityTitle !== title;
       const stateChanged = entityType === 'deal' && link.dealClosed !== dealClosed;
-      if (!titleChanged && !stateChanged) continue;
+      const responsibleChanged = entityType === 'deal'
+        && link.dealResponsibleId !== dealResponsibleId;
+      if (!titleChanged && !stateChanged && !responsibleChanged) continue;
       const change = changes.get(link.documentId) ?? {
         documentId: link.documentId,
         previousLinkTitles: [],
       };
       if (titleChanged) change.previousLinkTitles.push(link.entityTitle);
       if (stateChanged) change.previousDealClosed = link.dealClosed;
+      if (responsibleChanged) change.previousDealResponsibleId = link.dealResponsibleId;
       changes.set(link.documentId, change);
     }
     for (const document of counterpartyDocuments) {
@@ -257,7 +272,12 @@ export class CrmEventsService {
       if (entityType === 'deal') {
         await this.database
           .update(registryDocumentLinks)
-          .set({ dealClosed, dealStateCheckedAt: new Date() })
+          .set({
+            dealClosed,
+            dealStateCheckedAt: new Date(),
+            dealResponsibleId,
+            dealResponsibleName,
+          })
           .where(
             and(
               eq(registryDocumentLinks.portalUrl, portalUrl),
@@ -312,7 +332,12 @@ export class CrmEventsService {
         .update(registryDocumentLinks)
         .set({
           entityTitle: title,
-          ...(entityType === 'deal' ? { dealClosed, dealStateCheckedAt: new Date() } : {}),
+          ...(entityType === 'deal' ? {
+            dealClosed,
+            dealStateCheckedAt: new Date(),
+            dealResponsibleId,
+            dealResponsibleName,
+          } : {}),
         })
         .where(
           and(
@@ -369,6 +394,34 @@ export class CrmEventsService {
                   eq(registryAttachmentCopies.portalUrl, portalUrl),
                 ));
             }
+          }
+        }
+      }
+      if (entityType === 'deal' && dealResponsibleId) {
+        const [rules] = await transaction
+          .select({ value: registrySettings.value })
+          .from(registrySettings)
+          .where(and(
+            eq(registrySettings.portalUrl, portalUrl),
+            eq(registrySettings.key, 'registry_access_rules'),
+          ))
+          .limit(1);
+        const mode = rules?.value && typeof rules.value === 'object' && !Array.isArray(rules.value)
+          ? (rules.value as { responsibilityMode?: unknown }).responsibilityMode
+          : 'primary_deal';
+        if (mode === 'primary_deal') {
+          const primaryDocumentIds = links
+            .filter((link) => link.isPrimary)
+            .map((link) => link.documentId);
+          if (primaryDocumentIds.length) {
+            await transaction.update(registryDocuments).set({
+              responsibleId: dealResponsibleId,
+              responsibleName: dealResponsibleName,
+              updatedAt: new Date(),
+            }).where(and(
+              eq(registryDocuments.portalUrl, portalUrl),
+              inArray(registryDocuments.id, primaryDocumentIds),
+            ));
           }
         }
       }
@@ -604,4 +657,9 @@ export class CrmEventsService {
         eq(registrySettings.key, key),
       ));
   }
+}
+
+function positiveId(value: unknown) {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
 }

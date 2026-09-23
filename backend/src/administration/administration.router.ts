@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { and, asc, count, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, sql } from 'drizzle-orm';
 import { Router } from 'express';
 
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
@@ -12,10 +12,13 @@ import {
   registryDocumentTypeSections,
   registryDocumentTypes,
   registryDepartmentRoles,
+  registryDocuments,
   registryFieldDefinitions,
   registryLifecycles,
   registryRolePolicies,
   registrySections,
+  registrySettings,
+  registrySettingsAudit,
   registryTypeFields,
   registryUserRoles,
 } from '../db/schema/index.js';
@@ -28,7 +31,10 @@ import { CrmEventsService } from '../webhooks/crm-events.service.js';
 import {
   replaceDepartmentRolesSchema,
   replaceAccessAssignmentsSchema,
+  replaceSettingsManagersSchema,
   replaceUserRolesSchema,
+  previewRegistryRulesSchema,
+  updateRegistryRulesSchema,
   updateRolePolicySchema,
   type UpdateRolePolicyInput,
 } from './administration.schemas.js';
@@ -47,10 +53,30 @@ interface AdministrationRouterDependencies {
 export async function requireAdministrator(database: Database, request: Parameters<typeof requireRegistryContext>[0]) {
   const context = requireRegistryContext(request);
   const policy = await loadRegistryPolicy(database, context);
-  if (!policy.permissions.administer) {
+  if (!policy.permissions.administer && !context.settingsManager) {
     throw new ApiError(403, 'registry_admin_required', 'Registry administrator access is required.');
   }
   return { context, policy };
+}
+
+function requireBitrixAdministrator(request: Parameters<typeof requireRegistryContext>[0]) {
+  const context = requireRegistryContext(request);
+  if (context.roleSource !== 'bitrix_admin' && context.source !== 'development') {
+    throw new ApiError(
+      403,
+      'bitrix_administrator_required',
+      'Only a Bitrix24 administrator can appoint settings managers.',
+    );
+  }
+  return context;
+}
+
+const DEFAULT_REGISTRY_RULES = { responsibilityMode: 'primary_deal' as const };
+
+function settingObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }
 
 function assertUnique(values: string[], code: string, label: string) {
@@ -252,6 +278,233 @@ export function createAdministrationRouter({
     bitrixPlacementHandlerUrl,
   );
   const crmEvents = new CrmEventsService(database, bitrix);
+
+  router.get('/settings', async (request, response, next) => {
+    try {
+      const { context } = await requireAdministrator(database, request);
+      const rows = await database
+        .select({
+          key: registrySettings.key,
+          value: registrySettings.value,
+          version: registrySettings.version,
+          updatedAt: registrySettings.updatedAt,
+        })
+        .from(registrySettings)
+        .where(eq(registrySettings.portalUrl, context.portalUrl));
+      const byKey = new Map(rows.map((row) => [row.key, row]));
+      const rules = byKey.get('registry_access_rules');
+      const managers = byKey.get('settings_manager_user_ids');
+      const audit = await database
+        .select()
+        .from(registrySettingsAudit)
+        .where(eq(registrySettingsAudit.portalUrl, context.portalUrl))
+        .orderBy(desc(registrySettingsAudit.createdAt))
+        .limit(100);
+      response.json({
+        rules: {
+          ...DEFAULT_REGISTRY_RULES,
+          ...settingObject(rules?.value),
+          version: rules?.version ?? 0,
+          updatedAt: rules?.updatedAt ?? null,
+        },
+        managers: {
+          userIds: Array.isArray(settingObject(managers?.value).userIds)
+            ? settingObject(managers?.value).userIds
+            : [],
+          version: managers?.version ?? 0,
+          editable: context.roleSource === 'bitrix_admin' || context.source === 'development',
+        },
+        audit,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/settings/preview', async (request, response, next) => {
+    try {
+      const { context } = await requireAdministrator(database, request);
+      const input = previewRegistryRulesSchema.parse(request.body);
+      const [current] = await database
+        .select({ version: registrySettings.version })
+        .from(registrySettings)
+        .where(and(
+          eq(registrySettings.portalUrl, context.portalUrl),
+          eq(registrySettings.key, 'registry_access_rules'),
+        ))
+        .limit(1);
+      const currentVersion = current?.version ?? 0;
+      if (currentVersion !== input.expectedVersion) {
+        throw new ApiError(409, 'settings_update_conflict', 'Settings changed. Refresh and retry.');
+      }
+      const [{ value: documentCount = 0 } = { value: 0 }] = await database
+        .select({ value: count(registryDocuments.id) })
+        .from(registryDocuments)
+        .where(eq(registryDocuments.portalUrl, context.portalUrl));
+      response.json({
+        currentVersion,
+        affectsExistingDocuments: true,
+        affectedDocuments: documentCount,
+        rules: { responsibilityMode: input.responsibilityMode },
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put('/settings/rules', async (request, response, next) => {
+    try {
+      const { context } = await requireAdministrator(database, request);
+      const input = updateRegistryRulesSchema.parse(request.body);
+      const result = await database.transaction(async (transaction) => {
+        const [current] = await transaction
+          .select()
+          .from(registrySettings)
+          .where(and(
+            eq(registrySettings.portalUrl, context.portalUrl),
+            eq(registrySettings.key, 'registry_access_rules'),
+          ))
+          .limit(1);
+        const currentVersion = current?.version ?? 0;
+        if (currentVersion !== input.expectedVersion) {
+          throw new ApiError(409, 'settings_update_conflict', 'Settings changed. Refresh and retry.');
+        }
+        const value = { responsibilityMode: input.responsibilityMode };
+        const nextVersion = currentVersion + 1;
+        if (current) {
+          const updated = await transaction
+            .update(registrySettings)
+            .set({ value, version: nextVersion, updatedAt: new Date() })
+            .where(and(
+              eq(registrySettings.id, current.id),
+              eq(registrySettings.version, currentVersion),
+            ))
+            .returning({ id: registrySettings.id });
+          if (updated.length !== 1) {
+            throw new ApiError(409, 'settings_update_conflict', 'Settings changed. Refresh and retry.');
+          }
+        } else {
+          await transaction.insert(registrySettings).values({
+            portalUrl: context.portalUrl,
+            key: 'registry_access_rules',
+            value,
+            version: nextVersion,
+          });
+        }
+        if (input.responsibilityMode === 'primary_deal') {
+          await transaction.execute(sql`
+            WITH first_deal_link AS (
+              SELECT DISTINCT ON (candidate.document_id) candidate.id
+              FROM registry_document_links AS candidate
+              WHERE candidate.portal_url = ${context.portalUrl}
+                AND candidate.entity_type = 'deal'
+                AND NOT EXISTS (
+                  SELECT 1
+                  FROM registry_document_links AS existing_primary
+                  WHERE existing_primary.portal_url = candidate.portal_url
+                    AND existing_primary.document_id = candidate.document_id
+                    AND existing_primary.entity_type = 'deal'
+                    AND existing_primary.is_primary = true
+                )
+              ORDER BY candidate.document_id, candidate.created_at, candidate.id
+            )
+            UPDATE registry_document_links AS target
+            SET is_primary = true
+            FROM first_deal_link
+            WHERE target.id = first_deal_link.id
+          `);
+          await transaction.execute(sql`
+            UPDATE registry_documents AS document
+            SET responsible_id = primary_link.deal_responsible_id,
+                responsible_name = primary_link.deal_responsible_name,
+                updated_at = now()
+            FROM registry_document_links AS primary_link
+            WHERE document.portal_url = ${context.portalUrl}
+              AND primary_link.portal_url = document.portal_url
+              AND primary_link.document_id = document.id
+              AND primary_link.entity_type = 'deal'
+              AND primary_link.is_primary = true
+              AND primary_link.deal_responsible_id IS NOT NULL
+          `);
+        }
+        await transaction.insert(registrySettingsAudit).values({
+          portalUrl: context.portalUrl,
+          settingKey: 'registry_access_rules',
+          version: nextVersion,
+          actorId: context.userId,
+          actorName: context.userName ?? null,
+          before: current?.value ?? null,
+          after: value,
+        });
+        return { ...value, version: nextVersion };
+      });
+      response.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put('/settings/managers', async (request, response, next) => {
+    try {
+      const context = requireBitrixAdministrator(request);
+      const input = replaceSettingsManagersSchema.parse(request.body);
+      const [users, bitrixAdminIds] = await Promise.all([
+        listBitrixUsers(context, bitrix),
+        loadKnownBitrixAdminIds(database, context.portalUrl),
+      ]);
+      const knownIds = new Set(users.map((user) => user.id));
+      if (context.source === 'bitrix' && input.userIds.some((id) => !knownIds.has(id))) {
+        throw new ApiError(400, 'bitrix_user_not_found', 'A settings manager was not found in Bitrix24.');
+      }
+      const userIds = input.userIds.filter((id) => !bitrixAdminIds.has(id));
+      const result = await database.transaction(async (transaction) => {
+        const [current] = await transaction
+          .select()
+          .from(registrySettings)
+          .where(and(
+            eq(registrySettings.portalUrl, context.portalUrl),
+            eq(registrySettings.key, 'settings_manager_user_ids'),
+          ))
+          .limit(1);
+        const currentVersion = current?.version ?? 0;
+        if (currentVersion !== input.expectedVersion) {
+          throw new ApiError(409, 'settings_update_conflict', 'Settings changed. Refresh and retry.');
+        }
+        const value = { userIds };
+        const nextVersion = currentVersion + 1;
+        if (current) {
+          const updated = await transaction.update(registrySettings)
+            .set({ value, version: nextVersion, updatedAt: new Date() })
+            .where(and(eq(registrySettings.id, current.id), eq(registrySettings.version, currentVersion)))
+            .returning({ id: registrySettings.id });
+          if (updated.length !== 1) {
+            throw new ApiError(409, 'settings_update_conflict', 'Settings changed. Refresh and retry.');
+          }
+        } else {
+          await transaction.insert(registrySettings).values({
+            portalUrl: context.portalUrl,
+            key: 'settings_manager_user_ids',
+            value,
+            version: nextVersion,
+          });
+        }
+        await transaction.insert(registrySettingsAudit).values({
+          portalUrl: context.portalUrl,
+          settingKey: 'settings_manager_user_ids',
+          version: nextVersion,
+          actorId: context.userId,
+          actorName: context.userName ?? null,
+          before: current?.value ?? null,
+          after: value,
+        });
+        return { userIds, version: nextVersion };
+      });
+      sessions.invalidatePortal?.(context.portalUrl);
+      response.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get('/integrations', async (request, response, next) => {
     try {

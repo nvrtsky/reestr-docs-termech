@@ -68,10 +68,17 @@ export class CrmEntityAccessService {
         this.allowedIds(context, 'deal', dealIds),
         this.allowedIds(context, 'company', companyIds),
       ]);
+      const hasAnyDeal = this.hasAnyLinkedEntity('deal');
+      const hasAllowedDeal = this.hasAllowedLinkedEntity('deal', allowedDeals);
+      const hasAnyCompany = this.hasAnyLinkedEntity('company');
+      const hasAllowedCompany = this.hasAllowedLinkedEntity('company', allowedCompanies);
       return sql`(
-        ${this.noDeniedLinkedEntities('deal', allowedDeals)}
-        AND ${this.noDeniedLinkedEntities('company', allowedCompanies)}
-        AND ${this.counterpartyAllowed(allowedCompanies)}
+        (${hasAnyDeal} AND ${hasAllowedDeal})
+        OR (
+          NOT (${hasAnyDeal})
+          AND (NOT (${hasAnyCompany}) OR ${hasAllowedCompany})
+          AND ${this.counterpartyAllowed(allowedCompanies)}
+        )
       )`;
     } catch (error) {
       throw new ApiError(
@@ -83,7 +90,7 @@ export class CrmEntityAccessService {
     }
   }
 
-  private async allowedIds(
+  async allowedIds(
     context: RegistryContext,
     entityType: CrmEntityType,
     ids: number[],
@@ -126,16 +133,49 @@ export class CrmEntityAccessService {
     return ids.filter(id => cache.get(id)?.allowed === true);
   }
 
-  private noDeniedLinkedEntities(entityType: CrmEntityType, allowedIds: number[]) {
-    const denied = allowedIds.length
-      ? sql`crm_acl_link.entity_id NOT IN (${sql.join(allowedIds.map(id => sql`${id}`), sql`, `)})`
-      : sql`TRUE`;
-    return sql`NOT EXISTS (
+  async filterVisibleLinks<T extends { entityType: CrmEntityType; entityId: number }>(
+    context: RegistryContext,
+    links: T[],
+  ) {
+    if (
+      context.source !== 'bitrix'
+      || context.roleSource === 'bitrix_admin'
+      || !context.bitrix
+    ) return links;
+    const dealIds = uniquePositiveIds(
+      links.filter((link) => link.entityType === 'deal').map((link) => link.entityId),
+    );
+    const companyIds = uniquePositiveIds(
+      links.filter((link) => link.entityType === 'company').map((link) => link.entityId),
+    );
+    const [allowedDeals, allowedCompanies] = await Promise.all([
+      this.allowedIds(context, 'deal', dealIds),
+      this.allowedIds(context, 'company', companyIds),
+    ]);
+    const allowedDealSet = new Set(allowedDeals);
+    const allowedCompanySet = new Set(allowedCompanies);
+    return links.filter((link) => link.entityType === 'deal'
+      ? allowedDealSet.has(link.entityId)
+      : allowedCompanySet.has(link.entityId));
+  }
+
+  private hasAnyLinkedEntity(entityType: CrmEntityType) {
+    return sql`EXISTS (
       SELECT 1 FROM registry_document_links AS crm_acl_link
       WHERE crm_acl_link.portal_url = registry_documents.portal_url
         AND crm_acl_link.document_id = registry_documents.id
         AND crm_acl_link.entity_type = ${entityType}
-        AND ${denied}
+    )`;
+  }
+
+  private hasAllowedLinkedEntity(entityType: CrmEntityType, allowedIds: number[]) {
+    if (!allowedIds.length) return sql`FALSE`;
+    return sql`EXISTS (
+      SELECT 1 FROM registry_document_links AS crm_acl_link
+      WHERE crm_acl_link.portal_url = registry_documents.portal_url
+        AND crm_acl_link.document_id = registry_documents.id
+        AND crm_acl_link.entity_type = ${entityType}
+        AND crm_acl_link.entity_id IN (${sql.join(allowedIds.map(id => sql`${id}`), sql`, `)})
     )`;
   }
 

@@ -214,6 +214,7 @@ export function createDocumentsRouter({
         requireRegistryContext(request),
         dealId,
         query.currency,
+        { sections: query.sections, types: query.types },
       ));
     } catch (error) {
       next(error);
@@ -278,6 +279,8 @@ export function createDocumentsRouter({
           entityId: deal.id,
           entityTitle: deal.title,
           dealCompanyId: deal.companyId,
+          dealResponsibleId: deal.responsibleId,
+          dealResponsibleName: deal.responsibleName,
         }));
         return;
       }
@@ -327,6 +330,17 @@ export function createDocumentsRouter({
       const documentId = documentIdSchema.parse(request.params.id);
       const linkId = documentLinkIdSchema.parse(request.params.linkId);
       response.json(await documents.removeLink(context, documentId, linkId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put('/:id/links/:linkId/primary', async (request, response, next) => {
+    try {
+      const context = requireRegistryContext(request);
+      const documentId = documentIdSchema.parse(request.params.id);
+      const linkId = documentLinkIdSchema.parse(request.params.linkId);
+      response.json(await documents.setPrimaryDealLink(context, documentId, linkId));
     } catch (error) {
       next(error);
     }
@@ -467,14 +481,28 @@ async function canonicalizeDocumentCreate(
           link.entityId,
           link.entityTitle,
         );
-        return { ...link, entityId: deal.id, entityTitle: deal.title, companyId: deal.companyId };
+        return {
+          ...link,
+          entityId: deal.id,
+          entityTitle: deal.title,
+          companyId: deal.companyId,
+          responsibleId: deal.responsibleId,
+          responsibleName: deal.responsibleName,
+        };
       }
       const company = await crmContext.resolveCompanySelection(
         context,
         link.entityId,
         link.entityTitle,
       );
-      return { ...link, entityId: company.id, entityTitle: company.title, companyId: company.id };
+      return {
+        ...link,
+        entityId: company.id,
+        entityTitle: company.title,
+        companyId: company.id,
+        responsibleId: null,
+        responsibleName: null,
+      };
     })),
     Promise.all(input.taskLinks.map(async (link) => {
       const task = await crmContext.resolveTaskSelection(
@@ -535,15 +563,28 @@ async function canonicalizeDocumentCreate(
       'All selected deals must belong to the document counterparty company.',
     );
   }
+  let primaryDealAssigned = false;
   const links = resolvedLinks
     .filter((link) => link.entityType === 'deal')
-    .map(({ companyId: _companyId, ...link }) => link);
+    .map(({ companyId: _companyId, responsibleId, responsibleName, ...link }) => {
+      const isPrimary = !primaryDealAssigned;
+      primaryDealAssigned = true;
+      return {
+        ...link,
+        isPrimary,
+        dealResponsibleId: responsibleId,
+        dealResponsibleName: responsibleName,
+      };
+    });
   if (company.counterpartyId && company.counterpartyName) {
     links.push({
       entityType: 'company',
       entityId: company.counterpartyId,
       entityTitle: company.counterpartyName,
       linkRole: 'counterparty',
+      isPrimary: false,
+      dealResponsibleId: null,
+      dealResponsibleName: null,
     });
   }
   return {
@@ -650,6 +691,8 @@ async function canonicalizeExistingDocumentLinks(
         entityId: deal.id,
         entityTitle: deal.title,
         dealCompanyId: deal.companyId,
+        dealResponsibleId: deal.responsibleId,
+        dealResponsibleName: deal.responsibleName,
       };
     }
     const company = await crmContext.resolveCompanySelection(

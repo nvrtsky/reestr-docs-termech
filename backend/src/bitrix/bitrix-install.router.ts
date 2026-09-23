@@ -1,6 +1,8 @@
 import { Router } from 'express';
 
 import type { BitrixApiClient } from './bitrix-client.js';
+import type { PortalInstallationsService } from './portal-installations.service.js';
+import { parseExpirySeconds } from './portal-installations.service.js';
 import { saveBitrixEventTokenHash } from './bitrix-event-token.repository.js';
 import {
   bitrixScopeAliases,
@@ -15,6 +17,9 @@ interface InstallRouterOptions {
   database: Database;
   bitrix: BitrixApiClient;
   webOrigin: string;
+  appPath: string;
+  expectedAppCode?: string;
+  installations?: PortalInstallationsService;
 }
 
 interface BitrixApplicationInfo {
@@ -28,6 +33,9 @@ export function createBitrixInstallRouter({
   database,
   bitrix,
   webOrigin,
+  appPath,
+  expectedAppCode,
+  installations,
 }: InstallRouterOptions) {
   const router = Router();
 
@@ -71,6 +79,15 @@ export function createBitrixInstallRouter({
         'Bitrix24 did not provide the access token.',
       );
       const memberId = readOptional([payload.member_id, payload.memberId, auth.member_id]);
+      const refreshToken = readOptional([
+        payload.REFRESH_ID,
+        payload.refresh_id,
+        payload.refresh_token,
+        auth.refresh_token,
+      ]);
+      const expiresInSeconds = parseExpirySeconds(
+        payload.expires_in ?? payload.expires ?? auth.expires_in ?? auth.expires,
+      );
       const portalUrl = `https://${domain}`;
       const [scopes, administrator, application] = await Promise.all([
         bitrix.call<string[]>(domain, accessToken, 'scope'),
@@ -102,7 +119,34 @@ export function createBitrixInstallRouter({
           'Bitrix24 did not confirm the application identity.',
         );
       }
+      if (
+        expectedAppCode
+        && String(application.CODE || '').trim() !== expectedAppCode.trim()
+      ) {
+        throw new ApiError(
+          403,
+          'bitrix_install_application_mismatch',
+          'Bitrix24 confirmed a different Marketplace application.',
+        );
+      }
 
+      if (installations?.isMarketplaceEnabled()) {
+        if (!memberId || !refreshToken) {
+          throw new ApiError(
+            400,
+            'bitrix_marketplace_auth_incomplete',
+            'Bitrix24 did not provide Marketplace member_id and refresh token.',
+          );
+        }
+        await installations.install({
+          memberId,
+          domain,
+          accessToken,
+          refreshToken,
+          expiresInSeconds,
+          applicationToken,
+        });
+      }
       await saveBitrixEventTokenHash(
         database,
         portalUrl,
@@ -125,7 +169,7 @@ export function createBitrixInstallRouter({
         .status(200)
         .type('html')
         .send(buildInstallerHtml({
-          appUrl: new URL('/registry/', webOrigin).toString(),
+          appUrl: new URL(appPath, webOrigin).toString(),
           eventHandlerUrl: new URL('/api/v1/bitrix/events', webOrigin).toString(),
         }));
     } catch (error) {
@@ -153,6 +197,7 @@ function buildInstallerHtml({
       { code: 'CRM_COMPANY_DETAIL_TAB', title: 'Документы' },
     ],
     events: [
+      'ONAPPUNINSTALL',
       'ONCRMDEALUPDATE',
       'ONCRMDEALDELETE',
       'ONCRMCOMPANYUPDATE',

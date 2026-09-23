@@ -5,6 +5,7 @@ import type { Database } from '../db/database.js';
 import { registryDocumentLinks } from '../db/schema/index.js';
 import { ApiError } from '../http/api-error.js';
 import type { RegistryContext } from '../http/registry-context.js';
+import { loadRegistryPolicy } from './policy.service.js';
 
 interface BitrixDealState {
   ID?: string | number;
@@ -25,7 +26,8 @@ export class SalesDealAccessService {
   ) {}
 
   async prepare(context: RegistryContext): Promise<SQL | null> {
-    if (context.roleCode !== 'sales') return null;
+    const policy = await loadRegistryPolicy(this.database, context);
+    if (policy.permissions.closedDealAccess !== 'hidden') return null;
     const checkedAfter = new Date(Date.now() - STATE_TTL_MS);
     await this.refreshStaleStates(context, checkedAfter);
     return sql`(
@@ -44,6 +46,19 @@ export class SalesDealAccessService {
           AND sales_deal_open.deal_state_checked_at >= ${checkedAfter.toISOString()}
       )
     )`;
+  }
+
+  async assertWritable(context: RegistryContext, documentId: string) {
+    const policy = await loadRegistryPolicy(this.database, context);
+    if (policy.permissions.closedDealAccess === 'normal') return;
+    const states = await this.documentStates(context, documentId);
+    if (!states.size) return;
+    if ([...states.values()].some((state) => state.dealClosed === false)) return;
+    throw new ApiError(
+      409,
+      'closed_deal_document_read_only',
+      'Document editing is disabled after all accessible linked deals are closed.',
+    );
   }
 
   async documentStates(context: RegistryContext, documentId: string) {

@@ -39,6 +39,7 @@ export const documentListQuerySchema = z.object({
   statuses: commaSeparated,
   type: z.string().trim().max(100).optional(),
   responsibleId: z.coerce.number().int().positive().optional(),
+  counterpartyId: z.coerce.number().int().positive().optional(),
   counterparty: z.string().trim().max(200).optional(),
   from: z.string().date().optional(),
   to: z.string().date().optional(),
@@ -81,6 +82,8 @@ export const documentIdSchema = z.string().uuid();
 export const dealIdSchema = z.coerce.number().int().positive();
 export const dealFinancialSummaryQuerySchema = z.object({
   currency: z.enum(['RUB', 'USD', 'EUR', 'CNY']).default('RUB'),
+  sections: commaSeparated,
+  types: commaSeparated,
 });
 export const documentLinkIdSchema = z.string().uuid();
 export const setParentRelationSchema = z.object({

@@ -11,6 +11,7 @@ export interface RegistryContext {
   roleCode: string;
   roleSource: 'development' | 'bitrix_admin' | 'user' | 'department';
   roleDepartmentId?: number;
+  settingsManager?: boolean;
   departmentIds: number[];
   source: 'development' | 'bitrix';
   bitrix?: {
@@ -50,6 +51,8 @@ export function createRegistryContextMiddleware(
             ? requestedDevelopmentRole
             : config.DEVELOPMENT_ROLE,
           roleSource: 'development',
+          settingsManager: requestedDevelopmentRole === 'admin'
+            || (!requestedDevelopmentRole && config.DEVELOPMENT_ROLE === 'admin'),
           departmentIds: [],
           source: 'development',
         };

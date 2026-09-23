@@ -119,6 +119,9 @@ export const registryDocumentLinks = pgTable(
     entityId: bigint('entity_id', { mode: 'number' }).notNull(),
     entityTitle: text('entity_title').notNull(),
     linkRole: text('link_role'),
+    isPrimary: boolean('is_primary').notNull().default(false),
+    dealResponsibleId: bigint('deal_responsible_id', { mode: 'number' }),
+    dealResponsibleName: text('deal_responsible_name'),
     dealClosed: boolean('deal_closed'),
     dealStateCheckedAt: timestamp('deal_state_checked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -134,6 +137,10 @@ export const registryDocumentLinks = pgTable(
       table.portalUrl,
       table.entityType,
       table.entityId,
+    ),
+    index('registry_document_links_responsible_idx').on(
+      table.portalUrl,
+      table.dealResponsibleId,
     ),
   ],
 );

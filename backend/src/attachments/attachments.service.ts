@@ -1119,8 +1119,7 @@ export class AttachmentsService {
     }
     assertSectionVisible(policy, document.sectionCode);
     assertTypeVisible(policy, document.typeCode);
-    const own = document.createdBy === context.userId
-      || document.responsibleId === context.userId;
+    const own = await this.isDocumentOwned(context, documentId, document);
     const editScope = policy.permissions.editAny
       || (policy.permissions.editOwn && own);
     const contentAllowed = isTypePermissionGranted(
@@ -1137,6 +1136,7 @@ export class AttachmentsService {
       );
     }
     if (requireEdit) {
+      await this.salesDealAccess.assertWritable(context, documentId);
       if (document.deletedAt || document.status === 'archived') {
         throw new ApiError(
           409,
@@ -1161,6 +1161,43 @@ export class AttachmentsService {
       )
       .orderBy(asc(registryDocumentLinks.createdAt));
     return { ...document, deals };
+  }
+
+  private async isDocumentOwned(
+    context: RegistryContext,
+    documentId: string,
+    document: { createdBy: number; responsibleId: number },
+  ) {
+    if (document.createdBy === context.userId || document.responsibleId === context.userId) {
+      return true;
+    }
+    const [settings] = await this.database
+      .select({ value: registrySettings.value })
+      .from(registrySettings)
+      .where(and(
+        eq(registrySettings.portalUrl, context.portalUrl),
+        eq(registrySettings.key, 'registry_access_rules'),
+      ))
+      .limit(1);
+    const value = settings?.value;
+    const responsibilityMode = value
+      && typeof value === 'object'
+      && !Array.isArray(value)
+      && 'responsibilityMode' in value
+      ? value.responsibilityMode
+      : 'primary_deal';
+    if (responsibilityMode !== 'all_deal_owners') return false;
+    const [ownedLink] = await this.database
+      .select({ id: registryDocumentLinks.id })
+      .from(registryDocumentLinks)
+      .where(and(
+        eq(registryDocumentLinks.portalUrl, context.portalUrl),
+        eq(registryDocumentLinks.documentId, documentId),
+        eq(registryDocumentLinks.entityType, 'deal'),
+        eq(registryDocumentLinks.dealResponsibleId, context.userId),
+      ))
+      .limit(1);
+    return !!ownedLink;
   }
 
   private requireBitrixContext(context: RegistryContext) {

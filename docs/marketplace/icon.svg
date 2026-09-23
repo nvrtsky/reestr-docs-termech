@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Реестр документов">
+  <rect width="512" height="512" rx="112" fill="#4f46e5"/>
+  <path fill="#fff" d="M142 112h166l62 62v226H142z"/>
+  <path fill="#c7d2fe" d="M308 112v70h62z"/>
+  <path stroke="#4f46e5" stroke-width="24" stroke-linecap="round" d="M198 238h116M198 294h116M198 350h78"/>
+</svg>

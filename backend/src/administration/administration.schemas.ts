@@ -103,6 +103,8 @@ const rolePermissionsSchema = z.object({
   restore: z.boolean(),
   export: z.boolean(),
   administer: z.boolean(),
+  visibilityScope: z.enum(['own', 'crm']).default('crm'),
+  closedDealAccess: z.enum(['hidden', 'read_download', 'normal']).default('normal'),
   byType: z.record(codeSchema, z.object({
     view: z.boolean(),
     create: z.boolean(),
@@ -171,4 +173,21 @@ export const replaceDepartmentRolesSchema = z.object({
 export const replaceAccessAssignmentsSchema = z.object({
   userRoles: replaceUserRolesSchema,
   departmentRoles: replaceDepartmentRolesSchema,
+});
+
+export const replaceSettingsManagersSchema = z.object({
+  expectedVersion: z.number().int().min(0),
+  userIds: z.array(z.number().int().positive().safe()).max(100),
+}).refine(
+  ({ userIds }) => new Set(userIds).size === userIds.length,
+  'Settings manager IDs must be unique.',
+);
+
+export const previewRegistryRulesSchema = z.object({
+  expectedVersion: z.number().int().min(0),
+  responsibilityMode: z.enum(['primary_deal', 'all_deal_owners', 'manual']),
+});
+
+export const updateRegistryRulesSchema = previewRegistryRulesSchema.extend({
+  confirmApplyToAll: z.literal(true),
 });
