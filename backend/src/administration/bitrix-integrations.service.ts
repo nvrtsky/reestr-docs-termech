@@ -1,3 +1,5 @@
+import { hasBitrixScope } from '../bitrix/bitrix-scopes.js';
+
 import type { BitrixApiClient } from '../bitrix/bitrix-client.js';
 import { ApiError } from '../http/api-error.js';
 import type { RegistryContext } from '../http/registry-context.js';
@@ -16,7 +18,7 @@ interface BitrixPlacementBinding {
   HANDLER?: string;
 }
 
-const REQUIRED_SCOPES = ['crm', 'placement', 'user', 'disk', 'im'] as const;
+const REQUIRED_SCOPES = ['crm', 'placement', 'user_brief', 'disk', 'im'] as const;
 const CRM_EVENTS = [
   'ONCRMDEALUPDATE',
   'ONCRMDEALDELETE',
@@ -126,7 +128,7 @@ export class BitrixIntegrationsService {
 
     return {
       scopes,
-      missingScopes: REQUIRED_SCOPES.filter((scope) => !scopes.includes(scope)),
+      missingScopes: REQUIRED_SCOPES.filter((scope) => !hasBitrixScope(scopes, scope)),
       eventHandlerUrl: this.eventHandlerUrl,
       events: CRM_EVENTS.map((event) => ({
         event,

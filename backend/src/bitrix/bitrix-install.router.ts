@@ -1,11 +1,13 @@
 import { Router } from 'express';
 
+import { BITRIX_SCOPE_ALIASES, hasBitrixScope } from './bitrix-scopes.js';
+
 import type { BitrixApiClient } from './bitrix-client.js';
 import { saveBitrixEventTokenHash } from './bitrix-event-token.repository.js';
 import type { Database } from '../db/database.js';
 import { ApiError } from '../http/api-error.js';
 
-const REQUIRED_SCOPES = ['crm', 'placement', 'user', 'disk', 'im'] as const;
+const REQUIRED_SCOPES = ['crm', 'placement', 'user_brief', 'disk', 'im'] as const;
 
 interface InstallRouterOptions {
   database: Database;
@@ -66,7 +68,7 @@ export function createBitrixInstallRouter({
         ? scopes.map((scope) => String(scope).toLowerCase())
         : [];
       const missingScopes = REQUIRED_SCOPES.filter(
-        (scope) => !normalizedScopes.includes(scope),
+        (scope) => !hasBitrixScope(normalizedScopes, scope),
       );
       if (missingScopes.length) {
         throw new ApiError(
@@ -114,6 +116,7 @@ function buildInstallerHtml({
     appUrl,
     eventHandlerUrl,
     scopes: REQUIRED_SCOPES,
+    scopeAliases: BITRIX_SCOPE_ALIASES,
     placements: [
       { code: 'CRM_DEAL_DETAIL_TAB', title: 'Документы' },
       { code: 'CRM_COMPANY_DETAIL_TAB', title: 'Документы' },
@@ -172,7 +175,7 @@ function buildInstallerHtml({
     BX24.init(async () => {
       try {
         const scopes = (await call('scope')).map(value => String(value).toLowerCase());
-        const missingScopes = config.scopes.filter(scope => !scopes.includes(scope));
+        const missingScopes = config.scopes.filter(scope => ![scope, ...(config.scopeAliases[scope] || [])].some(candidate => scopes.includes(candidate)));
         if (missingScopes.length) {
           throw new Error('Не добавлены права приложения: ' + missingScopes.join(', '));
         }

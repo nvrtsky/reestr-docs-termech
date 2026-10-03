@@ -1,5 +1,7 @@
 import { initializeB24Frame, type B24Frame } from '@bitrix24/b24jssdk';
 
+import { hasBitrixScope } from './bitrix-scopes.js';
+
 export interface RegistryBitrixContext {
   auth: {
     accessToken: string;
@@ -18,7 +20,7 @@ export interface RegistryBitrixContext {
 let framePromise: Promise<B24Frame | null> | null = null;
 let validationPromise: Promise<void> | null = null;
 
-const REQUIRED_SCOPES = ['crm', 'placement', 'user', 'disk', 'im'];
+const REQUIRED_SCOPES = ['crm', 'placement', 'user_brief', 'disk', 'im'];
 
 interface BitrixAppInfo {
   CODE?: string;
@@ -64,7 +66,7 @@ async function validateBitrixApplication() {
     ? scopes.map((scope) => String(scope).toLowerCase())
     : [];
   const missingScopes = REQUIRED_SCOPES.filter(
-    (scope) => !normalizedScopes.includes(scope),
+    (scope) => !hasBitrixScope(normalizedScopes, scope),
   );
   if (missingScopes.length) {
     throw new Error(
