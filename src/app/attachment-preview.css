@@ -1,0 +1,19 @@
+.registry-file-preview{box-sizing:border-box;width:min(1200px,calc(100vw - 24px));height:calc(100dvh - 24px);max-width:none;max-height:none;margin:auto;padding:0;border:1px solid #d4d4d8;border-radius:12px;background:#f4f4f5;color:#18181b;font:14px system-ui,sans-serif;box-shadow:0 20px 70px #0004;overflow:hidden}
+.registry-file-preview[open]{display:flex;flex-direction:column}
+.registry-file-preview::backdrop{background:#18181ba6}
+.registry-file-preview header{display:flex;justify-content:space-between;gap:16px;align-items:center;background:white;padding:14px 18px;border-bottom:1px solid #e4e4e7;flex-shrink:0}
+.registry-file-preview header>div:first-child{min-width:0}
+.registry-file-preview h2{font-size:16px;line-height:1.4;margin:0;overflow-wrap:anywhere}
+.registry-file-preview header p{color:#71717a;font-size:12px;margin:4px 0 0}
+.registry-file-preview button{border:1px solid #d4d4d8;border-radius:7px;padding:8px 12px;background:white;color:#27272a;cursor:pointer;min-height:36px}
+.registry-file-preview button:focus-visible{outline:2px solid #6366f1;outline-offset:2px}
+.registry-file-preview button:disabled{opacity:.5;cursor:wait}
+.registry-file-preview .preview-actions{display:flex;gap:8px;flex-shrink:0}
+.registry-file-preview .preview-content{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;display:flex;align-items:flex-start;justify-content:center}
+.registry-file-preview .preview-content iframe{width:100%;height:100%;border:0;background:white}
+.registry-file-preview .preview-content img{max-width:100%;height:auto;display:block;margin:auto;object-fit:contain}
+.registry-file-preview .preview-content pre{box-sizing:border-box;white-space:pre-wrap;overflow-wrap:anywhere;align-self:stretch;margin:0;padding:24px;background:white;width:100%;font:14px/1.6 monospace}
+.registry-file-preview .preview-status{margin:24px;padding:16px;border:1px solid #c7d2fe;border-radius:8px;background:white;line-height:1.6}
+.registry-file-preview footer{flex-shrink:0;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 18px;background:white;border-top:1px solid #e4e4e7;font-size:12px;color:#52525b}
+.registry-file-preview [hidden]{display:none!important}
+@media(max-width:600px){.registry-file-preview{width:100vw;height:100dvh;border-radius:0;border:0}.registry-file-preview header{align-items:flex-start;flex-wrap:wrap;padding:12px}.registry-file-preview .preview-actions{margin-left:auto}.registry-file-preview .preview-status{margin:12px}}

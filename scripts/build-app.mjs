@@ -9,7 +9,8 @@ const assetRoot = path.join(sourceRoot, 'assets');
 const outputRoots = [path.join(root,'app'), path.join(root,'frontend','public','legacy')];
 const assetNames = await readdir(assetRoot);
 const { registryFeedbackOverlay } = await import('./registry-feedback-overlay.mjs');
-const html = registryFeedbackOverlay(await readFile(path.join(sourceRoot, 'production', 'legacy-baseline-20261019.html'), 'utf8'));
+const { registryPreviewOverlay } = await import('./registry-preview-overlay.mjs');
+const html = registryPreviewOverlay(registryFeedbackOverlay(await readFile(path.join(sourceRoot, 'production', 'legacy-baseline-20261019.html'), 'utf8')));
 
 for (const outputRoot of outputRoots) {
   await mkdir(outputRoot, { recursive: true });
@@ -25,3 +26,5 @@ for (const outputRoot of outputRoots) {
 for (const outputRoot of outputRoots) await copyFile(path.join(sourceRoot, 'production', 'runtime-20261019.js'), path.join(outputRoot, '8806a829-aaac-4231-912d-276bb4fddfa4.js'));
 
 console.log(`Working app assembled in ${outputRoots.join(' and ')}`);
+
+for (const outputRoot of outputRoots) for (const name of ['attachment-preview.js','attachment-preview.css']) await copyFile(path.join(sourceRoot,name),path.join(outputRoot,name));

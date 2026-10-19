@@ -1,0 +1,12 @@
+{
+  "files": {
+    "backend/attachment-preview.js": "5158cf39317b83459e3b211076692e95af14641e38eddba89ad7ca70d500ebf5",
+    "backend/attachments.router.js": "5f3821fbbf6324c36351605940c49f306f7fa732b250200d526d36a0ef07e4ac",
+    "backend/attachments.service.js": "a81aa8253b34ec8b08b983089f1dbd3da0bfcfbbdf2a0e955497ff64a9b22cb8",
+    "frontend/attachment-preview.css": "5c85604b27676af7fa63562e4a83fc986de859056afeb3b8d02de7f2a49ecdec",
+    "frontend/attachment-preview.js": "d51898ff34e28a7219b1e41205d42e58c4626f90bd1a96f0fcbd21f37ce936dd",
+    "frontend/index.html": "c9d25c15bbb8fc63ab05cb79972e497b719fee158d1bfc5924c9f3e8420c1ce9"
+  },
+  "baselineBackend": "f27fc386f42ecfe236d9f1fd2449f0c28edc75bb0e98654dbcd73d2719aaa5c5",
+  "baselineFrontend": "e24953d5e6d7615e65b0ea6fb23b770c1418b4c351150f66234a9dad1a291e62"
+}

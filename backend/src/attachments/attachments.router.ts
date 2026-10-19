@@ -10,6 +10,8 @@ import {
   initializeFileUploadSchema,
   uploadIdSchema,
 } from './attachments.schemas.js';
+import { ApiError } from '../http/api-error.js';
+import { previewKind, readDiskFile, preparePreview, PREVIEW_LIMIT, tooLarge } from './attachment-preview.js';
 import { AttachmentsService } from './attachments.service.js';
 
 export function createAttachmentsRouter({
@@ -85,13 +87,37 @@ export function createAttachmentsRouter({
     }
   });
 
+  router.get('/:attachmentId/preview', async (request, response, next) => {
+    const controller = new AbortController();
+    const close = () => controller.abort(); response.on('close', close);
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]);
+    try {
+      const documentId = documentIdSchema.parse((request.params as Record<string,string>).id);
+      const attachmentId = attachmentIdSchema.parse(request.params.attachmentId);
+      const context = requireRegistryContext(request);
+      const access = await attachments.getAccess(context, documentId, attachmentId);
+      if(access.kind !== 'file' || !access.downloadUrl || !context.bitrix) throw new ApiError(409,'preview_file_required','Содержимое файла недоступно для предпросмотра.');
+      if(!previewKind(access.name)) throw new ApiError(415,'preview_unsupported','Предпросмотр этого формата недоступен. Скачайте оригинал и откройте его на компьютере.');
+      if(access.sizeBytes > PREVIEW_LIMIT) throw tooLarge();
+      const file = await readDiskFile(access.downloadUrl, context.bitrix.domain, signal);
+      const preview = await preparePreview(access.name, file, signal);
+      if(!response.destroyed) response.set({
+        'Content-Type':preview.mime, 'Cache-Control':'private, no-store',
+        'X-Content-Type-Options':'nosniff', 'Content-Disposition':'inline',
+        'Content-Security-Policy':"default-src 'none'; sandbox",
+      }).send(preview.data);
+    } catch(error) {
+      if(!response.destroyed) next(error instanceof ApiError ? error : new ApiError(502,'preview_failed','Не удалось загрузить предпросмотр. Повторите попытку или скачайте оригинал.'));
+    } finally { response.off('close',close); }
+  });
+
   router.get('/:attachmentId/access', async (request, response, next) => {
     try {
       const documentId = documentIdSchema.parse(
         (request.params as Record<string, string | undefined>).id,
       );
       const attachmentId = attachmentIdSchema.parse(request.params.attachmentId);
-      response.json(
+      response.set('Cache-Control','private, no-store').json(
         await attachments.getAccess(
           requireRegistryContext(request),
           documentId,

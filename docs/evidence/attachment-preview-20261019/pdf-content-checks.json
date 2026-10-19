@@ -1,0 +1,22 @@
+[
+  {
+    "format": "docx",
+    "pages": 1,
+    "text": "Тестовый договор\nПредпросмотр Word внутри Реестра. Только синтетические данные.\nОборудование\nКоличество\nТестовый насос\n2"
+  },
+  {
+    "format": "xlsx",
+    "pages": 1,
+    "text": "Наименование\nКоличество\nЦена\nСумма\nТестовый насос\n2\n500\n1000"
+  },
+  {
+    "format": "pptx",
+    "pages": 1,
+    "text": "Тестовая презентация\n• PowerPoint внутри Реестра\n• Синтетический пример"
+  },
+  {
+    "format": "rtf",
+    "pages": 1,
+    "text": "Synthetic RTF preview\nDocument contents visible in Registry."
+  }
+]
