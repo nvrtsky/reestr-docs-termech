@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Thermech registry from an independent host every minute
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=5s
+Unit=termech-registry-watch.service
+
+[Install]
+WantedBy=timers.target

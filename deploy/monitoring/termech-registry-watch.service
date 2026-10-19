@@ -1,0 +1,15 @@
+[Unit]
+Description=External availability check for Thermech document registry
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+StateDirectory=termech-registry-watch
+ExecStart=/usr/bin/python3 /opt/thermech/monitoring/registry-watch.py
+TimeoutStartSec=30
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes

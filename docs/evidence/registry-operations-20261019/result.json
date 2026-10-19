@@ -1,0 +1,35 @@
+{
+  "issue": 31,
+  "incident": {
+    "timezone": "Europe/Moscow",
+    "date": "2026-10-17",
+    "previousBoot": "8d78e45f56544c16bcd3fd4955dc1304",
+    "currentBoot": "045581df7b09423d945046566398ffce",
+    "poweroffEventAt": "05:21:44",
+    "event": "System is powering down (hypervisor initiated shutdown).",
+    "lastPreviousBootLogAt": "05:22:02",
+    "nextBootAt": "09:56:15",
+    "clientAttemptCorrelation": "unknown",
+    "hostingPlatformReason": "unknown"
+  },
+  "monitor": {
+    "host": "200.169.189.86",
+    "intervalSeconds": 60,
+    "timeoutSeconds": 8,
+    "downThreshold": 3,
+    "enabled": true,
+    "firstVerifiedAt": "2026-10-19T08:47:08Z",
+    "checks": {
+      "page": 200,
+      "api": 200
+    },
+    "outboundNotifications": false,
+    "automaticRecoveryActions": false
+  },
+  "verification": {
+    "pythonTests": 3,
+    "typecheck": "pass",
+    "build": "pass",
+    "systemdUnitVerification": "pass"
+  }
+}
