@@ -1,0 +1,37 @@
+{
+  "status": "pass",
+  "assets": [
+    {
+      "path": "index.html",
+      "contentType": "text/html"
+    },
+    {
+      "path": "attachment-pdf.js",
+      "contentType": "application/javascript"
+    },
+    {
+      "path": "attachment-picker.js",
+      "contentType": "application/javascript"
+    },
+    {
+      "path": "attachment-preview.js",
+      "contentType": "application/javascript"
+    },
+    {
+      "path": "attachment-preview.css",
+      "contentType": "text/css"
+    },
+    {
+      "path": "vendor/pdfjs-6.4.299/pdf.min.mjs",
+      "contentType": "application/javascript"
+    },
+    {
+      "path": "vendor/pdfjs-6.4.299/pdf.worker.min.mjs",
+      "contentType": "application/javascript"
+    },
+    {
+      "path": "vendor/pdfjs-6.4.299/wasm/openjpeg.wasm",
+      "contentType": "application/wasm"
+    }
+  ]
+}

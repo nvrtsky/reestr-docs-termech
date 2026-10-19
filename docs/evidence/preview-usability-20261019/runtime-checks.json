@@ -1,0 +1,29 @@
+{
+  "base": "http://127.0.0.1:4191",
+  "assets": "local",
+  "api": "synthetic fixtures",
+  "checks": [
+    "List preview/download skips drawer; choice excludes history; empty/403/popup-blocked states visible",
+    "Deal groups and company document list expose working file actions",
+    "Three-page PDF navigation and zoom controls render correctly",
+    "Current PDF renders locally with a bounded dialog and initial zoom <=100%",
+    "Mouse wheel over the PDF scrolls its content",
+    "Historical attachment uses the same preview flow",
+    "Image renders; text remains inert and scrollable",
+    "403 is visible, never loads content; Retry recovers",
+    "Original download and popup-blocked fallback both use DOWNLOAD_URL",
+    "Unsupported formats offer download; closing and reopening ignores late responses",
+    "401 refresh retries preview once",
+    "390px viewport fits; Escape closes dialog",
+    "PDF wheel scroll works at 1024x768 inside a 1600px CRM iframe",
+    "Preview stays inside the visible region after parent CRM scrolling"
+  ],
+  "errors": [],
+  "status": "pass",
+  "nginxHttp": {
+    "status": "pass",
+    "assets": 10,
+    "missing": "404",
+    "image": "sha256:ddda95d2b2107e06e4c81a9583b703c75bd3295417d98d9a4b039add861c021c"
+  }
+}

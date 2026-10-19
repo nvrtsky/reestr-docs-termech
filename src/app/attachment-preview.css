@@ -17,3 +17,25 @@
 .registry-file-preview footer{flex-shrink:0;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 18px;background:white;border-top:1px solid #e4e4e7;font-size:12px;color:#52525b}
 .registry-file-preview [hidden]{display:none!important}
 @media(max-width:600px){.registry-file-preview{width:100vw;height:100dvh;border-radius:0;border:0}.registry-file-preview header{align-items:flex-start;flex-wrap:wrap;padding:12px}.registry-file-preview .preview-actions{margin-left:auto}.registry-file-preview .preview-status{margin:12px}}
+/* Keep the viewer bounded even when Bitrix expands the app iframe to its content. */
+.registry-file-preview{width:min(900px,calc(100vw - 32px));height:min(480px,calc(100dvh - 32px));margin:16px auto;inset:0 0 auto;}
+.registry-file-preview header{padding:10px 14px;gap:10px}
+.registry-file-preview h2{font-size:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.registry-file-preview footer{padding:8px 14px}
+.registry-file-preview .preview-content:has(.preview-pdf){overflow:hidden}
+.preview-pdf{display:flex;flex-direction:column;width:100%;height:100%;min-height:0}
+.registry-file-preview .pdf-toolbar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:7px 12px;background:#fff;border-bottom:1px solid #e4e4e7;flex-shrink:0}
+.registry-file-preview .pdf-toolbar button{padding:4px 9px;min-height:30px;font-size:12px}
+.pdf-toolbar-gap{flex:1}.pdf-toolbar [data-page]{min-width:42px;text-align:center;font-size:12px}.pdf-toolbar [data-zoom]{min-width:42px;text-align:center;font-size:12px}
+.pdf-scroll{min-height:0;flex:1;overflow:auto;overscroll-behavior:contain;touch-action:pan-x pan-y;padding:16px;background:#e4e4e7;box-sizing:border-box;scrollbar-gutter:stable}
+.pdf-paper{margin:0 auto;background:white;box-shadow:0 2px 10px #0002}.pdf-paper canvas{display:block;max-width:none}.pdf-error{padding:10px;color:#991b1b;background:#fef2f2}
+.registry-row-file-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+.registry-row-file-actions button{padding:3px 7px;border:1px solid #ddd6fe;border-radius:5px;color:#5b21b6;background:#faf5ff;font:11px system-ui;cursor:pointer}
+.registry-row-file-actions button:focus-visible{outline:2px solid #6366f1;outline-offset:2px}
+.registry-file-picker{box-sizing:border-box;width:min(540px,calc(100vw - 32px));max-height:min(480px,calc(100dvh - 32px));margin:16px auto;inset:0 0 auto;padding:16px;border:1px solid #d4d4d8;border-radius:12px;color:#18181b;background:#fff;font:14px system-ui;overflow:auto;box-shadow:0 20px 70px #0004}
+.registry-file-picker::backdrop{background:#18181ba6}.registry-file-picker header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.registry-file-picker h2{font-size:15px;overflow-wrap:anywhere;margin:0 0 16px}.registry-file-picker button{cursor:pointer;background:#fff;border:1px solid #d4d4d8;border-radius:6px;padding:8px;color:#27272a}.picker-files{display:grid;gap:8px;margin-top:12px}.picker-file{text-align:left;overflow-wrap:anywhere}.registry-file-picker [role=status]{line-height:1.5}
+@media(max-width:600px){.registry-file-preview{width:calc(100vw - 16px);height:min(560px,calc(100dvh - 16px));margin:8px auto;border-radius:10px}.registry-file-preview header{padding:8px 10px}.registry-file-preview .pdf-toolbar{padding:6px;gap:3px}.registry-file-preview header p{display:none}.registry-file-preview footer{font-size:11px}}
+
+.registry-file-preview,.registry-file-picker{top:calc(var(--registry-dialog-top,0px) + 16px);margin:0 auto;max-height:calc(var(--registry-dialog-height,100dvh) - 32px)}
+.registry-file-preview{height:min(480px,calc(var(--registry-dialog-height,100dvh) - 32px))}
+@media(max-width:600px){.registry-file-preview,.registry-file-picker{top:calc(var(--registry-dialog-top,0px) + 8px);max-height:calc(var(--registry-dialog-height,100dvh) - 16px)}.registry-file-preview{height:min(480px,calc(var(--registry-dialog-height,100dvh) - 16px))}}

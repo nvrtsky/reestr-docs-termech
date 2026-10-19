@@ -21,6 +21,7 @@
       };
       const retry=dialog.querySelector('[data-retry]');
       const run=async()=>{
+        this.cleanupPdf?.(); this.cleanupPdf=null;
         this.controller?.abort(); this.controller=new AbortController();
         const controller=this.controller;
         if(this.objectUrl)URL.revokeObjectURL(this.objectUrl);this.objectUrl=null;
@@ -38,19 +39,22 @@
             this.objectUrl=URL.createObjectURL(result.blob);element.src=this.objectUrl;
             element.onerror=()=>{status.hidden=false;status.textContent='Не удалось отобразить изображение. Скачайте оригинал.';retry.hidden=false;};
           } else if(mime==='application/pdf') {
-            element=document.createElement('iframe');element.title='Содержимое документа';
-            this.objectUrl=URL.createObjectURL(result.blob);element.src=this.objectUrl+'#toolbar=1&view=FitH';
+            element=document.createElement('div');element.className='preview-pdf';content.replaceChildren(element);
+            const {mountPdf}=await import('/legacy/attachment-pdf.js?v=20261019c');
+            if(controller.signal.aborted||this.dialog!==dialog)return;
+            this.cleanupPdf=await mountPdf(element,result.blob,controller.signal);
+            if(controller.signal.aborted||this.dialog!==dialog){this.cleanupPdf?.();this.cleanupPdf=null;return;}
           } else throw new Error('Предпросмотр этого формата недоступен. Скачайте оригинал.');
           if(controller.signal.aborted||this.dialog!==dialog)return;
           content.replaceChildren(element);status.hidden=true;
-          dialog.querySelector('[data-hint]').textContent=mime==='application/pdf'?'Масштаб и страницы — на панели документа. Если документ не отображается, скачайте оригинал.':'Оригинал файла хранится в Bitrix24';
+          dialog.querySelector('[data-hint]').textContent=mime==='application/pdf'?'Колёсико прокручивает документ. Масштаб и страницы — на панели сверху.':'Оригинал файла хранится в Bitrix24';
         } catch(error) {
           if(controller.signal.aborted||this.dialog!==dialog)return;
           content.replaceChildren();status.hidden=false;status.textContent=error.message||'Не удалось открыть документ.';retry.hidden=false;
         }
       };
       retry.onclick=run;
-      document.body.append(dialog);dialog.showModal();dialog.querySelector('[data-close]').focus();void run();
+      (document.querySelector('.registry-shell')||document.body).append(dialog);dialog.showModal();dialog.scrollIntoView({block:'nearest'});dialog.querySelector('[data-close]').focus();void run();
     }
     notify(message, url) {
       if(!this.dialog)return;
@@ -58,6 +62,7 @@
       if(url) {const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.textContent=' Скачать файл';status.append(link);}
     }
     close() {
+      this.cleanupPdf?.(); this.cleanupPdf=null;
       this.controller?.abort(); this.controller=null;
       if(this.objectUrl)URL.revokeObjectURL(this.objectUrl);this.objectUrl=null;
       this.dialog?.close();this.dialog?.remove();this.dialog=null;
