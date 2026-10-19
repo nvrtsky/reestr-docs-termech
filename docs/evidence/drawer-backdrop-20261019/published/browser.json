@@ -1,0 +1,14 @@
+{
+  "base": "https://reestr.navrotsky.ru",
+  "assets": "published",
+  "api": "synthetic fixtures",
+  "checks": [
+    "1366x900: backdrop covers full app before/after parent scroll; panel stays visible; top background click closes",
+    "PDF opens above drawer; closing viewer returns to drawer",
+    "1024x768: backdrop covers full app before/after parent scroll; panel stays visible; top background click closes",
+    "390x700: backdrop covers full app before/after parent scroll; panel stays visible; top background click closes",
+    "Standalone registry keeps full viewport backdrop"
+  ],
+  "errors": [],
+  "status": "pass"
+}
