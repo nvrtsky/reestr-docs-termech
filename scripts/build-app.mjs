@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { cp, copyFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -10,7 +10,8 @@ const outputRoots = [path.join(root,'app'), path.join(root,'frontend','public','
 const assetNames = await readdir(assetRoot);
 const { registryFeedbackOverlay } = await import('./registry-feedback-overlay.mjs');
 const { registryPreviewOverlay } = await import('./registry-preview-overlay.mjs');
-const html = registryPreviewOverlay(registryFeedbackOverlay(await readFile(path.join(sourceRoot, 'production', 'legacy-baseline-20261019.html'), 'utf8')));
+const { registryUsabilityOverlay } = await import('./registry-usability-overlay.mjs');
+const html = registryUsabilityOverlay(registryPreviewOverlay(registryFeedbackOverlay(await readFile(path.join(sourceRoot, 'production', 'legacy-baseline-20261019.html'), 'utf8'))));
 
 for (const outputRoot of outputRoots) {
   await mkdir(outputRoot, { recursive: true });
@@ -28,3 +29,5 @@ for (const outputRoot of outputRoots) await copyFile(path.join(sourceRoot, 'prod
 console.log(`Working app assembled in ${outputRoots.join(' and ')}`);
 
 for (const outputRoot of outputRoots) for (const name of ['attachment-preview.js','attachment-preview.css']) await copyFile(path.join(sourceRoot,name),path.join(outputRoot,name));
+
+for (const outputRoot of outputRoots) { await cp(path.join(sourceRoot,'vendor'),path.join(outputRoot,'vendor'),{recursive:true}); for (const name of ['attachment-pdf.js','attachment-picker.js']) await copyFile(path.join(sourceRoot,name),path.join(outputRoot,name)); }
