@@ -4,8 +4,8 @@ export function registryUsabilityOverlay(baseline) {
  assert.equal(createHash('sha256').update(baseline).digest('hex'),'c9d25c15bbb8fc63ab05cb79972e497b719fee158d1bfc5924c9f3e8420c1ce9');
  let html=baseline;
  const replace=(before,after)=>{assert.equal(html.split(before).length,2,before.slice(0,80));html=html.replace(before,after);};
- html=html.replaceAll('/legacy/attachment-preview.css?v=20261019','/legacy/attachment-preview.css?v=20261019c').replaceAll('/legacy/attachment-preview.js?v=20261019','/legacy/attachment-preview.js?v=20261019c');
- replace('</head>','<script src="/legacy/attachment-picker.js?v=20261019c"></script></head>');
+ html=html.replaceAll('/legacy/attachment-preview.css?v=20261019','/legacy/attachment-preview.css?v=20261019d').replaceAll('/legacy/attachment-preview.js?v=20261019','/legacy/attachment-preview.js?v=20261019d');
+ replace('</head>','<script src="/legacy/attachment-picker.js?v=20261019d"></script></head>');
  const actions=alias=>`<div class="registry-row-file-actions"><button type="button" onclick="{{ ${alias}.onOpenFiles }}" title="Открыть файл без карточки документа">Открыть</button><button type="button" onclick="{{ ${alias}.onDownloadFiles }}" title="Скачать файл без карточки документа">Скачать</button></div>`;
  const r="<div style=\"font-family: 'IBM Plex Mono'; font-size: 10px; color: #a1a1aa;\">{{ r.num }}</div>";
  assert.equal(html.split(r).length-1,2);html=html.replaceAll(r,r+actions('r'));
