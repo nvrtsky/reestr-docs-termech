@@ -3,13 +3,13 @@ import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {registryOnboardingPayload} from './registry-feedback-fixture.mjs';
 const require=createRequire(import.meta.url);
-const {chromium}=require('/Users/macbookpro15/Antigravity/AutoRentCRM/node_modules/playwright');
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE || '/Users/macbookpro15/Antigravity/AutoRentCRM/node_modules/playwright');
 const out='docs/evidence/attachment-preview-20261019';await fs.mkdir(out,{recursive:true});
 const browser=await chromium.launch({channel:'chrome',headless:true});
 const page=await browser.newPage({viewport:{width:1366,height:768}});page.setDefaultTimeout(12000);
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 let mode='pdf',accessCount=0,previewCount=0,unauthorizedOnce=false;
-const pdf=await fs.readFile('/tmp/registry-preview-fixtures/sample.pdf'),png=await fs.readFile('/tmp/registry-preview-fixtures/sample.png');
+const pdf=await fs.readFile(new URL('./fixtures/attachment-preview/sample.pdf',import.meta.url)),png=await fs.readFile(new URL('./fixtures/attachment-preview/sample.png',import.meta.url));
 const doc={...registryOnboardingPayload('https://fixture/api/v1/registry/documents').items[0],attachments:[
  {id:'current-file',kind:'file',name:'Договор.pdf',mimeType:'application/pdf',sizeBytes:pdf.length,isCurrent:true,createdAt:'2026-10-19T10:00:00Z'},
  {id:'old-file',kind:'file',name:'Предыдущая версия.pdf',mimeType:'application/pdf',sizeBytes:pdf.length,isCurrent:false,createdAt:'2026-10-18T10:00:00Z'},
