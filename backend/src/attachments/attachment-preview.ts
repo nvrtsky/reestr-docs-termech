@@ -102,7 +102,15 @@ export async function convertOffice(data: Buffer, extension: string, signal: Abo
 }
 export async function preparePreview(name:string, data:Buffer, signal:AbortSignal, converter=convertOffice) {
   const kind=previewKind(name);
-  if(kind==='office')return {data:await converter(data,extname(name).toLowerCase(),signal),mime:'application/pdf'};
+  if(kind==='office') {
+    const extension=extname(name).toLowerCase();
+    const zip=data.subarray(0,4).equals(Buffer.from([80,75,3,4]));
+    const ole=data.subarray(0,8).equals(Buffer.from([208,207,17,224,161,177,26,225]));
+    const rtf=data.subarray(0,5).toString()==='{\\rtf';
+    const valid=['.docx','.xlsx','.pptx','.odt','.ods','.odp'].includes(extension)?zip:extension==='.rtf'?rtf:ole||(extension==='.doc'&&rtf);
+    if(!valid)throw new ApiError(422,'preview_invalid_file','Содержимое не соответствует формату документа. Возможно, файл повреждён. Скачайте оригинал.');
+    return {data:await converter(data,extension,signal),mime:'application/pdf'};
+  }
   if(kind==='pdf'&&data.subarray(0,5).equals(Buffer.from('%PDF-')))return {data,mime:'application/pdf'};
   if(kind==='image') {
     const head=data.subarray(0,12);

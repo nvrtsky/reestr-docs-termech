@@ -1,0 +1,14 @@
+{
+  "status": "pass",
+  "checks": [
+    "docx: valid PDF, source unchanged, temporary files cleaned",
+    "xlsx: valid PDF, source unchanged, temporary files cleaned",
+    "pptx: valid PDF, source unchanged, temporary files cleaned",
+    "rtf: valid PDF, source unchanged, temporary files cleaned",
+    "damaged Office file is rejected and temporary files cleaned",
+    "cancelled conversion cleans up",
+    "concurrent conversion is bounded and next operation recovers",
+    "actual router: unauthenticated 401, denied 403 before download, allowed PDF bytes and no-store",
+    "actual router: unsupported format and upstream refusal produce useful errors"
+  ]
+}

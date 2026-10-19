@@ -50,7 +50,7 @@ test('text is served as text, supports UTF16 and bounds large files',async()=>{
  await assert.rejects(()=>preparePreview('huge.txt',Buffer.alloc(2*1024*1024+1),signal()),/2 МБ/);
 });
 test('Office conversion receives only a supported extension and returns PDF',async()=>{
- const result=await preparePreview('../../Договор.DOCX',Buffer.from('source'),signal(),async(data,ext)=>{assert.equal(ext,'.docx');assert.equal(data.toString(),'source');return pdf;});
+ const result=await preparePreview('../../Договор.DOCX',Buffer.from('PK\x03\x04source'),signal(),async(data,ext)=>{assert.equal(ext,'.docx');assert.equal(data.toString(),'PK\x03\x04source');return pdf;});
  assert.equal(result.mime,'application/pdf');assert.deepEqual(result.data,pdf);
  await assert.rejects(()=>convertOffice(Buffer.from('a'),'../../../file',signal()));
 });

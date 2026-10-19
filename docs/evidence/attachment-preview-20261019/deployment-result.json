@@ -1,0 +1,14 @@
+{
+  "status": "deployed",
+  "images": {
+    "backend": "sha256:20636fc55e2993465ad4a72a2e0441491a2ae6dbbacf055f52196a8877d7245f",
+    "frontend": "sha256:5e1752d0f88be4ee07c039f9b248ced212b2b1054c5918648f31bdc21b1e1949"
+  },
+  "health": {
+    "status": "ready"
+  },
+  "unrelatedContainersUnchanged": true,
+  "verifiedAt": "2026-10-19T11:17:50.130472+00:00",
+  "publishedHashesMatch": true,
+  "unauthenticatedPreviewStatus": 401
+}

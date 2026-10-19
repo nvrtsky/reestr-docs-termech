@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import {registryOnboardingPayload} from './registry-feedback-fixture.mjs';
 const require=createRequire(import.meta.url);
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE || '/Users/macbookpro15/Antigravity/AutoRentCRM/node_modules/playwright');
-const out='docs/evidence/attachment-preview-20261019';await fs.mkdir(out,{recursive:true});
+const base=process.env.PREVIEW_BASE_URL || 'http://127.0.0.1:4189';
+const published=Boolean(process.env.PREVIEW_BASE_URL);
+const out='docs/evidence/attachment-preview-20261019'+(published?'/published':'');await fs.mkdir(out,{recursive:true});
 const browser=await chromium.launch({channel:'chrome',headless:true});
 const page=await browser.newPage({viewport:{width:1366,height:768}});page.setDefaultTimeout(12000);
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -33,16 +35,17 @@ await page.route('**/api/v1/registry/**',async route=>{
  return route.fulfill({json:registryOnboardingPayload(route.request().url())});
 });
 await page.route('**/legacy/index.html*',async route=>{
- const html=(await fs.readFile('frontend/public/legacy/index.html','utf8')).replace('  componentDidMount() {','  componentDidMount() { window.__previewApp = this;');
+ const source=published?await (await route.fetch()).text():await fs.readFile('frontend/public/legacy/index.html','utf8');
+ const html=source.replace('  componentDidMount() {','  componentDidMount() { window.__previewApp = this;');
  await route.fulfill({contentType:'text/html',body:html});
 });
 await page.context().route('https://files.test/**',r=>r.fulfill({contentType:'text/html',body:'Synthetic original download'}));
-const report={checks:[],errors};
+const report={base,assets:published?'published':'local',api:'synthetic fixtures',checks:[],errors};
 const dialog=()=>page.getByRole('dialog',{name:/Договор|Предыдущая|Скан|Примечания|Документ/});
 const open=async()=>page.evaluate(()=>window.__previewApp.openAttachment('demo-client-101','current-file',false,{name:'Договор.pdf',kind:'file'}));
 const close=async()=>page.getByRole('button',{name:'Закрыть предпросмотр',exact:true}).click();
 try {
- await page.goto('http://127.0.0.1:4189/legacy/index.html');await page.waitForFunction(()=>window.__previewApp?.state.registryReady);
+ await page.goto(base+'/legacy/index.html');await page.waitForFunction(()=>window.__previewApp?.state.registryReady);
  await page.evaluate(()=>window.__previewApp.openDocument('demo-client-101'));
  await page.getByRole('button',{name:'Открыть',exact:true}).first().click();
  await page.locator('.registry-file-preview iframe').waitFor();
@@ -84,7 +87,7 @@ try {
  report.checks.push('390px viewport fits; Escape closes dialog');
  await page.setViewportSize({width:1366,height:650});
  await page.route('**/nested-preview.html',r=>r.fulfill({contentType:'text/html',body:'<iframe src="/legacy/index.html?nested=1" style="border:0;width:100%;height:560px"></iframe>'}));
- await page.goto('http://127.0.0.1:4189/nested-preview.html');const frame=page.frames().find(f=>f.url().includes('nested=1'))||await page.waitForEvent('framenavigated',{predicate:f=>f.url().includes('nested=1')});
+ await page.goto(base+'/nested-preview.html');const frame=page.frames().find(f=>f.url().includes('nested=1'))||await page.waitForEvent('framenavigated',{predicate:f=>f.url().includes('nested=1')});
  await frame.waitForFunction(()=>window.__previewApp?.state.registryReady);mode='text';await frame.evaluate(()=>window.__previewApp.openAttachment('demo-client-101','current-file',false,{name:'Документ',kind:'file'}));await frame.locator('.registry-file-preview pre').waitFor();
  const rect=await frame.locator('.registry-file-preview').evaluate(e=>({y:e.getBoundingClientRect().bottom,h:innerHeight}));assert.ok(rect.y<=rect.h+1);await page.screenshot({path:out+'/iframe.png'});
  report.checks.push('Preview fits and scrolls inside an iframe at laptop height');
