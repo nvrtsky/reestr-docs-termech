@@ -402,11 +402,11 @@ export class AttachmentsService {
     }
     const detailUrl = this.bitrixFileUrl(file.DETAIL_URL, bitrixContext.domain);
     const downloadUrl = this.bitrixFileUrl(file.DOWNLOAD_URL, bitrixContext.domain);
-    const url = detailUrl || downloadUrl;
+    const url = downloadUrl || detailUrl;
     if (!url) {
       throw new ApiError(502, 'bitrix_file_url_missing', 'Bitrix24 did not return a file URL.');
     }
-    return { kind: 'file' as const, url, downloadUrl };
+    return { kind: 'file' as const, url, downloadUrl, name: this.normalizeDisplayName(file.NAME), sizeBytes: Number(file.SIZE) || 0 };
   }
 
   private loadEditableDocument(context: RegistryContext, documentId: string) {

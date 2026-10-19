@@ -1,0 +1,15 @@
+{
+  "checks": [
+    "Current attachment opens an authenticated blob PDF inside the Registry, not DETAIL_URL",
+    "Historical attachment uses the same preview flow",
+    "Image renders; text remains inert and scrollable",
+    "403 is visible, never loads content; Retry recovers",
+    "Original download and popup-blocked fallback both use DOWNLOAD_URL",
+    "Unsupported formats offer download; closing and reopening ignores late responses",
+    "401 refresh retries preview once",
+    "390px viewport fits; Escape closes dialog",
+    "Preview fits and scrolls inside an iframe at laptop height"
+  ],
+  "errors": [],
+  "status": "pass"
+}
