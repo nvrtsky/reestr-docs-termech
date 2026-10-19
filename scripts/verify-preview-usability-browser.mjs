@@ -6,7 +6,7 @@ const require=createRequire(import.meta.url);
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE || '/Users/macbookpro15/Antigravity/AutoRentCRM/node_modules/playwright');
 const base=process.env.PREVIEW_BASE_URL || 'http://127.0.0.1:4191';
 const published=Boolean(process.env.PREVIEW_BASE_URL);
-const out='docs/evidence/preview-usability-20261019'+(published?'/published':'');await fs.mkdir(out,{recursive:true});
+const out='docs/evidence/preview-height-20261019'+(published?'/published':'');await fs.mkdir(out,{recursive:true});
 const browser=await chromium.launch({channel:'chrome',headless:true});
 const page=await browser.newPage({viewport:{width:1366,height:768}});page.setDefaultTimeout(12000);
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -78,7 +78,7 @@ try {
  await page.getByRole('button',{name:'Открыть',exact:true}).last().click();
  await page.locator('.registry-file-preview canvas[data-ready]').waitFor();
  assert.ok(parseInt(await page.locator('[data-zoom]').textContent())<=100);
- const previewBox=await dialog().boundingBox();assert.ok(previewBox.width<=900&&previewBox.height<=560);
+ const previewBox=await dialog().boundingBox();assert.ok(previewBox.width<=900&&previewBox.height>=700&&previewBox.height<=768);
  await page.waitForTimeout(700);await page.screenshot({path:out+'/pdf.png'});
  report.checks.push('Current PDF renders locally with a bounded dialog and initial zoom <=100%');
  await page.locator('.pdf-scroll').hover();await page.mouse.wheel(0,600);await page.waitForTimeout(200);assert.ok(await page.locator('.pdf-scroll').evaluate(e=>e.scrollTop>100));
@@ -119,14 +119,14 @@ try {
  await page.setViewportSize({width:1024,height:768});
  await page.route('**/nested-preview.html',r=>r.fulfill({contentType:'text/html',body:'<div style="height:240px">Synthetic CRM header</div><iframe src="/legacy/index.html?nested=1" style="border:0;width:100%;height:1600px"></iframe>'}));
  await page.goto(base+'/nested-preview.html');const frame=page.frames().find(f=>f.url().includes('nested=1'))||await page.waitForEvent('framenavigated',{predicate:f=>f.url().includes('nested=1')});
- await frame.waitForFunction(()=>window.__previewApp?.state.registryReady);mode='pdf';await frame.evaluate(()=>window.__previewApp.openAttachment('demo-client-101','current-file',false,{name:'Документ',kind:'file'}));await frame.locator('.registry-file-preview canvas[data-ready]').waitFor();
+ await frame.waitForFunction(()=>window.__previewApp?.state.registryReady);await frame.evaluate(()=>{window.__previewApp.placementContextType='deal';window.__previewApp.reportContentSize();});await frame.waitForFunction(()=>!!document.querySelector('.registry-shell').style.getPropertyValue('--registry-dialog-height'));mode='pdf';await frame.evaluate(()=>window.__previewApp.openAttachment('demo-client-101','current-file',false,{name:'Документ',kind:'file'}));await frame.locator('.registry-file-preview canvas[data-ready]').waitFor();
  await frame.locator('.pdf-scroll').hover();await page.mouse.wheel(0,500);await page.waitForTimeout(300);assert.ok(await frame.locator('.pdf-scroll').evaluate(e=>e.scrollTop>100));
- const rect=await frame.locator('.registry-file-preview').evaluate(e=>({y:e.getBoundingClientRect().bottom,h:innerHeight}));assert.ok(rect.y<=rect.h+1);const outer=await frame.locator('.registry-file-preview').boundingBox();assert.ok(outer.y+outer.height<=768,'Dialog fits parent viewport');await page.screenshot({path:out+'/iframe.png'});
+ const rect=await frame.locator('.registry-file-preview').evaluate(e=>({y:e.getBoundingClientRect().bottom,h:innerHeight}));assert.ok(rect.y<=rect.h+1);const outer=await frame.locator('.registry-file-preview').boundingBox();assert.ok(outer.y+outer.height<=768,'Dialog fits parent viewport');assert.ok(outer.height>=460,'Viewer uses available iframe height');await page.screenshot({path:out+'/iframe.png'});
  report.checks.push('PDF wheel scroll works at 1024x768 inside a 1600px CRM iframe');
  await frame.getByRole('button',{name:'Закрыть предпросмотр'}).click();
  await frame.evaluate(()=>{window.__previewApp.placementContextType='deal';window.__previewApp.reportContentSize();});await page.evaluate(()=>window.scrollTo(0,700));await page.waitForTimeout(250);
  await frame.evaluate(()=>window.__previewApp.openAttachment('demo-client-101','current-file',false,{name:'Документ',kind:'file'}));await frame.locator('canvas[data-ready]').waitFor();
- const scrolled=await frame.locator('.registry-file-preview').boundingBox();assert.ok(scrolled.y>=0&&scrolled.y+scrolled.height<=768,'Dialog follows visible part of scrolled iframe');
+ const scrolled=await frame.locator('.registry-file-preview').boundingBox();assert.ok(scrolled.y>=0&&scrolled.y+scrolled.height<=768,'Dialog follows visible part of scrolled iframe');assert.ok(scrolled.height>=690,'Viewer grows with visible region');
  await frame.locator('.pdf-scroll').hover();await page.mouse.wheel(0,400);await page.waitForTimeout(200);assert.ok(await frame.locator('.pdf-scroll').evaluate(e=>e.scrollTop>50));await page.screenshot({path:out+'/iframe-scrolled.png'});
  report.checks.push('Preview stays inside the visible region after parent CRM scrolling');
 
