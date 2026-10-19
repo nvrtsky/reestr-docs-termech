@@ -1,0 +1,13 @@
+{
+  "checks": [
+    "positive field selections roundtrip existing hiddenFields without changing permissions",
+    "wheel scrolls modal body and dialog fits 1366x650 viewport",
+    "attachment access rejection is visible to user",
+    "download opens downloadUrl; blocked popup exposes a working explicit link",
+    "real supplier fields scroll in two nested frames at laptop height"
+  ],
+  "errors": [],
+  "baseUrl": "https://reestr.navrotsky.ru",
+  "mode": "deployed HTML/runtime; synthetic intercepted API, no CRM mutations",
+  "status": "pass"
+}
