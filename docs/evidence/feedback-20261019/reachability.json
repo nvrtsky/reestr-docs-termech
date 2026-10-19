@@ -1,0 +1,36 @@
+{
+  "time": "2026-10-19T08:08:30.602Z",
+  "host": "reestr.navrotsky.ru",
+  "dns": [
+    {
+      "type": "A",
+      "addresses": [
+        "79.174.77.28"
+      ]
+    },
+    {
+      "type": "AAAA",
+      "error": "ENODATA"
+    }
+  ],
+  "requests": [
+    {
+      "attempt": 1,
+      "status": 200,
+      "bytes": 418,
+      "elapsedMs": 361
+    },
+    {
+      "attempt": 2,
+      "status": 200,
+      "bytes": 418,
+      "elapsedMs": 26
+    },
+    {
+      "attempt": 3,
+      "status": 200,
+      "bytes": 418,
+      "elapsedMs": 8
+    }
+  ]
+}

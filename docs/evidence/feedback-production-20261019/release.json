@@ -1,0 +1,12 @@
+{
+  "deployedAtMoscow": "2026-10-19 11:25",
+  "image": "reestr-docs-marketplace-frontend:feedback-20261019",
+  "digest": "sha256:3cfeefeadb49912187ad9676dac71d6e5b17b370d2f4ef23d09aaf71a1eb0b1e",
+  "healthy": true,
+  "restarts": 0,
+  "backendRestarted": false,
+  "databaseRestarted": false,
+  "publicReadiness": "ready",
+  "authorizedPortalVerified": false,
+  "networkTimeoutCauseResolved": false
+}
