@@ -5,35 +5,23 @@ import { fileURLToPath } from 'node:url';
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptDirectory, '..');
 const sourceRoot = path.join(root, 'src', 'app');
-const fragmentRoot = path.join(sourceRoot, 'fragments');
 const assetRoot = path.join(sourceRoot, 'assets');
-const outputRoots = [
-  path.join(root, 'app'),
-  path.join(root, 'frontend', 'public', 'legacy'),
-];
-
-const fragmentNames = (await readdir(fragmentRoot))
-  .filter((name) => name.endsWith('.html') || name.endsWith('.js'))
-  .sort();
-
-if (fragmentNames.length !== 6) {
-  throw new Error(`Expected 6 app fragments, found ${fragmentNames.length}.`);
-}
-
-const fragments = await Promise.all(
-  fragmentNames.map((name) => readFile(path.join(fragmentRoot, name), 'utf8')),
-);
+const outputRoots = [path.join(root,'app'), path.join(root,'frontend','public','legacy')];
 const assetNames = await readdir(assetRoot);
+const { registryFeedbackOverlay } = await import('./registry-feedback-overlay.mjs');
+const html = registryFeedbackOverlay(await readFile(path.join(sourceRoot, 'production', 'legacy-baseline-20261019.html'), 'utf8'));
 
 for (const outputRoot of outputRoots) {
   await mkdir(outputRoot, { recursive: true });
-  await writeFile(path.join(outputRoot, 'index.html'), fragments.join(''), 'utf8');
+  await writeFile(path.join(outputRoot, 'index.html'), html, 'utf8');
 
   await Promise.all(
     assetNames.map((name) =>
-      copyFile(path.join(assetRoot, name), path.join(outputRoot, name)),
+      copyFile(path.join(assetRoot, name), path.join(outputRoot, /^[a-f0-9-]{36}$/.test(name) && name !== '8806a829-aaac-4231-912d-276bb4fddfa4' ? `${name}.woff2` : name)),
     ),
   );
 }
+
+for (const outputRoot of outputRoots) await copyFile(path.join(sourceRoot, 'production', 'runtime-20261019.js'), path.join(outputRoot, '8806a829-aaac-4231-912d-276bb4fddfa4.js'));
 
 console.log(`Working app assembled in ${outputRoots.join(' and ')}`);
