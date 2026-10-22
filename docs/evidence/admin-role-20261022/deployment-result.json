@@ -1,0 +1,11 @@
+{
+  "status": "deployed",
+  "images": {
+    "backend": "sha256:9aafbb6f2f926d9bd4313a3aafd9e94ba0e66134d68f918f33bd7c54be6c00f6",
+    "frontend": "sha256:e58d943ed671a29e02c216b4f1d43aaee152dd107f602973f25a7b822d2c9927"
+  },
+  "health": {
+    "status": "ready"
+  },
+  "unrelatedContainersUnchanged": true
+}
