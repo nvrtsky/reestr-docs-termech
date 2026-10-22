@@ -1,0 +1,87 @@
+{
+  "status": "passed",
+  "baseline": false,
+  "checks": [
+    {
+      "width": 1366,
+      "height": 768,
+      "scrolled": false,
+      "box": {
+        "x": 373,
+        "y": 176,
+        "width": 620,
+        "height": 576
+      },
+      "visibleTop": 160,
+      "visibleBottom": 768
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "scrolled": true,
+      "box": {
+        "x": 373,
+        "y": 16,
+        "width": 620,
+        "height": 736
+      },
+      "visibleTop": 0,
+      "visibleBottom": 768
+    },
+    {
+      "width": 1024,
+      "height": 600,
+      "scrolled": false,
+      "box": {
+        "x": 202,
+        "y": 176,
+        "width": 620,
+        "height": 408
+      },
+      "visibleTop": 160,
+      "visibleBottom": 600
+    },
+    {
+      "width": 1024,
+      "height": 600,
+      "scrolled": true,
+      "box": {
+        "x": 202,
+        "y": 16,
+        "width": 620,
+        "height": 568
+      },
+      "visibleTop": 0,
+      "visibleBottom": 600
+    },
+    {
+      "width": 390,
+      "height": 700,
+      "scrolled": false,
+      "box": {
+        "x": 32,
+        "y": 176,
+        "width": 326,
+        "height": 508
+      },
+      "visibleTop": 160,
+      "visibleBottom": 700
+    },
+    {
+      "width": 390,
+      "height": 700,
+      "scrolled": true,
+      "box": {
+        "x": 32,
+        "y": 16,
+        "width": 326,
+        "height": 668
+      },
+      "visibleTop": 0,
+      "visibleBottom": 700
+    },
+    "Standalone registry + resize: dialog and controls remain visible"
+  ],
+  "errors": [],
+  "api": "synthetic fixtures; real browser layout"
+}
