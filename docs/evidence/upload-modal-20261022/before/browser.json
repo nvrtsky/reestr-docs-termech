@@ -1,0 +1,86 @@
+{
+  "status": "passed",
+  "baseline": true,
+  "checks": [
+    {
+      "width": 1366,
+      "height": 768,
+      "scrolled": false,
+      "box": {
+        "x": 373,
+        "y": 297.1875,
+        "width": 620,
+        "height": 576
+      },
+      "visibleTop": 160,
+      "visibleBottom": 768
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "scrolled": true,
+      "box": {
+        "x": 373,
+        "y": 139.6875,
+        "width": 620,
+        "height": 731
+      },
+      "visibleTop": 0,
+      "visibleBottom": 768
+    },
+    {
+      "width": 1024,
+      "height": 600,
+      "scrolled": false,
+      "box": {
+        "x": 202,
+        "y": 137.1875,
+        "width": 620,
+        "height": 568
+      },
+      "visibleTop": 0,
+      "visibleBottom": 600
+    },
+    {
+      "width": 1024,
+      "height": 600,
+      "scrolled": true,
+      "box": {
+        "x": 202,
+        "y": 137.1875,
+        "width": 620,
+        "height": 568
+      },
+      "visibleTop": 0,
+      "visibleBottom": 600
+    },
+    {
+      "width": 390,
+      "height": 700,
+      "scrolled": false,
+      "box": {
+        "x": -22,
+        "y": 284.796875,
+        "width": 358,
+        "height": 508
+      },
+      "visibleTop": 160,
+      "visibleBottom": 700
+    },
+    {
+      "width": 390,
+      "height": 700,
+      "scrolled": true,
+      "box": {
+        "x": -22,
+        "y": 124.796875,
+        "width": 358,
+        "height": 668
+      },
+      "visibleTop": 0,
+      "visibleBottom": 700
+    }
+  ],
+  "errors": [],
+  "api": "synthetic fixtures; real browser layout"
+}
