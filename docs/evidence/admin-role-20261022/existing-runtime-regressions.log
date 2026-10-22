@@ -1,0 +1,21 @@
+▶ Configuration preview, concurrency, managers and field retirement
+  ✔ requires preview and confirmation and rolls preview back (281.478883ms)
+  ✔ allows one of two concurrent commits and records an atomic audit (110.761155ms)
+  ✔ lets a delegated settings manager create and edit types without granting document admin rights (239.064479ms)
+  ✔ rejects a revoked manager even with a previously verified context and preview (53.617128ms)
+  ✔ retires scalar and file values only for the edited type; previews do not delete data (719.39495ms)
+✔ Configuration preview, concurrency, managers and field retirement (1718.363826ms)
+▶ Bitrix role assignment precedence
+  ✔ keeps Bitrix administrator above manual and department mappings (52.319462ms)
+  ✔ keeps a manual assignment above the department role (37.003723ms)
+  ✔ uses the lowest-priority mapping when several departments match (28.235657ms)
+  ✔ denies a user without a manual or department assignment (28.062716ms)
+✔ Bitrix role assignment precedence (375.61953ms)
+ℹ tests 9
+ℹ suites 2
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2921.454214

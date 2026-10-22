@@ -9,6 +9,8 @@ export interface RegistryContext {
   userId: number;
   roleCode: string;
   source: 'development' | 'bitrix';
+  /** Verified portal privilege; independent of the assigned registry role. */
+  isBitrixAdmin?: boolean;
   bitrix?: {
     domain: string;
     accessToken: string;

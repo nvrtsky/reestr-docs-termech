@@ -12,7 +12,8 @@ const { registryFeedbackOverlay } = await import('./registry-feedback-overlay.mj
 const { registryPreviewOverlay } = await import('./registry-preview-overlay.mjs');
 const { registryUsabilityOverlay } = await import('./registry-usability-overlay.mjs');
 const { registryDrawerOverlay } = await import('./registry-drawer-overlay.mjs');
-const html = registryDrawerOverlay(registryUsabilityOverlay(registryPreviewOverlay(registryFeedbackOverlay(await readFile(path.join(sourceRoot, 'production', 'legacy-baseline-20261019.html'), 'utf8')))));
+const { registryAdminRoleOverlay } = await import('./registry-admin-role-overlay.mjs');
+const html = registryAdminRoleOverlay(registryDrawerOverlay(registryUsabilityOverlay(registryPreviewOverlay(registryFeedbackOverlay(await readFile(path.join(sourceRoot, 'production', 'legacy-baseline-20261019.html'), 'utf8'))))));
 
 for (const outputRoot of outputRoots) {
   await mkdir(outputRoot, { recursive: true });

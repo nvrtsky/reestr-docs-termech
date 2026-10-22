@@ -1,0 +1,11 @@
+✔ standard Administrator assignment is accepted; portal admins remain protected; invalid role rejected (149.216028ms)
+✔ same verified session observes promotion, demotion and revocation without gaining portal administrator status (2.316082ms)
+✔ custom role name or code does not grant settings access (0.438462ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3064.495876

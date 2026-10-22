@@ -1,0 +1,31 @@
+
+> termech-document-registry@0.1.0 build
+> npm run prototype:build && npm run app:build && npm run build -w backend && npm run build -w frontend
+
+
+> termech-document-registry@0.1.0 prototype:build
+> node scripts/build-standalone-prototype.mjs
+
+Standalone prototype assembled in /private/tmp/reestr-admin-role-20261022/index.html
+
+> termech-document-registry@0.1.0 app:build
+> node scripts/build-app.mjs
+
+Working app assembled in /private/tmp/reestr-admin-role-20261022/app and /private/tmp/reestr-admin-role-20261022/frontend/public/legacy
+
+> @termech/registry-backend@0.1.0 build
+> tsc -p tsconfig.json
+
+
+> @termech/registry-frontend@0.1.0 build
+> tsc -b && vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 213 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.42 kB │ gzip:   0.30 kB
+dist/assets/index-BgJ7Ym3y.css    0.55 kB │ gzip:   0.33 kB
+dist/assets/index-DuAC9UAA.js   385.16 kB │ gzip: 117.21 kB
+✓ built in 5.15s

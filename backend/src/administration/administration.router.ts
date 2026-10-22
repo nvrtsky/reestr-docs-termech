@@ -209,7 +209,7 @@ export function createAdministrationRouter({
         throw new ApiError(
           400,
           'custom_role_administration_denied',
-          'Administration access is reserved for Bitrix24 administrators.',
+          'Administration access is reserved for the standard Administrator role.',
         );
       }
       await assertRolePolicyReferences(database, context.portalUrl, input);
@@ -260,7 +260,7 @@ export function createAdministrationRouter({
         throw new ApiError(
           400,
           'custom_role_administration_denied',
-          'Administration access is reserved for Bitrix24 administrators.',
+          'Administration access is reserved for the standard Administrator role.',
         );
       }
       const references = await assertRolePolicyReferences(database, context.portalUrl, input);
@@ -450,7 +450,7 @@ export function createAdministrationRouter({
         loadKnownBitrixAdminIds(database, context.portalUrl),
       ]);
       const activeRoleCodes = new Set(
-        activePolicies.map((policy) => policy.roleCode).filter((roleCode) => roleCode !== 'admin'),
+        activePolicies.map((policy) => policy.roleCode),
       );
       const bitrixAdminIds = new Set(
         users

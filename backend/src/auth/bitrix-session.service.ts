@@ -43,7 +43,12 @@ export class BitrixSessionService implements BitrixSessionResolver {
       .update(`${domain}\0${accessToken}`)
       .digest('hex');
     const cached = this.cache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) return cached.context;
+    if (cached && cached.expiresAt > Date.now()) {
+      // Assignment changes must also affect sessions with an already verified token.
+      return cached.context.isBitrixAdmin
+        ? cached.context
+        : { ...cached.context, roleCode: await this.resolveUserRole(cached.context.portalUrl, cached.context.userId) };
+    }
 
     const pending = this.pending.get(cacheKey);
     if (pending) return pending;
@@ -106,6 +111,7 @@ export class BitrixSessionService implements BitrixSessionResolver {
       userId,
       roleCode,
       source: 'bitrix',
+      isBitrixAdmin: profile.ADMIN === true,
       bitrix: { domain, accessToken, memberId },
     };
     if (this.cache.size >= 500) {

@@ -45,7 +45,7 @@ export async function listBitrixUsers(
       name: `Пользователь #${context.userId}`,
       email: null,
       position: null,
-      isBitrixAdmin: context.roleCode === 'admin',
+      isBitrixAdmin: context.isBitrixAdmin === true,
     }];
   }
   const { domain, accessToken } = context.bitrix;
@@ -104,7 +104,7 @@ async function loadBitrixUsers(
         isBitrixAdmin: isEnabled(item.ADMIN)
           || isEnabled(item.IS_ADMIN)
           || isEnabled(item.IS_INTEGRATOR)
-          || (id === context.userId && context.roleCode === 'admin'),
+          || (id === context.userId && context.isBitrixAdmin === true),
       });
     }
     if (page.length < PAGE_SIZE) break;

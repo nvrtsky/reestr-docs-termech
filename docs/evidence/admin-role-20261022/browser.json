@@ -1,0 +1,10 @@
+{
+  "mode": "isolated browser, synthetic API/users, real built frontend",
+  "checks": [
+    "Standard admin selectable and saved for ordinary employee; portal admin remains fixed",
+    "Assigned application admin sees settings and remains an editable employee, not portal admin",
+    "Removing standard admin revokes settings; similarly named custom role stays restricted"
+  ],
+  "errors": [],
+  "status": "passed"
+}
