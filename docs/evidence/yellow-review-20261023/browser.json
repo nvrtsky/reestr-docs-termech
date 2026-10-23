@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "checks": [
+    "AC-2: money input formats on blur",
+    "AC-3: parent selected before creation",
+    "AC-2: search retains selection outside results",
+    "AC-4/7: company filters render together",
+    "AC-7: document type groups collapse and reopen",
+    "AC-4: section AND type filters change results",
+    "AC-10: top actions visible at 1024 and 390 pixels",
+    "AC-1: admin types filter by section",
+    "AC-1: field-type guide and built-in date explained",
+    "AC-6: custom field available in personal columns",
+    "AC-4: card creation and file upload timestamps visible separately from document date",
+    "AC-12: duplicate warning can cancel without any document creation request"
+  ],
+  "errors": []
+}
