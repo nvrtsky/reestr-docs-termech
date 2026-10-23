@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "checks": [
+    "section drafts survive switching",
+    "section finance/content tri-state controls",
+    "admin label editable but policy controls disabled",
+    "full field library searchable including built-ins",
+    "money zero grouping and old precision retained"
+  ],
+  "errors": []
+}
