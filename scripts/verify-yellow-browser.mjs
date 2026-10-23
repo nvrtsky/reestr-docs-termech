@@ -22,7 +22,7 @@ const checks=[];
 try {
  await page.goto('http://127.0.0.1:8894/legacy/index.html');await page.waitForFunction(()=>window.__app?.state.registryReady);
  assert.deepEqual(errors,[]);
- await page.getByRole('button',{name:'＋ Создать документ',exact:true}).click();
+ await page.getByRole('button',{name:'+ Добавить документ',exact:true}).click();
  await page.getByRole('button',{name:'Клиентские',exact:true}).click();await page.getByRole('button',{name:'Договор',exact:true}).click();await page.getByRole('button',{name:/Далее/}).click();
  const money=page.locator('[data-registry-upload-panel] label').filter({hasText:/^Сумма$/}).locator('input');
  await money.fill('1000000');await money.blur();assert.equal(await money.inputValue(),'1 000 000,00');checks.push('AC-2: money input formats on blur');

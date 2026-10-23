@@ -15,7 +15,12 @@ const { registryDrawerOverlay } = await import('./registry-drawer-overlay.mjs');
 const { registryAdminRoleOverlay } = await import('./registry-admin-role-overlay.mjs');
 const { registryUploadModalOverlay } = await import('./registry-upload-modal-overlay.mjs');
 const { registryYellowOverlay } = await import('./registry-yellow-overlay.mjs');
-const html = registryYellowOverlay(registryUploadModalOverlay(registryAdminRoleOverlay(registryDrawerOverlay(registryUsabilityOverlay(registryPreviewOverlay(registryFeedbackOverlay(await readFile(path.join(sourceRoot, 'production', 'legacy-baseline-20261019.html'), 'utf8'))))))));
+let html = registryYellowOverlay(registryUploadModalOverlay(registryAdminRoleOverlay(registryDrawerOverlay(registryUsabilityOverlay(registryPreviewOverlay(registryFeedbackOverlay(await readFile(path.join(sourceRoot, 'production', 'legacy-baseline-20261019.html'), 'utf8'))))))));
+
+// Keep the deployed baseline immutable; rename only the entry button and its help text.
+html = html.replaceAll('＋ Создать документ', '+ Добавить документ')
+  .replaceAll('Нажмите «Создать документ»', 'Нажмите «+ Добавить документ»')
+  .replaceAll('Кнопка «Создать документ» открывает', 'Кнопка «+ Добавить документ» открывает');
 
 for (const outputRoot of outputRoots) {
   await mkdir(outputRoot, { recursive: true });

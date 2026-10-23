@@ -54,7 +54,7 @@ try{
  }
  if(!baseline){
   await page.goto(base+'/legacy/index.html');await page.waitForFunction(()=>window.__modalApp?.state.registryReady);
-  await page.getByRole('button',{name:'＋ Создать документ',exact:true}).click();
+  await page.getByRole('button',{name:'+ Добавить документ',exact:true}).click();
   await page.getByRole('button',{name:'Клиентские',exact:true}).click();await page.getByRole('button',{name:'Договор',exact:true}).click();await page.getByRole('button',{name:/Далее/}).click();
   for(const size of [{width:1366,height:768},{width:1024,height:600}]){await page.setViewportSize(size);await page.waitForTimeout(150);const b=await page.locator('[data-registry-upload-panel]').boundingBox();assert(b.y>=0&&b.y+b.height<=size.height);}
   checks.push('Standalone registry + resize: dialog and controls remain visible');await page.screenshot({path:out+'/standalone.png'});
