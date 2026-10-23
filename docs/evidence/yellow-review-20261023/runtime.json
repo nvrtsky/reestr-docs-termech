@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "checks": [
+    "AC-3: parent relation created atomically with child using create + parent read permissions",
+    "AC-5: create-only manager may upload during initial creation",
+    "AC-5: saved card editing and file mutation denied for manager",
+    "CRM ACL: accessible deal + inaccessible company shows linked document; company-only and inaccessible deals hidden",
+    "CRM ACL: revoking the last deal removes card immediately",
+    "AC-3: cross-company and inaccessible parent rejected before child creation",
+    "AC-8: finalize without file succeeds when type allows deferred content",
+    "AC-8: administrator can restore mandatory content"
+  ]
+}

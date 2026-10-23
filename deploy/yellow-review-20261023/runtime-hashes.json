@@ -1,0 +1,8 @@
+{
+  "documents/documents.schemas.js": "4d8ab36295d978c80031da796ff2d9ff16c9ead3fe97b94d4b560da398928330",
+  "documents/documents.service.js": "642aa420b70dd70a1e86892beb52f79d2956168a3f09ac3ed7d33b622962e08c",
+  "attachments/attachments.service.js": "a81aa8253b34ec8b08b983089f1dbd3da0bfcfbbdf2a0e955497ff64a9b22cb8",
+  "documents/bitrix-deal-import.service.js": "911ef76c3441d470653c70cc20dac995f64d57ba8b4f51c8fceac9ac81f938a3",
+  "app.js": "664c5d70aea78d91010506b6b81b358ef69a76ebc5bcd6c643127b1e5e3e88a8",
+  "documents/documents.router.js": "1dfdebfc3a39d847edd786e4ede7ab5ccc852b7bc7296cf2943d725f959401e5"
+}

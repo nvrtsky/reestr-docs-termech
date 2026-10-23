@@ -5,7 +5,7 @@ import {registryOnboardingPayload} from './registry-feedback-fixture.mjs';
 const {chromium}=createRequire(import.meta.url)(process.env.PLAYWRIGHT_MODULE || '/Users/macbookpro15/Antigravity/AutoRentCRM/node_modules/playwright');
 const baseline=process.env.BASELINE==='1';
 const base=process.env.PREVIEW_BASE_URL||'http://127.0.0.1:4197';
-const out='docs/evidence/upload-modal-20261022/'+(baseline?'before':process.env.PREVIEW_BASE_URL?'published':'after');
+const out=process.env.OUTPUT_DIR||'docs/evidence/upload-modal-20261022/'+(baseline?'before':process.env.PREVIEW_BASE_URL?'published':'after');
 await fs.mkdir(out,{recursive:true});
 const browser=await chromium.launch({channel:'chrome',headless:true});
 const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));

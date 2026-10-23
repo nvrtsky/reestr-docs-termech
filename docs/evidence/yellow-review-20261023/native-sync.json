@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "checks": [
+    "CRM card then async ready DOCX/PDF are imported into same registry card",
+    "Repeated sync does not duplicate files or cards",
+    "403 is surfaced; retry replaces current files and retains previous versions",
+    "Background poll discovers CRM changes and persists its checkpoint",
+    "Background failure is visible and next tick retries without losing queue",
+    "Machine download URLs limited to portal/trusted redirects; credentials never persisted"
+  ],
+  "downloads": 8,
+  "uploads": 6
+}
