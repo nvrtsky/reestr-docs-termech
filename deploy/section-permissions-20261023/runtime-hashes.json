@@ -1,0 +1,11 @@
+{
+  "permissions/policy.service.js": "12b23c3325c6fc544dafec5cb5066c1bf3f38b65c2638d447e11ad39f5619408",
+  "documents/documents.service.js": "97e765e02f8a8e00782cfb11c867c7aad006408610f75ed2f23e79ab9b03095b",
+  "attachments/attachments.service.js": "1b25b99e189cc9513b34177c2ca293a3c0b1e391eaa566e63aed0d8357702a43",
+  "administration/administration.schemas.js": "89360c91e1184623009399fd90be5f196a570858a44354ef45b7d9178fb5fd21",
+  "administration/system-roles.js": "5277e9d719aac439ab06bc8c2929abae97da1967ed8adc3ea0a571b5f2522016",
+  "finance/deal-financial.service.js": "5f19c58c032e79e96a3a8fdb08c1dcfc22e84409a0ad763289abd1c56c01f41a",
+  "documents/documents-export.service.js": "04fa7c6c32b640ff94507c5981d427aba7e397a1a556237559527226cde6757b",
+  "catalogs/catalogs.router.js": "3556b8141146bc176a2b21d0f3f91c2a40ee1bf2dfe58fa267799ed4528f9d8d",
+  "administration/administration.router.js": "f00a7fe60791383b9e1d96114586dc3e0f2f48a9ee6f9ea9cb0b34a002ae0399"
+}

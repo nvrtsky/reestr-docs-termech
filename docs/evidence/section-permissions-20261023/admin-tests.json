@@ -1,0 +1,13 @@
+{
+  "checks": [
+    "section rules round-trip; role rename preserves employee assignments; admin name-only PATCH preserves protected rights",
+    "Combined UI endpoint assigns standard admin; existing session opens settings; portal-admin identity unchanged",
+    "Assigned admin can preview and commit settings through configurationMutation",
+    "Settings manager cannot grant or revoke admin but can preserve existing admin while editing other assignments",
+    "Department admin assignment and reassignment of portal admin remain rejected",
+    "Legacy assignment endpoint works; revocation invalidates cached session immediately",
+    "Preview confirmation, configuration version and audit remain active"
+  ],
+  "database": "isolated local PostgreSQL; exact production modules + checked overlay",
+  "status": "passed"
+}

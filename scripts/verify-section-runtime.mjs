@@ -1,0 +1,72 @@
+import assert from 'node:assert/strict';
+import {pathToFileURL} from 'node:url';
+import {and,eq} from 'drizzle-orm';
+const root=process.env.REGISTRY_RUNTIME_DIR;
+if(!root)throw new Error('REGISTRY_RUNTIME_DIR required');
+const mod=p=>import(pathToFileURL(root+'/'+p).href);
+const {createDatabase}=await mod('db/database.js'),{seedPortal}=await mod('db/portal-seed.js');
+const S=await mod('db/schema/index.js');
+const {createDocumentsService}=await mod('documents/documents.service.js');
+const {AttachmentsService}=await mod('attachments/attachments.service.js');
+const {documentListQuerySchema,createDocumentSchema}=await mod('documents/documents.schemas.js');
+const {DealFinancialService}=await mod('finance/deal-financial.service.js');
+const {DocumentsExportService}=await mod('documents/documents-export.service.js');
+const {default:ExcelJS}=await import('@excel.js/exceljs');
+const {sectionPolicy}=await mod('integrations/section-policy.js');
+const {isMoneyHidden,loadRegistryPolicy}=await mod('permissions/policy.service.js');
+const db=createDatabase({DATABASE_URL:'postgres://registry_test@127.0.0.1:55461/registry_role_test',NODE_ENV:'test'});
+const portal='https://section-acceptance.bitrix24.test';
+const admin={portalUrl:portal,userId:1,userName:'Synthetic admin',roleCode:'admin',roleSource:'development',departmentIds:[],source:'development'};
+const sales={...admin,userId:7,roleCode:'sales'};
+const bitrix={async call(_d,_t,m){if(m==='im.notify.system.add')return 1;throw new Error('Unexpected mock '+m);}};
+const docs=createDocumentsService({database:db.db,bitrix}),files=new AttachmentsService(db.db,bitrix);const checks=[];
+try{
+ await seedPortal(db.db,portal);
+ await db.db.delete(S.registryDocuments).where(eq(S.registryDocuments.portalUrl,portal));
+ const types=await db.db.select().from(S.registryDocumentTypes).where(eq(S.registryDocumentTypes.portalUrl,portal));
+ const sections=await db.db.select().from(S.registrySections).where(eq(S.registrySections.portalUrl,portal));
+ const type=types.find(t=>t.code==='client_contract');const supplier=sections.find(s=>s.code==='supplier');
+ await db.db.insert(S.registryDocumentTypeSections).values({portalUrl:portal,typeId:type.id,sectionId:supplier.id}).onConflictDoNothing();
+ await db.db.update(S.registryDocumentTypes).set({contentRequired:false,numberUniquenessEnabled:false}).where(eq(S.registryDocumentTypes.portalUrl,portal));
+ let permissions={create:true,editAny:true,editOwn:true,transitionAny:true,transitionOwn:true,softDelete:true,restore:true,export:true,administer:false,visibilityScope:'crm',closedDealAccess:'normal',byType:{client_contract:{view:true,create:true,edit:true,finance:true,content:true,export:true}},bySection:{client:{finance:true,hiddenFields:[]},supplier:{finance:false,content:false,hiddenFields:['contract_subject']}}};
+ await db.db.update(S.registryRolePolicies).set({roleName:'Product Manager',visibleSectionCodes:['client','supplier'],visibleTypeCodes:null,hiddenFields:[],hideMoney:true,permissions}).where(and(eq(S.registryRolePolicies.portalUrl,portal),eq(S.registryRolePolicies.roleCode,'sales')));
+ const input=sectionCode=>createDocumentSchema.parse({sectionCode,typeCode:type.code,number:'SAME',title:'Synthetic contract',documentDate:'2026-10-23',counterpartyId:14,counterpartyName:'Synthetic company',responsibleId:7,amount:sectionCode==='client'?'1234567.89':'987654.32',currency:'RUB',fields:{contract_subject:'PRIVATE-SUBJECT'},links:[{entityType:'deal',entityId:11,entityTitle:'Synthetic deal'}]});
+ const client=await docs.create(admin,input('client'));await docs.finalizeCreation(admin,client.id);
+ const vendor=await docs.create(admin,input('supplier'));await docs.finalizeCreation(admin,vendor.id);
+ const [attachment]=await db.db.insert(S.registryAttachments).values({portalUrl:portal,documentId:vendor.id,kind:'link',name:'PRIVATE-FILE',url:'https://example.com/PRIVATE-URL',version:1,isCurrent:true,isPrimary:true,createdBy:1}).returning();
+ await docs.update(admin,vendor.id,{amount:'987654.33',fields:{contract_subject:'PRIVATE-UPDATED'}});
+ const a=await docs.getById(sales,client.id),b=await docs.getById(sales,vendor.id);
+ assert.equal(a.amount,'1234567.89');assert.equal(b.amount,null);assert.equal(b.currency,null);assert.equal(b.attachments.length,0);assert.equal(b.contentVisible,false);
+ assert(!JSON.stringify(b).includes('PRIVATE'));assert(!JSON.stringify(b).includes('987654'));
+ checks.push('same type in two sections: finance, hidden custom fields, attachments and audit redacted');
+ const list=await docs.list(sales,documentListQuerySchema.parse({}));assert.equal(list.items.find(x=>x.id===vendor.id).amount,null);assert.equal(list.items.find(x=>x.id===client.id).amount,'1234567.89');assert(!JSON.stringify(list).includes('PRIVATE-UPDATED'));
+ await assert.rejects(docs.list(sales,documentListQuerySchema.parse({sections:'supplier',fieldFilters:JSON.stringify({contract_subject:'PRIVATE'})})),e=>e.status===403||e.name==='ZodError');
+ checks.push('list and dynamic-filter oracle protected');
+ await assert.rejects(files.initializeFileUpload(sales,vendor.id,{name:'x.pdf',sizeBytes:10,mimeType:'application/pdf'}),e=>e.status===403);
+ await assert.rejects(docs.update(sales,vendor.id,{amount:'1.00'}),e=>e.status===403);
+ await assert.rejects(docs.update(sales,vendor.id,{fields:{contract_subject:'x'}}),e=>e.status===403);
+ await assert.rejects(files.getAccess(sales,vendor.id,attachment.id),e=>e.status===403);
+ checks.push('hidden finance/custom-field writes, supplier upload, preview/download link rejected');
+ const exported=await new DocumentsExportService({database:db.db,documents:docs,bitrix}).create(sales,documentListQuerySchema.parse({}));
+ const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(exported.buffer);
+ const spreadsheet=JSON.stringify(workbook.worksheets.map(w=>w.getSheetValues()));assert(!spreadsheet.includes('987654'));assert(!spreadsheet.includes('PRIVATE'));assert(spreadsheet.includes('1234567.89'));checks.push('XLSX contains client amount only, no supplier values or file URLs');
+
+ const summary=await new DealFinancialService(db.db,bitrix,{async getRates(_p,_d,currencies){return new Map(currencies.map(c=>[c,{rubPerUnit:1,rubValue:1,nominal:1,rateDate:'2026-10-23'}]));}}).summarize(sales,11,'RUB',{sections:['client','supplier']});
+ assert.equal(summary.total,'1234567.89');assert.equal(summary.details.length,1);checks.push('totals exclude supplier finance');
+ const policy=await loadRegistryPolicy(db.db,sales);assert.equal(policy.roleName,'Product Manager');assert.equal(isMoneyHidden(sectionPolicy(policy,'client'),type.code),false);assert.equal(isMoneyHidden(sectionPolicy(policy,'supplier'),type.code),true);
+ delete permissions.bySection;await db.db.update(S.registryRolePolicies).set({permissions}).where(and(eq(S.registryRolePolicies.portalUrl,portal),eq(S.registryRolePolicies.roleCode,'sales')));
+ assert.equal((await docs.getById(sales,vendor.id)).amount,'987654.33');checks.push('missing section rules preserve legacy type overrides');
+ // Existing precision must survive an unrelated edit.
+ const [money]=await db.db.insert(S.registryFieldDefinitions).values({portalUrl:portal,key:'legacy_money',label:'Legacy money',dataType:'money'}).onConflictDoUpdate({target:[S.registryFieldDefinitions.portalUrl,S.registryFieldDefinitions.key],set:{isActive:true}}).returning();
+ await db.db.insert(S.registryTypeFields).values({portalUrl:portal,typeId:type.id,fieldDefinitionId:money.id}).onConflictDoNothing();
+ await db.db.insert(S.registryDocumentFieldValues).values({portalUrl:portal,documentId:client.id,fieldDefinitionId:money.id,value:'12.3456'});
+ await docs.update(admin,client.id,{comment:'preserve precision'});assert.equal(String((await docs.getById(admin,client.id)).fields.find(f=>f.key==='legacy_money').value),'12.3456');checks.push('legacy custom decimal precision preserved on unrelated edit');
+
+ // Strict number uniqueness is opt-in and survives simultaneous finalization.
+ await db.db.update(S.registryDocumentTypes).set({numberUniquenessEnabled:true}).where(eq(S.registryDocumentTypes.id,type.id));
+ const concurrent=await Promise.all([1,2].map(()=>docs.create(admin,{...input('client'),number:'CONCURRENT'})));
+ const outcomes=await Promise.allSettled(concurrent.map(d=>docs.finalizeCreation(admin,d.id)));
+ assert.equal(outcomes.filter(x=>x.status==='fulfilled').length,1);assert.equal(outcomes.filter(x=>x.status==='rejected'&&x.reason.code==='document_number_conflict').length,1);
+ checks.push('strict uniqueness: one of two concurrent finalizations succeeds, second gets conflict');
+ console.log(JSON.stringify({status:'passed',checks},null,2));
+}finally{await db.close();}

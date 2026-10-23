@@ -1,0 +1,70 @@
+import assert from 'node:assert/strict';
+import {once} from 'node:events';
+import fs from 'node:fs/promises';
+import {pathToFileURL} from 'node:url';
+import path from 'node:path';
+import express from 'express';
+import {eq,and} from 'drizzle-orm';
+const root=path.resolve(process.env.REGISTRY_RUNTIME_DIR||'docs/evidence/admin-role-20261022/runtime-test');
+const mod=rel=>import(pathToFileURL(path.join(root,rel)).href);
+const {createDatabase}=await mod('db/database.js');const {seedPortal}=await mod('db/portal-seed.js');
+const schema=await mod('db/schema/index.js');const {createAdministrationRouter}=await mod('administration/administration.router.js');
+const {BitrixSessionService}=await mod('auth/bitrix-session.service.js');
+const db=createDatabase({DATABASE_URL:process.env.TEST_DATABASE_URL||'postgres://registry_test@127.0.0.1:55461/registry_role_test',NODE_ENV:'test'});
+const portal='https://section-role-acceptance.bitrix24.test';
+await seedPortal(db.db,portal);
+await db.db.delete(schema.registryUserRoles).where(eq(schema.registryUserRoles.portalUrl,portal));
+await db.db.insert(schema.registryUserRoles).values({portalUrl:portal,userId:7,roleCode:'sales',assignedBy:1});
+await db.db.insert(schema.registrySettings).values({portalUrl:portal,key:'settings_manager_user_ids',value:{userIds:[8]}}).onConflictDoUpdate({target:[schema.registrySettings.portalUrl,schema.registrySettings.key],set:{value:{userIds:[8]}}});
+const bitrix={normalizeDomain:d=>d,async call(_domain,token,method){
+ const id=Number(token.split('-').at(-1));
+ if(method==='profile')return {ID:String(id),ADMIN:id===1};
+ if(method==='user.current')return {ID:String(id),ACTIVE:true,NAME:'Synthetic',UF_DEPARTMENT:[]};
+ if(method==='user.get')return [1,7,8,9].map(i=>({ID:i,NAME:'Synthetic '+i,ACTIVE:true,ADMIN:i===1}));
+ if(method==='department.get')return [{ID:10,NAME:'Test Department'}];
+ throw Error('Unexpected Bitrix method '+method);
+}};
+const sessions=new BitrixSessionService(db.db,bitrix);const app=express();app.use(express.json());
+app.use(async(req,_res,next)=>{try{req.registryContext=await sessions.resolve(new URL(portal).hostname,'synthetic-token-'+(req.header('x-actor')||1));next();}catch(e){next(e);}});
+app.use(createAdministrationRouter({database:db.db,bitrix,bitrixEventHandlerUrl:'',bitrixPlacementHandlerUrl:'',bitrixEventTokenConfigured:false,sessions}));
+app.use((e,_req,res,_next)=>res.status(e.status||500).json({code:e.code,message:e.message}));
+const server=app.listen(0,'127.0.0.1');await once(server,'listening');const origin='http://127.0.0.1:'+server.address().port;
+const report={checks:[],database:'isolated local PostgreSQL; exact production modules + checked overlay'};
+const request=async(p,actor=1,method='GET',body,headers={})=>{const res=await fetch(origin+p,{method,headers:{'content-type':'application/json','x-actor':String(actor),...headers},body:body?JSON.stringify(body):undefined});return {status:res.status,body:await res.json()};};
+const payload=(roles,departments=[])=>({userRoles:{items:roles.map(([userId,roleCode])=>({userId,roleCode}))},departmentRoles:{items:departments}});
+async function preview(p,body,actor=1){const version=await request('/configuration/version',actor);return request(p,actor,'PUT',body,{'x-registry-configuration-version':String(version.body.configurationVersion),'x-registry-preview':'true'});}
+async function save(p,body,actor=1){const plan=await preview(p,body,actor);assert.equal(plan.status,200,JSON.stringify(plan));const result=await request(p,actor,'PUT',body,{'x-registry-configuration-version':String(plan.body.configurationVersion),'x-registry-confirmed':'true','x-registry-preview-token':plan.body.previewToken});assert.equal(result.status,200,JSON.stringify(result));return result;}
+try{
+ const roles=(await request('/role-policies')).body.items;
+ const sales=roles.find(x=>x.roleCode==='sales');
+ const updated={...sales,roleName:'Product Manager',permissions:{...sales.permissions,bySection:{client:{finance:true},supplier:{finance:false,content:false}}}};
+ await save('/role-policies/sales',updated);
+ const read=(await request('/role-policies')).body.items.find(x=>x.roleCode==='sales');assert.equal(read.roleName,'Product Manager');assert.equal(read.permissions.bySection.supplier.content,false);
+ assert.equal((await db.db.select().from(schema.registryUserRoles).where(and(eq(schema.registryUserRoles.portalUrl,portal),eq(schema.registryUserRoles.userId,7))))[0].roleCode,'sales');
+ const adminRole=roles.find(x=>x.roleCode==='admin');assert.equal((await preview('/role-policies/admin',{...adminRole,hideMoney:true})).status,409);
+ const body={roleName:'Администратор реестра'},version=(await request('/configuration/version')).body.configurationVersion;
+ const plan=await request('/role-policies/admin/name',1,'PATCH',body,{'x-registry-configuration-version':String(version),'x-registry-preview':'true'});assert.equal(plan.status,200,JSON.stringify(plan));
+ const renamed=await request('/role-policies/admin/name',1,'PATCH',body,{'x-registry-configuration-version':String(plan.body.configurationVersion),'x-registry-confirmed':'true','x-registry-preview-token':plan.body.previewToken});assert.equal(renamed.status,200,JSON.stringify(renamed));
+ const after=(await request('/role-policies')).body.items.find(x=>x.roleCode==='admin');assert.equal(after.roleName,body.roleName);assert.deepEqual(after.permissions,adminRole.permissions);
+ report.checks.push('section rules round-trip; role rename preserves employee assignments; admin name-only PATCH preserves protected rights');
+ assert.equal((await request('/settings',7)).status,403);
+ await save('/access-assignments',payload([[7,'admin']]));
+ assert.equal((await request('/settings',7)).status,200);
+ const users=await request('/user-roles',7);assert.equal(users.body.users.find(u=>u.id===7).isBitrixAdmin,false);assert.equal(users.body.users.find(u=>u.id===1).isBitrixAdmin,true);
+ report.checks.push('Combined UI endpoint assigns standard admin; existing session opens settings; portal-admin identity unchanged');
+ await save('/access-assignments',payload([[7,'admin'],[9,'sales']]),7);
+ report.checks.push('Assigned admin can preview and commit settings through configurationMutation');
+ assert.equal((await preview('/access-assignments',payload([[7,'admin'],[8,'admin']]),8)).status,403);
+ assert.equal((await preview('/access-assignments',payload([]),8)).status,403);
+ await save('/access-assignments',payload([[7,'admin'],[9,'sales']]),8);
+ report.checks.push('Settings manager cannot grant or revoke admin but can preserve existing admin while editing other assignments');
+ assert.equal((await preview('/access-assignments',payload([[7,'admin']],[{departmentId:10,roleCode:'admin',priority:100}]))).status,400);
+ assert.equal((await preview('/access-assignments',payload([[1,'sales']]))).status,400);
+ report.checks.push('Department admin assignment and reassignment of portal admin remain rejected');
+ await save('/user-roles',{items:[{userId:7,roleCode:'sales',assignedBy:1}]});
+ assert.equal((await request('/settings',7)).status,403);
+ report.checks.push('Legacy assignment endpoint works; revocation invalidates cached session immediately');
+ const audits=await db.db.select().from(schema.registrySettingsAudit).where(eq(schema.registrySettingsAudit.portalUrl,portal));assert(audits.length>=4);
+ report.checks.push('Preview confirmation, configuration version and audit remain active');report.status='passed';
+}catch(e){report.status='failed';report.error=e.message;process.exitCode=1;}
+finally{server.closeAllConnections();await new Promise(r=>server.close(r));await db.close();await fs.writeFile('docs/evidence/section-permissions-20261023/admin-tests.json',JSON.stringify(report,null,2));console.log(report);}

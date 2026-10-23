@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "checks": [
+    "same type in two sections: finance, hidden custom fields, attachments and audit redacted",
+    "list and dynamic-filter oracle protected",
+    "hidden finance/custom-field writes, supplier upload, preview/download link rejected",
+    "XLSX contains client amount only, no supplier values or file URLs",
+    "totals exclude supplier finance",
+    "missing section rules preserve legacy type overrides",
+    "legacy custom decimal precision preserved on unrelated edit",
+    "strict uniqueness: one of two concurrent finalizations succeeds, second gets conflict"
+  ]
+}

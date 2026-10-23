@@ -21,6 +21,12 @@ export interface TypePermissions {
   finance: boolean;
 }
 
+export interface SectionPermissions {
+  finance?: boolean;
+  content?: boolean;
+  hiddenFields?: string[];
+}
+
 export interface RolePermissions {
   create: boolean;
   editOwn: boolean;
@@ -32,6 +38,7 @@ export interface RolePermissions {
   export: boolean;
   administer: boolean;
   byType?: Record<string, TypePermissions>;
+  bySection?: Record<string, SectionPermissions>;
 }
 
 export const registryRolePolicies = pgTable(

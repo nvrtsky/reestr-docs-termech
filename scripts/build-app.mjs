@@ -17,6 +17,9 @@ const { registryUploadModalOverlay } = await import('./registry-upload-modal-ove
 const { registryYellowOverlay } = await import('./registry-yellow-overlay.mjs');
 let html = registryYellowOverlay(registryUploadModalOverlay(registryAdminRoleOverlay(registryDrawerOverlay(registryUsabilityOverlay(registryPreviewOverlay(registryFeedbackOverlay(await readFile(path.join(sourceRoot, 'production', 'legacy-baseline-20261019.html'), 'utf8'))))))));
 
+const { registrySectionOverlay } = await import('./registry-section-overlay.mjs');
+html = registrySectionOverlay(html);
+
 // Keep the deployed baseline immutable; rename only the entry button and its help text.
 html = html.replaceAll('＋ Создать документ', '+ Добавить документ')
   .replaceAll('Нажмите «Создать документ»', 'Нажмите «+ Добавить документ»')
