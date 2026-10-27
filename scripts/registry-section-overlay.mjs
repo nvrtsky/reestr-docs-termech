@@ -36,14 +36,72 @@ export function registrySectionOverlay(source){
       resetSectionRule:()=>{const bySection={...roleEdit.permissions.bySection};delete bySection[permissionSection];this.setState({roleEdit:{...roleEdit,permissions:{...roleEdit.permissions,bySection}}});},`);
  replace('  renderVals() {',`  changeSectionRule(patch){const role=this.state.roleEdit;const section=this.state.permissionSection;if(!section)return;const bySection={...role.permissions.bySection};bySection[section]={...bySection[section],...patch};this.setState({roleEdit:{...role,permissions:{...role.permissions,bySection}}});}
   renderVals() {`);
- // Full field library: built-ins are informational because they already exist in every card.
- replace('    const libraryChips = (S.adminFieldLibrary || []).map(field => ({',`    const libraryChips = (S.adminFieldLibrary || []).filter(field=>[field.name,field.key].join(' ').toLowerCase().includes((S.librarySearch||'').toLowerCase())).map(field => ({`);
- replace('      name: field.name,\n      onAdd:',`      name: field.name+' · '+(dataTypeByCode[field.dataType]||field.dataType)+' · '+(S.adminTypes||[]).filter(t=>(t.fields||[]).some(f=>f.key===field.key)).flatMap(t=>t.sectionNames||[t.sectionName]).filter((s,i,a)=>s&&a.indexOf(s)===i).join(', '),
-      onAdd:`);
- replace('<sc-for list="{{ libraryChips }}"',`<input aria-label="Поиск в библиотеке полей" placeholder="Название или код поля" value="{{ librarySearch }}" oninput="{{ setLibrarySearch }}" style="width:100%;padding:8px;margin-bottom:8px;"><div style="font-size:11px;color:#71717a;margin-bottom:8px;">Встроенные реквизиты уже есть в карточке; повторно добавлять их не нужно.</div><sc-for list="{{ builtinFields }}" as="b"><span style="display:inline-block;padding:5px;border:1px solid #ddd;margin:3px;">{{ b.label }}</span></sc-for><sc-for list="{{ libraryChips }}"`);
+ // One searchable catalogue; built-ins already exist and cannot be added again.
+ const libraryStart=html.indexOf('    const libraryChips =');
+ const libraryEnd=html.indexOf('    const sectionEdit =',libraryStart);
+ assert(libraryStart>0&&libraryEnd>libraryStart);
+ html=html.slice(0,libraryStart)+`    const builtinLibrary = [
+      ['number','Номер','Текст'],['title','Название','Текст'],['documentDate','Дата документа','Дата'],
+      ['amount','Сумма','Сумма'],['currency','Валюта','Список'],['counterparty','Контрагент','Компания'],
+      ['legalEntity','Юридическое лицо','Компания'],['responsible','Ответственный','Сотрудник'],
+      ['status','Статус','Список'],['comment','Комментарий','Текст'],['createdAt','Создано','Дата и время'],
+      ['updatedAt','Обновлено','Дата и время'],['attachments','Файлы и ссылки','Файл']
+    ].map(([key,name,dataType])=>({key,name,dataType,sections:'Все разделы',disabled:true,action:'Уже в карточке',onAdd:()=>{}}));
+    const libraryByKey=new Map(builtinLibrary.map(field=>[field.key,field]));
+    for(const field of S.adminFieldLibrary||[]){
+      if(libraryByKey.has(field.key))continue;
+      const added=nt.fields.some(item=>item.key===field.key);
+      const sections=[...new Set((S.adminTypes||[])
+        .filter(type=>(type.fields||[]).some(item=>item.key===field.key))
+        .flatMap(type=>this.typeSectionCodes(type))
+        .map(code=>(S.adminSections||[]).find(section=>section.code===code)?.name||code))].join(', ')||'Пока не используется';
+      libraryByKey.set(field.key,{key:field.key,name:field.name,dataType:dataTypeByCode[field.dataType]||field.dataType,sections,
+        disabled:added,action:added?'Добавлено':'+ Добавить',
+        onAdd:()=>{if(!this.state.newType.fields.some(item=>item.key===field.key))this.ntAddField(field.name,dataTypeByCode[field.dataType]||'Текст',field.key,Array.isArray(field.options)?field.options:[]);}
+      });
+    }
+    const libraryQuery=(S.librarySearch||'').trim().toLocaleLowerCase('ru');
+    const libraryChips=[...libraryByKey.values()].filter(field=>[field.name,field.key,field.dataType,field.sections].join(' ').toLocaleLowerCase('ru').includes(libraryQuery));
+`+html.slice(libraryEnd);
+ const libraryViewStart=html.indexOf('        <div style="margin-top: 14px; padding: 12px 14px; background: #fafafa;');
+ const libraryViewEnd=html.indexOf('        <sc-if value="{{ adminEditHasError }}"',libraryViewStart);
+ assert(libraryViewStart>0&&libraryViewEnd>libraryViewStart);
+ html=html.slice(0,libraryViewStart)+`
+        <section class="field-library" aria-label="Библиотека полей">
+          <div class="field-library-title">Библиотека полей</div>
+          <p class="field-library-help">Встроенные реквизиты уже есть в карточке. Дополнительные поля можно добавить из библиотеки.</p>
+          <input class="field-library-search" aria-label="Поиск в библиотеке полей" placeholder="Название, код, тип поля или раздел" value="{{ librarySearch }}" oninput="{{ setLibrarySearch }}">
+          <div class="field-library-list" role="list" aria-label="Поля библиотеки">
+            <sc-for list="{{ libraryChips }}" as="lc" hint-placeholder-count="6">
+              <div class="field-library-row" role="listitem" data-field-key="{{ lc.key }}">
+                <div class="field-library-name">{{ lc.name }}<span class="field-library-code">{{ lc.key }}</span></div>
+                <div class="field-library-type">{{ lc.dataType }}</div>
+                <div class="field-library-sections">{{ lc.sections }}</div>
+                <button type="button" class="field-library-action" onclick="{{ lc.onAdd }}" disabled="{{ lc.disabled }}">{{ lc.action }}</button>
+              </div>
+            </sc-for>
+            <sc-if value="{{ libraryEmpty }}"><p class="field-library-empty" role="status">Поля не найдены. Измените поисковый запрос.</p></sc-if>
+          </div>
+        </section>
+`+html.slice(libraryViewEnd);
  replace('      newTypeFields, libraryChips, dataTypes,',`      newTypeFields, libraryChips, dataTypes,
-      librarySearch:S.librarySearch||'',setLibrarySearch:e=>this.setState({librarySearch:e.target.value}),
-      builtinFields:[['number','Номер','Текст'],['title','Название','Текст'],['documentDate','Дата документа','Дата'],['amount','Сумма','Сумма'],['currency','Валюта','Список'],['counterparty','Контрагент','Компания'],['legalEntity','Юридическое лицо','Компания'],['responsible','Ответственный','Сотрудник'],['status','Статус','Список'],['comment','Комментарий','Текст'],['createdAt','Создано','Дата и время'],['updatedAt','Обновлено','Дата и время'],['attachments','Файлы и ссылки','Файл']].filter(x=>x.join(' ').toLowerCase().includes((S.librarySearch||'').toLowerCase())).map(x=>({label:x[1]+' · '+x[2]+' · Все разделы'})),`);
+      libraryEmpty:libraryChips.length===0,
+      librarySearch:S.librarySearch||'',setLibrarySearch:e=>this.setState({librarySearch:e.target.value}),`);
+ html=html.replace('</head>',`<style>
+ .field-library{margin-top:14px;padding:14px;background:#fafafa;border:1px solid #e4e4e7;border-radius:9px;}
+ .field-library-title{font-size:13px;font-weight:600;color:#18181b;}
+ .field-library-help{font-size:11.5px;line-height:1.5;color:#71717a;margin:6px 0 10px;}
+ .field-library-search{display:block;width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #d4d4d8;border-radius:7px;background:#fff;font:inherit;font-size:12px;margin-bottom:10px;}
+ .field-library-search:focus-visible,.field-library-action:focus-visible{outline:2px solid #6366f1;outline-offset:2px;}
+ .field-library-list{max-height:300px;overflow:auto;overscroll-behavior:contain;}
+ .field-library-row{display:grid;grid-template-columns:minmax(130px,1.5fr) 75px minmax(90px,1fr) 110px;align-items:center;gap:10px;background:#fff;border:1px solid #e4e4e7;border-radius:7px;padding:10px;margin-bottom:6px;font-size:11.5px;color:#3f3f46;}
+ .field-library-name{font-weight:500;overflow-wrap:anywhere;}.field-library-code{display:block;margin-top:3px;font-size:10px;color:#71717a;font-weight:400;}
+ .field-library-sections{color:#71717a;overflow-wrap:anywhere;}
+ .field-library-action{border:1px solid #c7d2fe;border-radius:6px;padding:6px 8px;background:#eef2ff;color:#4338ca;font:inherit;cursor:pointer;white-space:normal;}
+ .field-library-action:disabled{border-color:#e4e4e7;background:#f4f4f5;color:#71717a;cursor:default;}
+ .field-library-empty{padding:12px;color:#71717a;font-size:12px;}
+ @media(max-width:600px){.field-library-row{grid-template-columns:minmax(0,1fr) 110px;}.field-library-name{grid-column:1;grid-row:1;}.field-library-type{grid-column:1;grid-row:2;}.field-library-sections{grid-column:1;grid-row:3;}.field-library-action{grid-column:2;grid-row:1/4;}}
+ </style></head>`);
  html=html.replaceAll('Уникальность тип + компания:', 'Уникальный номер в пределах типа и компании:');
  replace('Уникальный номер в пределах типа и компании: {{ ntNumberUniqueLabel }}</button>', 'Уникальный номер в пределах типа и компании: {{ ntNumberUniqueLabel }}</button><p style="font-size:11px;color:#71717a;">При включении нельзя создать второй документ с тем же номером, типом и компанией. Разные номера разрешены. Настройка не сравнивает файлы и не удаляет существующие документы.</p>');
  // Decimal strings retain precision; never use floating point for existing values.

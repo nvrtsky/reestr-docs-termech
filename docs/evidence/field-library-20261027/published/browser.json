@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "url": "https://reestr.navrotsky.ru",
+  "mode": "Synthetic API; no real document or settings writes",
+  "checks": [
+    "all 13 built-ins and 3 custom definitions share the same row layout",
+    "one search by name, code, type and section; trimmed and case-insensitive",
+    "built-ins and duplicate definitions never become addable twice",
+    "custom definitions retain keys, types and options",
+    "added state blocks repeated insertion",
+    "empty results explained",
+    "600px layout has no horizontal overflow",
+    "no browser errors or write requests"
+  ],
+  "errors": []
+}
