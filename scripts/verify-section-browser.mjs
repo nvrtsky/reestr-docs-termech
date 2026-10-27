@@ -24,7 +24,7 @@ try{
  await page.evaluate(()=>{const a=window.__app;a.openRoleEditor(a.state.adminPolicies.find(p=>p.roleCode==='admin'));});
  assert.equal(await page.getByLabel('Название роли',{exact:true}).isEnabled(),true);assert.equal(await page.getByRole('button',{name:/Активна:/}).isDisabled(),true);await page.screenshot({path:out+'/admin-name-only.png'});
  await page.evaluate(()=>{const a=window.__app;a.setState({roleModalOpen:false,adminTab:'types'});});await page.getByRole('button',{name:'＋ Тип',exact:true}).click();
- await page.getByRole('textbox',{name:'Поиск в библиотеке полей'}).fill('сумма');assert(await page.getByText('Сумма · Сумма · Все разделы',{exact:true}).isVisible());await page.screenshot({path:out+'/field-library.png'});
+ await page.getByRole('textbox',{name:'Поиск в библиотеке полей'}).fill('сумма');assert(await page.locator('.field-library-row[data-field-key="amount"]').isVisible());await page.screenshot({path:out+'/field-library.png'});
  await page.evaluate(()=>{const a=window.__app;a.closeTypeModal?.();a.setState({newTypeOpen:false,typeModalOpen:false});});
  const writesBefore=writes.length;
  page.once('dialog',dialog=>dialog.dismiss());
